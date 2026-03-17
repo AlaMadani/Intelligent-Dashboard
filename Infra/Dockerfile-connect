@@ -1,0 +1,21 @@
+# --- ÉTAPE 1 : BUILDER (Compilation du Fat JAR officiel) ---
+FROM maven:3.9-eclipse-temurin-11 AS builder
+WORKDIR /build
+
+# 1. On clone le dépôt officiel comme indiqué dans la doc Microsoft
+RUN git clone https://github.com/microsoft/kafka-connect-cosmosdb.git .
+
+# 2. On package le code source pour générer le fameux "*dependencies.jar"
+# (On saute les tests pour que ça aille beaucoup plus vite)
+RUN mvn clean package -DskipTests
+
+# --- ÉTAPE 2 : IMAGE FINALE (Déploiement) ---
+FROM confluentinc/cp-kafka-connect-base:latest
+
+USER root
+RUN mkdir -p /usr/share/java/kafka-connect-cosmosdb
+
+# 3. On copie l'unique gros fichier JAR généré à l'étape précédente
+COPY --from=builder /build/target/*dependencies.jar /usr/share/java/kafka-connect-cosmosdb/
+
+USER appuser

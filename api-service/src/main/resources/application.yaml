@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: api-service
+  datasource:
+    url: jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=false
+    username: app_user
+    password: securePass123!
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  jpa:
+    hibernate:
+      ddl-auto: none # ou 'none' si tu as deja tes tables
+    show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  ai:
+    google:
+      genai:
+        api-key: AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw # Remplace par la cle AIzaSy...
+        chat:
+          options:
+            model: gemini-2.5-flash # Modele super rapide et genereux en gratuit
+
+server:
+  port: 8081 # Le port de ton api-service
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*" # On ouvre tout comme dans ton ancien projet pour être tranquille
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name} # Lie automatiquement le tag au nom de l'app
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true # LA MAGIE EST ICI : Active les données pour les graphiques HTTP

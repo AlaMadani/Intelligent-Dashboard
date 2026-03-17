@@ -1,0 +1,49 @@
+# docker-compose.yml
+version: '3.8'
+
+networks:
+  devops-net:
+    name: devops-net
+    driver: bridge
+
+services:
+  # 1. Le Serveur GitLab (Interface Web et Dépôt Git)
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab-server
+    restart: always
+    hostname: 'gitlab'
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        # URL accessible depuis votre navigateur Windows sans droits admin
+        external_url 'http://localhost'
+        # On décale le port SSH pour ne pas bloquer celui de votre Windows/Linux
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        # OPTIMISATIONS RAM : Désactivation des outils de monitoring intégrés
+        prometheus['enable'] = false
+        alertmanager['enable'] = false
+        sidekiq['max_concurrency'] = 10
+    ports:
+      - '80:80'
+      - '443:443'
+      - '2222:22'
+    volumes:
+      - './gitlab-config:/etc/gitlab'
+      - './gitlab-logs:/var/log/gitlab'
+      - './gitlab-data:/var/opt/gitlab'
+    networks:
+      - devops-net
+
+  # 2. Le GitLab Runner (L'ouvrier qui exécute les pipelines)
+  gitlab-runner:
+    image: gitlab/gitlab-runner:latest
+    container_name: gitlab-runner
+    restart: always
+    depends_on:
+      - gitlab
+    volumes:
+      - './runner-config:/etc/gitlab-runner'
+      # CRUCIAL : Permet au runner de créer des sous-conteneurs Docker pour faire les builds
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    networks:
+      - devops-net

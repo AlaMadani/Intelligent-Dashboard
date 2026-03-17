@@ -1,0 +1,21 @@
+[
+    "has_object_id",
+    "has_content",
+    "time_delta",
+    "action_status_CREATE_FAILED",
+    "action_status_CREATE_SUCCESS",
+    "action_status_DELETE_FAILED",
+    "action_status_DELETE_SUCCESS",
+    "action_status_EDIT_FAILED",
+    "action_status_EDIT_SUCCESS",
+    "action_status_READ_FAILED",
+    "action_status_READ_SUCCESS",
+    "http_code_200",
+    "http_code_400",
+    "http_code_403",
+    "http_code_404",
+    "http_code_409",
+    "http_code_500",
+    "http_code_OTHER",
+    "http_code_UNKNOWN"
+]

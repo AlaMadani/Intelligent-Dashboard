@@ -1,0 +1,44 @@
+﻿spring:
+  application:
+    name: Data Processor
+  datasource:
+    # URL avec les parametres de securite pour SQL Server 2022
+    url: jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true;
+    username: app_user # Remplacez par votre utilisateur SQL
+    password: securePass123! # Remplacez par votre mot de passe
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  jpa:
+    hibernate:
+      ddl-auto: update # Cree/met a jour les tables automatiquement
+    show-sql: true # Pratique pour le debug
+
+  # Configuration Kafka
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: data-processor-group
+      auto-offset-reset: earliest
+
+  # Configuration Redis
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*" # On ouvre tout comme dans ton ancien projet pour être tranquille
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name} # Lie automatiquement le tag au nom de l'app
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true # LA MAGIE EST ICI : Active les données pour les graphiques HTTP

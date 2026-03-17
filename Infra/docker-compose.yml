@@ -1,0 +1,71 @@
+version: '3.8'
+services:
+  # 1. Apache Kafka (Mode KRaft - Sans Zookeeper)
+  kafka:
+    image: confluentinc/cp-kafka:7.7.7
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # Identité du noeud
+      KAFKA_NODE_ID: 1
+      # Rôle : fait office de broker (stockage) et controller (gestion metadata)
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      # Configuration du Quorum (Vote) - Ici on est seul
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      
+      # Configuration des ports et protocoles
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      # CONTROLLER: Port interne pour la gestion KRaft (29093)
+      # PLAINTEXT: Port interne pour les microservices dans Docker (29092)
+      # PLAINTEXT_HOST: Port externe pour votre Spring Boot sur Windows (9092)
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      
+      # Optimisations pour environnement de dev (1 seul noeud)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      
+      # ID du Cluster (Obligatoire pour KRaft via Docker Confluent)
+      # C'est un UUID aléatoire encodé en Base64
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+
+  # 2. Redis (Cache)
+  redis:
+    image: redis:8.2.4-alpine3.22
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  # 3. Kafka Connect (Pour l'ingestion Cosmos DB)
+  kafka-connect:
+    build: 
+      context: .
+      dockerfile: Dockerfile-connect
+    container_name: kafka-connect
+    depends_on:
+      - kafka
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'kafka:29092' # Se connecte à votre Kafka KRaft
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: compose-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: docker-connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: docker-connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"

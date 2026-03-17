@@ -1,0 +1,8 @@
+# Exclure les sockets et fichiers système
+*.socket
+gitaly.socket
+
+# Exclure les données de runtime de GitLab/Docker (fortement recommandé)
+pfe-devops/gitlab-data/
+pfe-devops/gitlab-config/
+pfe-devops/gitlab-logs/
