@@ -21,22 +21,20 @@ import java.util.Optional;
 @Slf4j
 public class InvestigationService {
 
-    // On utilise StringRedisTemplate car tes valeurs dans Redis sont des Strings (JSON)
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final SecurityAlertSequenceRepository sequenceRepository;
 
+    /* Resolve user history from Redis, with SQL fallback and cache refill. */
     public List<AuditTrailEvent> getUserHistory(Integer userKey) {
         String key = "history:user:" + userKey;
         List<AuditTrailEvent> history = new ArrayList<>();
 
+        /* First attempt: Redis list of serialized AuditTrailEvent JSON. */
         try {
-            // Equivalent de: LRANGE history:user:10034 0 -1
             List<String> jsonEvents = redisTemplate.opsForList().range(key, 0, -1);
-
             if (jsonEvents != null && !jsonEvents.isEmpty()) {
                 for (String json : jsonEvents) {
-                    // Deserialiser chaque ligne JSON en objet AuditTrailEvent
                     AuditTrailEvent event = objectMapper.readValue(json, AuditTrailEvent.class);
                     history.add(event);
                 }
@@ -46,6 +44,7 @@ public class InvestigationService {
             log.error("Erreur lors de la lecture de l'historique Redis pour l'utilisateur {}", userKey, e);
         }
 
+        /* Fallback: most recent stored sequence for the user. */
         Optional<SecurityAlertSequence> sequenceOpt = sequenceRepository.findTopByUserKeyOrderByCreatedAtDesc(userKey);
         if (sequenceOpt.isEmpty()) {
             return history;
@@ -56,6 +55,7 @@ public class InvestigationService {
             return history;
         }
 
+        /* Parse sequence JSON and backfill the Redis cache. */
         try {
             history = parseSequenceJson(sequence.getSequenceJson());
             cacheHistory(key, history);
@@ -66,6 +66,7 @@ public class InvestigationService {
         return history;
     }
 
+    /* Retrieve full sequence details for an alert. */
     public SequenceDetailsDto getSequenceDetailsByAlertId(Long alertId) {
         return sequenceRepository.findByAlert_Id(alertId)
                 .map(sequence -> new SequenceDetailsDto(
@@ -79,6 +80,7 @@ public class InvestigationService {
                 .orElse(null);
     }
 
+    /* Retrieve parsed sequence events for an alert. */
     public List<AuditTrailEvent> getSequenceEventsByAlertId(Long alertId) {
         Optional<SecurityAlertSequence> sequenceOpt = sequenceRepository.findByAlert_Id(alertId);
         if (sequenceOpt.isEmpty()) {
@@ -98,16 +100,19 @@ public class InvestigationService {
         }
     }
 
+    /* Retrieve prediction output for an alert. */
     public PredictionDto getPredictionByAlertId(Long alertId) {
         return sequenceRepository.findByAlert_Id(alertId)
                 .map(sequence -> new PredictionDto(sequence.getPredictionJson(), sequence.getPredictionSummary()))
                 .orElse(null);
     }
 
+    /* Convert the stored JSON array into typed audit events. */
     private List<AuditTrailEvent> parseSequenceJson(String sequenceJson) throws Exception {
         return objectMapper.readValue(sequenceJson, new TypeReference<List<AuditTrailEvent>>() {});
     }
 
+    /* Serialize events and store them as a Redis list. */
     private void cacheHistory(String key, List<AuditTrailEvent> history) {
         if (history == null || history.isEmpty()) {
             return;

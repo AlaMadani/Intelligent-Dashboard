@@ -13,27 +13,27 @@ public class SecurityAlert {
     private Long id;
 
     @Column(name = "user_key")
-    private Integer userKey; // Correspond au userKey de l'AuditTrail
+    private Integer userKey;
 
     @Column(name = "ip_address")
     private String ipAddress;
 
     @Column(name = "alert_type")
-    private String alertType; // ex: "LSTM_ANOMALY_DETECTED"
+    private String alertType;
 
-    // NOUVEAU : Stocke l'erreur de reconstruction de l'Autoencodeur
+    // Model reconstruction error (used for anomaly detection).
     @Column(name = "anomaly_score")
     private Double anomalyScore;
 
-    // NOUVEAU : Stocke le seuil utilisé (0.02779) au moment du déclenchement
+    // Threshold applied when the alert was triggered.
     @Column(name = "threshold_used")
     private Double thresholdUsed;
 
-    // MODIFIÉ : columnDefinition = "TEXT" pour éviter que le résumé de Gemini ne soit tronqué
+    // Long-form explanation; stored as TEXT to avoid truncation.
     @Column(name = "ai_explanation", columnDefinition = "TEXT")
     private String aiExplanation;
 
-    // MODIFIÉ : Utilisation d'Instant pour une gestion UTC parfaite
+    // UTC timestamp for when the anomaly was detected.
     @Column(name = "detected_at")
     private Instant detectedAt;
 }

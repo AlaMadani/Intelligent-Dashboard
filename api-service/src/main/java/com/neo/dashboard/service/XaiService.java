@@ -34,42 +34,37 @@ public class XaiService {
         this.chatClient = chatClientBuilder.build();
     }
 
-    // Le @Transactional est important ici car nous allons modifier la base SQL
+    /* Explain an alert using cache, SQL persistence, and AI generation. */
     @Transactional
     public String explainAlert(Long alertId) {
         String cacheKey = "explanation:alert:" + alertId;
 
-        // NIVEAU 1 : Verification dans le cache REDIS (Ultra rapide)
+        /* Level 1: Redis cache. */
         String cachedExplanation = redisTemplate.opsForValue().get(cacheKey);
         if (cachedExplanation != null) {
             log.info("Explication trouvee dans REDIS pour l'alerte {}", alertId);
             return cachedExplanation;
         }
 
-        // Recuperation de l'alerte en base SQL
+        /* Load the alert from SQL. */
         SecurityAlert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alerte introuvable"));
 
-        // NIVEAU 2 : Verification dans SQL SERVER (Persistance a froid)
-        // On s'assure que le champ n'est pas null et qu'il ne contient pas le fameux placeholder "En attente..."
+        /* Level 2: SQL persisted explanation (skip placeholder). */
         if (alert.getAiExplanation() != null && !alert.getAiExplanation().contains("En attente")) {
             log.info("Explication trouvee dans SQL SERVER pour l'alerte {}. Remise en cache Redis.", alertId);
-            // On le remet dans Redis pour la prochaine fois (ex: pour 7 jours)
             redisTemplate.opsForValue().set(cacheKey, alert.getAiExplanation(), Duration.ofDays(7));
             return alert.getAiExplanation();
         }
 
-        // NIVEAU 3 : Aucun historique, appel a GOOGLE GEMINI
+        /* Level 3: AI generation (Gemini). */
         log.info("Explication introuvable. Generation par GEMINI en cours pour l'alerte {}...", alertId);
 
-        // On recupere les logs Redis du hacker
         List<AuditTrailEvent> history = investigationService.getUserHistory(alert.getUserKey());
         SequenceDetailsDto sequenceDetails = investigationService.getSequenceDetailsByAlertId(alertId);
 
-        // Construction du prompt
         String prompt = buildPrompt(alert, history, sequenceDetails);
 
-        // Appel API
         String explanation = chatClient.prompt()
                 .user(prompt)
                 .system("Tu es un analyste SOC expert en cybersecurity. " +
@@ -78,11 +73,11 @@ public class XaiService {
                 .call()
                 .content();
 
-        // SAUVEGARDE 1 : Mise a jour dans SQL Server (pour la persistance a long terme)
+        /* Persist explanation to SQL for long-term storage. */
         alert.setAiExplanation(explanation);
-        alertRepository.save(alert); // Fera un UPDATE grace a Hibernate
+        alertRepository.save(alert);
 
-        // SAUVEGARDE 2 : Mise en cache Redis APRES commit (pour eviter le cache si l'UPDATE SQL echoue)
+        /* Cache in Redis after commit to avoid caching failed SQL updates. */
         Runnable cacheWrite = () -> redisTemplate.opsForValue().set(cacheKey, explanation, Duration.ofDays(7));
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -99,6 +94,7 @@ public class XaiService {
         return explanation;
     }
 
+    /* Build the prompt sent to the AI model. */
     private String buildPrompt(SecurityAlert alert, List<AuditTrailEvent> history, SequenceDetailsDto sequenceDetails) {
         StringBuilder sb = new StringBuilder();
         sb.append("Alerte de securite de type : ").append(alert.getAlertType()).append("\n");

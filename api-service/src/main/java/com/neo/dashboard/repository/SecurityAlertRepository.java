@@ -9,8 +9,11 @@ import java.util.List;
 
 @Repository
 public interface SecurityAlertRepository extends JpaRepository<SecurityAlert, Long> {
-    // Retrouver toutes les alertes pour un utilisateur spécifique
+
+    /* Fetch alerts for a user ordered by most recent detection time. */
     List<SecurityAlert> findByUserKeyOrderByDetectedAtDesc(Integer userKey);
+
+    /* Return user keys with the highest alert counts. */
     @Query("SELECT s.userKey, COUNT(s.id) as total FROM SecurityAlert s GROUP BY s.userKey ORDER BY total DESC LIMIT 5")
     List<Object[]> findTopTargetedUsers();
 }

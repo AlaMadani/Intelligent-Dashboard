@@ -3,14 +3,16 @@ package com.neo.dashboard.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.Immutable;
+
 import java.time.Instant;
 
+/* JPA entity representing a detected security alert. */
 @Entity
 @Table(name = "security_alerts")
 @Data
 public class SecurityAlert {
     @Id
-    private Long id; // Pas besoin de @GeneratedValue ici puisqu'on n'insère jamais
+    private Long id;
 
     @Column(name = "user_key")
     private Integer userKey;

@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/* JPA entity storing the sequence and prediction data for an alert. */
 @Entity
 @Table(name = "security_alert_sequences")
 @Data

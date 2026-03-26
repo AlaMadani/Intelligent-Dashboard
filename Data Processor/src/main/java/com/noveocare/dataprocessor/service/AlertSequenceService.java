@@ -23,10 +23,12 @@ public class AlertSequenceService {
     private final ObjectMapper objectMapper;
 
     public void persistAlertSequence(SecurityAlert alert, List<AuditTrailEvent> events) {
+        // Guard against invalid inputs.
         if (alert == null || events == null || events.isEmpty()) {
             return;
         }
 
+        // Serialize the event sequence for storage.
         String sequenceJson;
         try {
             sequenceJson = objectMapper.writeValueAsString(events);
@@ -35,8 +37,10 @@ public class AlertSequenceService {
             return;
         }
 
+        // Generate a lightweight prediction summary from recent behavior.
         FutureBehaviorPredictionService.PredictionResult prediction = predictionService.predict(events);
 
+        // Persist the sequence and prediction metadata with the alert.
         SecurityAlertSequence sequence = new SecurityAlertSequence();
         sequence.setAlert(alert);
         sequence.setUserKey(alert.getUserKey());

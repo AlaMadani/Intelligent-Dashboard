@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/* DTO aggregating sequence details and prediction outputs. */
 @Data
 @AllArgsConstructor
 public class SequenceDetailsDto {

@@ -1,6 +1,5 @@
 package com.neo.dashboard.controller;
 
-
 import com.neo.dashboard.dto.AuditTrailEvent;
 import com.neo.dashboard.dto.PredictionDto;
 import com.neo.dashboard.dto.SequenceDetailsDto;
@@ -17,38 +16,41 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/soc")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // A restreindre plus tard pour la securite
+@CrossOrigin(origins = "*")
 public class SocController {
 
     private final SecurityAlertRepository alertRepository;
     private final InvestigationService investigationService;
     private final XaiService xaiService;
-    // 1. Exposer toutes les alertes (Pour le Dashboard principal)
+
+    /* List all alerts for the SOC dashboard. */
     @GetMapping("/alerts")
     public ResponseEntity<List<SecurityAlert>> getAllAlerts() {
-        // Idealement, rajouter une pagination ici dans le futur
         return ResponseEntity.ok(alertRepository.findAll());
     }
 
-    // 2. L'idee de genie : L'investigation Redis !
+    /* Get user history from Redis-backed investigation flow. */
     @GetMapping("/redis/user/{userKey}/history")
     public ResponseEntity<List<AuditTrailEvent>> getUserLiveHistory(@PathVariable Integer userKey) {
         List<AuditTrailEvent> history = investigationService.getUserHistory(userKey);
         return ResponseEntity.ok(history);
     }
 
+    /* Get user history (legacy path). */
     @GetMapping("/user/{userKey}/history")
     public ResponseEntity<List<AuditTrailEvent>> getUserHistory(@PathVariable Integer userKey) {
         List<AuditTrailEvent> history = investigationService.getUserHistory(userKey);
         return ResponseEntity.ok(history);
     }
 
+    /* Fetch sequence events associated with a specific alert. */
     @GetMapping("/alerts/{id}/sequence")
     public ResponseEntity<List<AuditTrailEvent>> getAlertSequence(@PathVariable Long id) {
         List<AuditTrailEvent> sequence = investigationService.getSequenceEventsByAlertId(id);
         return ResponseEntity.ok(sequence);
     }
 
+    /* Fetch full sequence details (raw JSON + metadata) for an alert. */
     @GetMapping("/alerts/{id}/sequence-details")
     public ResponseEntity<SequenceDetailsDto> getAlertSequenceDetails(@PathVariable Long id) {
         SequenceDetailsDto details = investigationService.getSequenceDetailsByAlertId(id);
@@ -58,6 +60,7 @@ public class SocController {
         return ResponseEntity.ok(details);
     }
 
+    /* Fetch prediction output associated with an alert. */
     @GetMapping("/alerts/{id}/prediction")
     public ResponseEntity<PredictionDto> getAlertPrediction(@PathVariable Long id) {
         PredictionDto prediction = investigationService.getPredictionByAlertId(id);
@@ -67,6 +70,7 @@ public class SocController {
         return ResponseEntity.ok(prediction);
     }
 
+    /* Generate or retrieve the AI explanation for an alert. */
     @GetMapping("/alerts/{id}/explain")
     public ResponseEntity<String> getAlertExplanation(@PathVariable Long id) {
         try {

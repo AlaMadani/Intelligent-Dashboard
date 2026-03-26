@@ -8,22 +8,20 @@ import lombok.Data;
 
 import java.time.Instant;
 
-// On ignore tout ce qu'on ne connaît pas (les métadonnées Cosmos DB, eTag, etc.)
+/* DTO for audit trail events stored as JSON (Redis/CosmosDB). */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AuditTrailEvent {
 
     private String id;
 
-    // Utilisation d'Instant pour parser nativement l'ISO 8601 de CosmosDB de manière sécurisée
+    /* Parse ISO-8601 timestamps into Instant. */
     @JsonProperty("created_at")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "UTC")
     private Instant createdAt;
 
     private Boolean success;
-
     private String action;
-
     private String object;
 
     @JsonProperty("object_id")
@@ -37,7 +35,6 @@ public class AuditTrailEvent {
     @JsonProperty("ip_address")
     private String ipAddress;
 
-    // NOUVEAU : Indispensable pour notre feature 'has_content' !
-    // JsonNode permet de capturer n'importe quel objet JSON imbriqué
+    /* Raw nested JSON content for feature flags like has_content. */
     private JsonNode content;
 }

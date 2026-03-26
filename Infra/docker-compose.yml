@@ -34,6 +34,8 @@ services:
       # ID du Cluster (Obligatoire pour KRaft via Docker Confluent)
       # C'est un UUID aléatoire encodé en Base64
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - shared-net
 
   # 2. Redis (Cache)
   redis:
@@ -41,6 +43,8 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
+    networks:
+      - shared-net
 
   # 3. Kafka Connect (Pour l'ingestion Cosmos DB)
   kafka-connect:
@@ -69,3 +73,9 @@ services:
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+    networks:
+      - shared-net
+
+networks:
+  shared-net:
+    external: true

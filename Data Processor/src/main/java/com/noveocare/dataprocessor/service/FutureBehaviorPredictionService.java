@@ -19,6 +19,7 @@ public class FutureBehaviorPredictionService {
     private final ObjectMapper objectMapper;
 
     public PredictionResult predict(List<AuditTrailEvent> events) {
+        // Handle empty input defensively.
         if (events == null || events.isEmpty()) {
             return new PredictionResult(
                     "No events available to predict future behavior.",
@@ -26,6 +27,7 @@ public class FutureBehaviorPredictionService {
             );
         }
 
+        // Aggregate per-action counts and failure rate.
         Map<String, Long> actionCounts = new LinkedHashMap<>();
         int failures = 0;
 
@@ -37,6 +39,7 @@ public class FutureBehaviorPredictionService {
             }
         }
 
+        // Determine the most frequent action.
         String mostFrequentAction = null;
         long maxCount = -1;
         for (Map.Entry<String, Long> entry : actionCounts.entrySet()) {
@@ -46,10 +49,12 @@ public class FutureBehaviorPredictionService {
             }
         }
 
+        // Compute simple heuristic scores.
         double failureRate = (double) failures / (double) events.size();
         String riskLevel = failureRate >= 0.6 ? "HIGH" : (failureRate >= 0.3 ? "MEDIUM" : "LOW");
         double confidence = maxCount > 0 ? ((double) maxCount / (double) events.size()) : 0.0;
 
+        // Build a structured payload for downstream storage.
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("most_likely_next_action", mostFrequentAction);
         payload.put("confidence", confidence);
@@ -58,6 +63,7 @@ public class FutureBehaviorPredictionService {
         payload.put("recent_action_distribution", actionCounts);
         payload.put("note", "heuristic_prediction");
 
+        // Create a concise human-readable summary.
         String summary = "Heuristic prediction based on the last "
                 + events.size()
                 + " actions. Most likely next action: "
@@ -69,6 +75,7 @@ public class FutureBehaviorPredictionService {
                 + ".";
 
         try {
+            // Serialize the prediction payload.
             return new PredictionResult(summary, objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize prediction payload", e);

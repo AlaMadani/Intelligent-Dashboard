@@ -37,51 +37,55 @@ public class KafkaAuditConsumer {
     public void consumeAuditLog(ConsumerRecord<String, String> record) {
         String message = record.value();
 
+        // Validate payload early.
         if (message == null || message.isBlank()) {
             log.warn("Kafka message value is empty; skipping.");
             return;
         }
 
         try {
+            // Parse the JSON event.
             AuditTrailEvent event = objectMapper.readValue(message, AuditTrailEvent.class);
 
             if (event.getUserKey() != null) {
+                // Log payload details only when sensitive fields are absent.
                 if (containsSensitiveFieldName(message)) {
                     log.info("Consumed audit event for userKey={} (payload suppressed: sensitive fields detected).", event.getUserKey());
                 } else {
                     log.info("Consumed audit event for userKey={} payload={}", event.getUserKey(), message);
                 }
 
-                // 1. Ajouter l'événement complet à l'historique Redis
+                // 1) Append the event to the user's sliding window history in Redis.
                 slidingWindowService.addEventToUserHistory(event);
 
-                // 2. Récupérer les événements récents (COMPLETS)
+                // 2) Fetch the most recent events for this user.
                 List<AuditTrailEvent> recentEvents = slidingWindowService.getRecentEvents(String.valueOf(event.getUserKey()), 5);
 
-                // 3. Déclencher la détection UNIQUEMENT si on a la fenêtre complète de 5 événements
+                // 3) Run anomaly detection only when the window is full.
                 if (recentEvents.size() == 5) {
                     try {
                         log.debug("Triggering anomaly detection for userKey={}", event.getUserKey());
 
-                        // L'IA analyse maintenant la séquence d'objets complets
+                        // Analyze the full event sequence.
                         AnomalyDetectionService.AnomalyResult result = anomalyDetectionService.analyzeSequence(recentEvents);
 
                         if (result.isAnomaly()) {
                             log.warn("🚨 Anomaly detected for userKey={} | MSE Score: {}", event.getUserKey(), result.getMseScore());
 
+                            // Build and persist the alert.
                             SecurityAlert alert = new SecurityAlert();
                             alert.setUserKey(event.getUserKey());
                             alert.setIpAddress(event.getIpAddress());
                             alert.setAlertType("LSTM_ANOMALY");
 
-                            // Nouveaux champs persistés !
                             alert.setAnomalyScore(result.getMseScore());
                             alert.setThresholdUsed(result.getThresholdUsed());
 
                             alert.setAiExplanation("Séquence suspecte détectée avec un score MSE de " + result.getMseScore() + ". En attente de l'analyse LLM Gemini.");
-                            alert.setDetectedAt(Instant.now()); // Correction : Instant.now()
+                            alert.setDetectedAt(Instant.now());
 
                             SecurityAlert savedAlert = securityAlertRepository.save(alert);
+                            // Persist the alert sequence and prediction metadata.
                             alertSequenceService.persistAlertSequence(savedAlert, recentEvents);
                         }
                     } catch (Exception mlException) {
@@ -95,6 +99,7 @@ public class KafkaAuditConsumer {
                 log.warn("AuditTrailEvent user_key is null; skipping Redis push and ML detection.");
             }
 
+            // Final payload logging with sensitivity check.
             if (containsSensitiveFieldName(message)) {
                 log.warn("Payload contains potential sensitive fields; raw payload logging is suppressed.");
             } else {

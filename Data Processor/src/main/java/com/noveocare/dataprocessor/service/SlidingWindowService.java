@@ -21,48 +21,47 @@ public class SlidingWindowService {
     private static final int MAX_SEQUENCE_LENGTH = 5;
 
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper; // Injection de Jackson pour convertir en JSON
+    private final ObjectMapper objectMapper;
 
     public void addEventToUserHistory(AuditTrailEvent event) {
         String redisKey = "history:user:" + event.getUserKey();
 
         try {
-            // 1. On transforme l'événement complet en chaîne JSON
+            // Serialize the full event payload.
             String eventJson = objectMapper.writeValueAsString(event);
 
-            // 2. On ajoute à la fin de la file (à droite)
+            // Append to the right end of the list.
             redisTemplate.opsForList().rightPush(redisKey, eventJson);
 
-            // 3. LA MAGIE DE LA FENÊTRE GLISSANTE : On ne garde que les 5 derniers !
-            // L'index -5 représente le 5ème élément en partant de la fin, -1 est le tout dernier.
+            // Trim to the most recent window.
             redisTemplate.opsForList().trim(redisKey, -MAX_SEQUENCE_LENGTH, -1);
 
-            // 4. On rafraîchit le chrono d'inactivité
+            // Refresh the idle TTL.
             redisTemplate.expire(redisKey, Duration.ofMinutes(WINDOW_TTL_MINUTES));
 
         } catch (JsonProcessingException e) {
-            log.error("Erreur lors de la sérialisation de l'événement pour Redis", e);
+            log.error("Failed to serialize event for Redis storage", e);
         }
     }
 
-    // Retourne maintenant une liste d'objets complets !
+    // Load and deserialize the most recent events.
     public List<AuditTrailEvent> getRecentEvents(String userKey, int count) {
         String redisKey = "history:user:" + userKey;
 
-        // Récupère les X derniers éléments en JSON
+        // Fetch the last N JSON elements from Redis.
         List<String> eventsJson = redisTemplate.opsForList().range(redisKey, -count, -1);
 
         if (eventsJson == null || eventsJson.isEmpty()) {
             return List.of();
         }
 
-        // On les re-transforme en objets Java
+        // Deserialize each JSON element into an AuditTrailEvent.
         List<AuditTrailEvent> events = new ArrayList<>();
         for (String json : eventsJson) {
             try {
                 events.add(objectMapper.readValue(json, AuditTrailEvent.class));
             } catch (JsonProcessingException e) {
-                log.error("Erreur lors de la désérialisation de l'événement depuis Redis", e);
+                log.error("Failed to deserialize event from Redis", e);
             }
         }
 

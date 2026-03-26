@@ -9,9 +9,9 @@ import java.util.List;
 @Repository
 public interface SecurityAlertRepository extends JpaRepository<SecurityAlert, Long> {
 
-    // Bonus 1 : Pour afficher l'historique d'un utilisateur suspect précis
+    // User-specific alert history (most recent first).
     List<SecurityAlert> findByUserKeyOrderByDetectedAtDesc(Integer userKey);
 
-    // Bonus 2 : Pour afficher les toutes dernières alertes sur le dashboard général
+    // Global dashboard view of most recent alerts.
     List<SecurityAlert> findTop50ByOrderByDetectedAtDesc();
 }
