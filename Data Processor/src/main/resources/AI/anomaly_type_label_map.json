@@ -1,0 +1,9 @@
+{
+  "0": "UNKNOWN",
+  "1": "geo_jump",
+  "2": "impossible_seq",
+  "3": "rapid_fire",
+  "4": "repeated_fail",
+  "5": "skip_login",
+  "6": "unusual_hour"
+}

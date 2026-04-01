@@ -1,0 +1,1 @@
+["action_id", "dayofweek", "month_num", "day", "is_weekend", "lag_1", "lag_2", "lag_3", "lag_7", "lag_14", "lag_30", "rolling_mean_7", "rolling_std_7", "rolling_mean_30"]

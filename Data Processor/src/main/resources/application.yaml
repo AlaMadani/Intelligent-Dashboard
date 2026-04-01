@@ -1,44 +1,123 @@
-﻿spring:
+spring:
   application:
-    name: Data Processor
+    name: data-processor
+  main:
+    web-application-type: none
   datasource:
-    # URL avec les parametres de securite pour SQL Server 2022
     url: jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true;
-    username: app_user # Remplacez par votre utilisateur SQL
-    password: securePass123! # Remplacez par votre mot de passe
+    username: app_user
+    password: securePass123!
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   jpa:
     hibernate:
-      ddl-auto: update # Cree/met a jour les tables automatiquement
-    show-sql: true # Pratique pour le debug
-
-  # Configuration Kafka
+      ddl-auto: update
+    show-sql: false
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: data-processor-group
       auto-offset-reset: earliest
-
-  # Configuration Redis
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   data:
     redis:
       host: localhost
       port: 6379
 
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*" # On ouvre tout comme dans ton ancien projet pour être tranquille
-  endpoint:
-    prometheus:
-      enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name} # Lie automatiquement le tag au nom de l'app
-    distribution:
-      percentiles-histogram:
-        http:
-          server:
-            requests: true # LA MAGIE EST ICI : Active les données pour les graphiques HTTP
+app:
+  kafka:
+    topics:
+      audit-trail: topic-audit-trail
+      anomaly-alerts: topic-anomaly-alerts
+  redis:
+    ttl:
+      session-buffer: 30m
+      ae-score: 1h
+      next-actions: 2h
+      risk: 15m
+      live-stats: 24h
+      active-anomaly: 30m
+      pending-alerts: 30m
+  rules:
+    unusual-hour:
+      start: 2
+      end: 4
+    skip-login:
+      allowed-actions:
+        - Connexion
+        - Connexion SSO
+        - Connexion en tant que
+        - Activation de compte
+    repeated-fail:
+      types:
+        - BANKING_ACTIONS
+        - LOGGING_ACTIONS
+      consecutive: 3
+    session-end-actions:
+      - "D\u00e9connexion"
+      - "SSO Disconnect"
+    tier2-every-events: 5
+  risk:
+    medium-threshold: 0.05
+    high-threshold: 0.20
+    high-risk-types:
+      - geo_jump
+      - skip_login
+  stats:
+    live:
+      events-window-seconds: 60
+      actions-window-minutes: 15
+      countries-window-minutes: 15
+      anomaly-window-minutes: 60
+      ko-window-minutes: 15
+  scheduling:
+    live-stats-fixed-rate-ms: 60000
+    trend-cron: "0 0 0 * * *"
+  trend:
+    spike-sigma: 2.0
+  ai:
+    base-path: "classpath:/AI/"
+    required-resources:
+      - action_vocab.json
+      - anomaly_lstm_autoencoder.onnx
+      - anomaly_test_generator.py
+      - anomaly_threshold.json
+      - anomaly_type_classifier.onnx
+      - anomaly_type_label_map.json
+      - audit_trail_2025.csv
+      - country_vocab.json
+      - device_vocab.json
+      - feature_config.json
+      - next_action_gru.onnx
+      - next_action_label_map.json
+      - scaler_delta.json
+      - scaler_delta.pkl
+      - "SimData_v3_(2).ipynb"
+      - simulator_final_revised.py
+      - subtype_vocab.json
+      - trend_feature_cols.json
+      - trend_xgboost.json
+      - trend_xgboost.pkl
+      - type_vocab.json
+    models:
+      anomaly-autoencoder: anomaly_lstm_autoencoder.onnx
+      anomaly-type-classifier: anomaly_type_classifier.onnx
+      next-action-gru: next_action_gru.onnx
+      trend-xgboost: trend_xgboost.json
+    files:
+      feature-config: feature_config.json
+      scaler-delta: scaler_delta.json
+      anomaly-threshold: anomaly_threshold.json
+      action-vocab: action_vocab.json
+      device-vocab: device_vocab.json
+      country-vocab: country_vocab.json
+      type-vocab: type_vocab.json
+      subtype-vocab: subtype_vocab.json
+      anomaly-type-label-map: anomaly_type_label_map.json
+      next-action-label-map: next_action_label_map.json
+      trend-feature-cols: trend_feature_cols.json
+  features:
+    delta-clip-seconds: 3600

@@ -1,0 +1,48 @@
+package com.neo.dashboard.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Data;
+import org.hibernate.annotations.Immutable;
+
+import java.time.Instant;
+import java.time.LocalDate;
+
+/* Read-only JPA entity for action_stats_daily. */
+@Entity
+@Table(name = "action_stats_daily")
+@Data
+@Immutable
+public class ActionStatsDaily {
+    @Id
+    private Long id;
+
+    @Column(name = "stat_date")
+    private LocalDate statDate;
+
+    @Column(name = "action_id")
+    private Integer actionId;
+
+    @Column(name = "action_label")
+    private String actionLabel;
+
+    @Column(name = "actual_count")
+    private Long actualCount;
+
+    @Column(name = "predicted_count")
+    private Double predictedCount;
+
+    @Column(name = "rolling_mean_7")
+    private Double rollingMean7;
+
+    @Column(name = "rolling_std_7")
+    private Double rollingStd7;
+
+    @Column(name = "spike_alert")
+    private Boolean spikeAlert;
+
+    @Column(name = "created_at")
+    private Instant createdAt;
+}

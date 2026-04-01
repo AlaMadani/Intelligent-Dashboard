@@ -14,13 +14,26 @@ spring:
     redis:
       host: localhost
       port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: api-service-anomaly-stream
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   ai:
     google:
       genai:
-        api-key: AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw # Remplace par la cle AIzaSy...
+        api-key:  # Remplace par la cle AIzaSy...
         chat:
           options:
             model: gemini-2.5-flash # Modele super rapide et genereux en gratuit
+
+app:
+  kafka:
+    topics:
+      anomaly-alerts: topic-anomaly-alerts
+
 
 server:
   port: 8081 # Le port de ton api-service

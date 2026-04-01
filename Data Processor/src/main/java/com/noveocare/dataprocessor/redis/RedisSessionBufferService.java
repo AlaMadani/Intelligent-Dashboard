@@ -1,0 +1,63 @@
+package com.noveocare.dataprocessor.redis;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.noveocare.dataprocessor.config.CacheKeys;
+import com.noveocare.dataprocessor.config.RedisCacheProperties;
+import com.noveocare.dataprocessor.dto.AuditTrailEvent;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class RedisSessionBufferService {
+
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+    private final RedisCacheProperties cacheProperties;
+
+    public void appendEvent(AuditTrailEvent event) {
+        String key = CacheKeys.sessionKey(event.getInsuredId(), event.getSessionId());
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+            redisTemplate.opsForList().rightPush(key, payload);
+            redisTemplate.expire(key, cacheProperties.getSessionBuffer());
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize event for Redis session buffer", e);
+        }
+    }
+
+    public List<AuditTrailEvent> getSessionEvents(String insuredId, String sessionId) {
+        String key = CacheKeys.sessionKey(insuredId, sessionId);
+        List<String> raw = redisTemplate.opsForList().range(key, 0, -1);
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        List<AuditTrailEvent> events = new ArrayList<>(raw.size());
+        for (String item : raw) {
+            try {
+                events.add(objectMapper.readValue(item, AuditTrailEvent.class));
+            } catch (JsonProcessingException e) {
+                log.error("Failed to deserialize event from Redis", e);
+            }
+        }
+        return events;
+    }
+
+    public void expireSession(String insuredId, String sessionId, Duration ttl) {
+        String key = CacheKeys.sessionKey(insuredId, sessionId);
+        redisTemplate.expire(key, ttl);
+    }
+
+    public void deleteSession(String insuredId, String sessionId) {
+        String key = CacheKeys.sessionKey(insuredId, sessionId);
+        redisTemplate.delete(key);
+    }
+}

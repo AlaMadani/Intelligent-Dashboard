@@ -1,6 +1,6 @@
 package com.noveocare.dataprocessor.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,35 +8,65 @@ import lombok.Data;
 
 import java.time.Instant;
 
-// Ignore unknown fields to tolerate upstream metadata changes.
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AuditTrailEvent {
 
     private String id;
 
-    // Persisted as UTC ISO-8601 in the payload.
-    @JsonProperty("created_at")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "UTC")
-    private Instant createdAt;
+    @JsonProperty("insuredId")
+    private String insuredId;
 
-    private Boolean success;
+    private String status;
+
+    @JsonProperty("sessionId")
+    private String sessionId;
 
     private String action;
 
-    private String object;
+    private Integer httpCode;
 
-    @JsonProperty("object_id")
-    private String objectId;
+    private String ip;
 
-    @JsonProperty("user_key")
-    private Integer userKey;
+    private String userAgent;
 
-    private String details;
+    private JsonNode requestData;
 
-    @JsonProperty("ip_address")
-    private String ipAddress;
+    private JsonNode requestReturn;
 
-    // Raw nested JSON used by downstream feature extraction.
-    private JsonNode content;
+    @JsonProperty("createdAt")
+    @JsonAlias("created_at")
+    private Instant createdAt;
+
+    private String type;
+
+    private String environmentId;
+
+    private String device;
+
+    private JsonNode companyIdList;
+    private JsonNode companyGroupIdList;
+    private JsonNode insurerIdList;
+    private JsonNode companySectionIdList;
+    private JsonNode insurerCodeIdList;
+    private JsonNode healthcareNetworkIdList;
+    private JsonNode domainIdList;
+
+    private String subType;
+
+    private String countryCode;
+
+    private String city;
+
+    private String month;
+
+    private Integer sessionNumber;
+
+    private Integer sequenceInSession;
+
+    private Integer sessionLength;
+
+    private String prevAction;
+
+    private String route;
 }

@@ -1,0 +1,1868 @@
+[
+  {
+    "controller": "ActionValidationController",
+    "method": "POST",
+    "path": "/action-validation/generate",
+    "actionTracking": null
+  },
+  {
+    "controller": "ActionValidationController",
+    "method": "POST",
+    "path": "/action-validation/validate",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/activate-account/affiliation",
+    "actionTracking": {
+      "value": "Activation de compte",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_account_activation"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/domain-redirect",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/login",
+    "actionTracking": {
+      "value": "Connexion",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_login"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/login/create-account",
+    "actionTracking": {
+      "value": "Création de compte",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_account_creation"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/login/create-account-validation",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/login/forgot-login",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/login/forgot-password",
+    "actionTracking": {
+      "value": "Demande de réinitialisation de mot de passe",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/login/forgot-password/reset-validation",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "GET",
+    "path": "/auth/login/get-logins",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "PUT",
+    "path": "/auth/login/update",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "GET",
+    "path": "/auth/login-redirect",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "GET",
+    "path": "/auth/logout",
+    "actionTracking": {
+      "value": "Déconnexion",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_logout"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "PUT",
+    "path": "/auth/password/change",
+    "actionTracking": {
+      "value": "Changement de Mot de passe",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_password_change"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "GET",
+    "path": "/auth/profile",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/refresh",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/regenerate-mfa",
+    "actionTracking": {
+      "value": "Régénération code MFA",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_mfa_regeneration"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "DELETE",
+    "path": "/auth/remove-email-from-spam",
+    "actionTracking": null
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/select-email",
+    "actionTracking": {
+      "value": "Sélection email MFA",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_mfa_email_selection"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "GET",
+    "path": "/auth/sso",
+    "actionTracking": {
+      "value": "Connexion SSO",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_login_sso"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "GET",
+    "path": "/auth/sso/derogatory",
+    "actionTracking": {
+      "value": "Connexion en tant que",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_login_as_insured"
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "GET",
+    "path": "/auth/sso/disconnect",
+    "actionTracking": {
+      "value": "SSO Disconnect",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "AuthenticationController",
+    "method": "POST",
+    "path": "/auth/validate-mfa",
+    "actionTracking": {
+      "value": "Validation MFA",
+      "type": "AuditTrailType.LOGGING_ACTIONS",
+      "subType": "logging_mfa_validation"
+    }
+  },
+  {
+    "controller": "BrandController",
+    "method": "GET",
+    "path": "/init",
+    "actionTracking": null
+  },
+  {
+    "controller": "CarteBlancheApiController",
+    "method": "GET",
+    "path": "/services/carte-blanche",
+    "actionTracking": null
+  },
+  {
+    "controller": "CarteBlancheApiController",
+    "method": "POST",
+    "path": "/services/carte-blanche",
+    "actionTracking": null
+  },
+  {
+    "controller": "CitiesFrController",
+    "method": "GET",
+    "path": "/cities-fr/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyController",
+    "method": "POST",
+    "path": "/v1/companies/{company-id}/services",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyController",
+    "method": "GET",
+    "path": "/v1/companies/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyController",
+    "method": "POST",
+    "path": "/v1/companies/{id}/day-call-hour-rate",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyController",
+    "method": "POST",
+    "path": "/v1/companies/{id}/specificities",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyController",
+    "method": "DELETE",
+    "path": "/v1/companies/services/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyController",
+    "method": "DELETE",
+    "path": "/v1/companies/specificities/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyGroupController",
+    "method": "POST",
+    "path": "/v1/company-groups/{company-group-id}/services",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyGroupController",
+    "method": "GET",
+    "path": "/v1/company-groups/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyGroupController",
+    "method": "POST",
+    "path": "/v1/company-groups/{id}/day-call-hour-rate",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyGroupController",
+    "method": "GET",
+    "path": "/v1/company-groups/{id}/digital-contents",
+    "actionTracking": null
+  },
+  {
+    "controller": "CompanyGroupController",
+    "method": "DELETE",
+    "path": "/v1/company-groups/services/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/add-beneficiary",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/cancel-paid-option",
+    "actionTracking": {
+      "value": "envoi d'une demande de résiliation",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/change-option",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/contract-termination",
+    "actionTracking": {
+      "value": "envoi d'une demande de résiliation",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mon adhésion, Autres)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_membership_other"
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/proof-common-life",
+    "actionTracking": {
+      "value": "Partager un justificatif sur l’honneur de vie commune",
+      "type": "AuditTrailType.DOCUMENT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/proof-pacs",
+    "actionTracking": {
+      "value": "Partager un justificatif du PACS",
+      "type": "AuditTrailType.DOCUMENT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/adhesion/resil-beneficiary",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/cotisations",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes cotisations)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/cotisations/send-timeline",
+    "actionTracking": {
+      "value": "demander un renvoi par mail d'échéancier",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/guarantee/dental",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/guarantee/hospitalisation",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/guarantee/optical",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/guarantee/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes garanties)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/messages/files",
+    "actionTracking": {
+      "value": "Envoi d'un message",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/quote/dental",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/quote/optical",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/quote/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes prises en charge/devis)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/refund/dental",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/refund/hospitalisation",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/refund/optical",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/refund/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes remboursements)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/rib-benef",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": "update_bank_details_beneficiary"
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/rib-cotisation",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/rib-prelevement",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": "update_bank_details_refunds"
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/send-claim",
+    "actionTracking": {
+      "value": "Envoi d'une réclamation",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/teletransmission",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactController",
+    "method": "POST",
+    "path": "/contact/tp-card",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Ma carte tiers-payant)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/add-beneficiary",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/cancel-paid-option",
+    "actionTracking": {
+      "value": "envoi d'une demande de résiliation",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "request_cancellation_by_message"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/change-option",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/contract-termination",
+    "actionTracking": {
+      "value": "envoi d'une demande de résiliation",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "request_cancellation_by_message"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mon adhésion, Autres)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_membership_other"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/proof-common-life",
+    "actionTracking": {
+      "value": "Partager un justificatif sur l’honneur de vie commune",
+      "type": "AuditTrailType.DOCUMENT_ACTIONS",
+      "subType": "share_cohabitation_affidavit"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/proof-pacs",
+    "actionTracking": {
+      "value": "Partager un justificatif du PACS",
+      "type": "AuditTrailType.DOCUMENT_ACTIONS",
+      "subType": "share_pacs_proof_document"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/adhesion/resil-beneficiary",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/cotisations",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes cotisations)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_contributions"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/cotisations/send-timeline",
+    "actionTracking": {
+      "value": "demander un renvoi par mail d'échéancier",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "request_payment_schedule_by_email"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/guarantee/dental",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/guarantee/hospitalisation",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/guarantee/optical",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/guarantee/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes garanties)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_coverage"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/messages/files",
+    "actionTracking": {
+      "value": "Envoi d'un message",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_send_message"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/quote/dental",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/quote/optical",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/quote/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes prises en charge/devis)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_coverage_quotes"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/refund/dental",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/refund/hospitalisation",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/refund/optical",
+    "actionTracking": null
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/refund/others",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Mes remboursements)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_refunds"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/rib-benef",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": "update_bank_details_beneficiary"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/rib-cotisation",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": "update_bank_details_contributions"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/rib-prelevement",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": "update_bank_details_refunds"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/send-claim",
+    "actionTracking": {
+      "value": "Envoi d'une réclamation",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_submit_complaint"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/teletransmission",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_teletransmission"
+    }
+  },
+  {
+    "controller": "ContactControllerV2",
+    "method": "POST",
+    "path": "/v2/contact/tp-card",
+    "actionTracking": {
+      "value": "Contactez nous : via message (Ma carte tiers-payant)",
+      "type": "AuditTrailType.CONTACT_ACTIONS",
+      "subType": "contact_message_my_third_party_card"
+    }
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "GET",
+    "path": "/v1/day-call-hour-rate",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "POST",
+    "path": "/v1/day-call-hour-rate",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "PUT",
+    "path": "/v1/day-call-hour-rate/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "DELETE",
+    "path": "/v1/day-call-hour-rate/by-call-hour",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "GET",
+    "path": "/v1/day-call-hour-rate/by-call-hour",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "DELETE",
+    "path": "/v1/day-call-hour-rate/by-day",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "GET",
+    "path": "/v1/day-call-hour-rate/by-day",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "DELETE",
+    "path": "/v1/day-call-hour-rate/by-environment-id",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "GET",
+    "path": "/v1/day-call-hour-rate/by-environment-id",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "DELETE",
+    "path": "/v1/day-call-hour-rate/by-id",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "GET",
+    "path": "/v1/day-call-hour-rate/by-id",
+    "actionTracking": null
+  },
+  {
+    "controller": "DayCallHourRateController",
+    "method": "POST",
+    "path": "/v1/day-call-hour-rate/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "DebugController",
+    "method": "GET",
+    "path": "/debug",
+    "actionTracking": null
+  },
+  {
+    "controller": "DocumentsController",
+    "method": "GET",
+    "path": "/documents",
+    "actionTracking": null
+  },
+  {
+    "controller": "DocumentsController",
+    "method": "GET",
+    "path": "/documents/file",
+    "actionTracking": null
+  },
+  {
+    "controller": "DocumentsController",
+    "method": "POST",
+    "path": "/documents/upload-documents",
+    "actionTracking": {
+      "value": "Envoi d'un document",
+      "type": "AuditTrailType.DOCUMENT_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "DocumentsController",
+    "method": "GET",
+    "path": "/documents/upload-documents-types",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "GET",
+    "path": "/v1/domains",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "POST",
+    "path": "/v1/domains",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "DELETE",
+    "path": "/v1/domains/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "GET",
+    "path": "/v1/domains/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "PUT",
+    "path": "/v1/domains/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "POST",
+    "path": "/v1/domains/{id}/day-call-hour-rate",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "GET",
+    "path": "/v1/domains/{id}/environments",
+    "actionTracking": null
+  },
+  {
+    "controller": "DomainController",
+    "method": "POST",
+    "path": "/v1/domains/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "EntityController",
+    "method": "DELETE",
+    "path": "/v1/entities/{entityType}/{entityId}",
+    "actionTracking": {
+      "value": "Suppression liaison suite à suppression de l'entité",
+      "type": "AuditTrailType.BACKOFFICE_ACTIONS",
+      "subType": "suppression_liaison_suite_a_suppression_d_entite"
+    }
+  },
+  {
+    "controller": "EntityHasDocumentsController",
+    "method": "GET",
+    "path": "/document-display/download/{id}",
+    "actionTracking": {
+      "value": "Ouverture d'un document contractuel",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "open_contract_document"
+    }
+  },
+  {
+    "controller": "EntityHasTutorialController",
+    "method": "GET",
+    "path": "/v1/tutorial",
+    "actionTracking": null
+  },
+  {
+    "controller": "EntityHasTutorialController",
+    "method": "GET",
+    "path": "/v1/tutorial/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvelopeController",
+    "method": "POST",
+    "path": "/envelope/datas-contacts",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "GET",
+    "path": "/v1/environment/{environment-id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "PUT",
+    "path": "/v1/environment/{environment-id}/call-hours-rate",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "DELETE",
+    "path": "/v1/environment/{environment-id}/document/{document-id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{environment-id}/domains",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "PUT",
+    "path": "/v1/environment/{environment-id}/domains",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "DELETE",
+    "path": "/v1/environment/{environment-id}/domains/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{environment-id}/faq",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "DELETE",
+    "path": "/v1/environment/{environment-id}/faq/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "PUT",
+    "path": "/v1/environment/{environment-id}/legal-page/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{environment-id}/mandatory_informations",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "DELETE",
+    "path": "/v1/environment/{environment-id}/mandatory_informations/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{environment-id}/services",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{environment-id}/tutorial",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "DELETE",
+    "path": "/v1/environment/{environment-id}/tutorial/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "PUT",
+    "path": "/v1/environment/{environment-id}/tutorial/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{id}/day-call-hour-rate",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "GET",
+    "path": "/v1/environment/{id}/insured",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{id}/insured-stats",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "POST",
+    "path": "/v1/environment/{id}/stats",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "GET",
+    "path": "/v1/environment/mandatory_information_options",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "DELETE",
+    "path": "/v1/environment/news/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EnvironmentController",
+    "method": "DELETE",
+    "path": "/v1/environment/services/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EstablishmentController",
+    "method": "GET",
+    "path": "/establishment/{actValue}",
+    "actionTracking": null
+  },
+  {
+    "controller": "EstablishmentController",
+    "method": "GET",
+    "path": "/establishment/region/{search}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "GET",
+    "path": "/v1/document",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "POST",
+    "path": "/v1/document",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "GET",
+    "path": "/v1/document/{doc-id}/entities",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "DELETE",
+    "path": "/v1/document/{document_id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "DELETE",
+    "path": "/v1/document/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "GET",
+    "path": "/v1/document/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "PUT",
+    "path": "/v1/document/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "POST",
+    "path": "/v1/document/create",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "DELETE",
+    "path": "/v1/document/delete/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "DELETE",
+    "path": "/v1/document/delete-by-entity-type-id/{entity-type}/{entity-id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "GET",
+    "path": "/v1/document/document-ids",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "POST",
+    "path": "/v1/document/documents/uniques",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "POST",
+    "path": "/v1/document/find-used",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalEntityHasDocumentsController",
+    "method": "POST",
+    "path": "/v1/document/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "GET",
+    "path": "/v1/insured",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "GET",
+    "path": "/v1/insured/{id}/audit-trails",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "GET",
+    "path": "/v1/insured/{id}/services",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "POST",
+    "path": "/v1/insured/{id}/stats",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "GET",
+    "path": "/v1/insured/{insured-id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "POST",
+    "path": "/v1/insured/{insured-id}/debug-reports/{report-id}/validate",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "POST",
+    "path": "/v1/insured/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "ExternalInsuredController",
+    "method": "POST",
+    "path": "/v1/insured/search-by-entity",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqCategoryController",
+    "method": "GET",
+    "path": "/faq/themes/categories",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqCategoryController",
+    "method": "POST",
+    "path": "/faq/themes/categories",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqCategoryController",
+    "method": "DELETE",
+    "path": "/faq/themes/categories/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqCategoryController",
+    "method": "GET",
+    "path": "/faq/themes/categories/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqCategoryController",
+    "method": "PUT",
+    "path": "/faq/themes/categories/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqCategoryController",
+    "method": "POST",
+    "path": "/faq/themes/categories/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqContentController",
+    "method": "GET",
+    "path": "/faq",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqContentController",
+    "method": "POST",
+    "path": "/faq",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqContentController",
+    "method": "DELETE",
+    "path": "/faq/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqContentController",
+    "method": "GET",
+    "path": "/faq/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqContentController",
+    "method": "PUT",
+    "path": "/faq/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqContentController",
+    "method": "POST",
+    "path": "/faq/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqThemeController",
+    "method": "GET",
+    "path": "/faq/themes",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqThemeController",
+    "method": "POST",
+    "path": "/faq/themes",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqThemeController",
+    "method": "DELETE",
+    "path": "/faq/themes/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqThemeController",
+    "method": "GET",
+    "path": "/faq/themes/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqThemeController",
+    "method": "PUT",
+    "path": "/faq/themes/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "FaqThemeController",
+    "method": "POST",
+    "path": "/faq/themes/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "FreeFormMailController",
+    "method": "POST",
+    "path": "/review-mobile-app-mail",
+    "actionTracking": null
+  },
+  {
+    "controller": "GlobalController",
+    "method": "GET",
+    "path": "/all-info",
+    "actionTracking": null
+  },
+  {
+    "controller": "GlobalController",
+    "method": "GET",
+    "path": "/legal-pages-faq",
+    "actionTracking": null
+  },
+  {
+    "controller": "HealthCareController",
+    "method": "GET",
+    "path": "/healthcare",
+    "actionTracking": null
+  },
+  {
+    "controller": "HealthCareController",
+    "method": "POST",
+    "path": "/healthcare",
+    "actionTracking": null
+  },
+  {
+    "controller": "HealthCareController",
+    "method": "GET",
+    "path": "/healthcare/{actValue}",
+    "actionTracking": null
+  },
+  {
+    "controller": "HeartbeatController",
+    "method": "GET",
+    "path": "/heartbeat",
+    "actionTracking": null
+  },
+  {
+    "controller": "HelpController",
+    "method": "POST",
+    "path": "/help/authorize-connection/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "HelpController",
+    "method": "POST",
+    "path": "/help/debug-reports",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "GET",
+    "path": "/insured/{insured-id}/debug-reports/{report-id}/revoke",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "PUT",
+    "path": "/insured/address",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/adhesion-certificate",
+    "actionTracking": {
+      "value": "Télécharger le certificat d'adhésion",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "download_membership_certificate"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/all-refund-resume",
+    "actionTracking": {
+      "value": "Télécharger un décompte",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "download_refund_statement"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "GET",
+    "path": "/insured/checkPaidBenef",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "PUT",
+    "path": "/insured/contact",
+    "actionTracking": {
+      "value": "Changer ses informations personnel",
+      "type": "AuditTrailType.OPEN_ACTIONS",
+      "subType": "update_personal_information"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "PUT",
+    "path": "/insured/info-validation",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "GET",
+    "path": "/insured/insured-contact",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/manage/beneficiary",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "PUT",
+    "path": "/insured/notifications",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/refund-resume",
+    "actionTracking": {
+      "value": "Exporter remboursement",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "export_refund"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "PUT",
+    "path": "/insured/rib",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/send-by-post-office",
+    "actionTracking": {
+      "value": "Renvoi carte TP papier",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": null
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/sign-file",
+    "actionTracking": {
+      "value": "Signature électronique d'un mandat sepa",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "sign_sepa_mandate"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "GET",
+    "path": "/insured/tp-card",
+    "actionTracking": {
+      "value": "Téléchargement de la carte de tiers payant",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "download_third_party_card"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "GET",
+    "path": "/insured/tp-card/{card-number}",
+    "actionTracking": {
+      "value": "Téléchargement carte TP",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "download_third_party_card"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/tpcard-mail",
+    "actionTracking": {
+      "value": "Envoi carte TP par mail",
+      "type": "AuditTrailType.OPEN_ACTIONS",
+      "subType": "send_third_party_card_by_email"
+    }
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/update-beneficiary",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "PUT",
+    "path": "/insured/update-first-connection",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "PUT",
+    "path": "/insured/update-subscription",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "GET",
+    "path": "/insured/validate-address",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredController",
+    "method": "POST",
+    "path": "/insured/verify-signed-file",
+    "actionTracking": {
+      "value": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "type": "AuditTrailType.BANKING_ACTIONS",
+      "subType": "update_bank_details_contributions"
+    }
+  },
+  {
+    "controller": "InsuredControllerV2",
+    "method": "POST",
+    "path": "/v2/insured/update-beneficiary",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredInfosValidationController",
+    "method": "POST",
+    "path": "/insured-infos-validation",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredInfosValidationController",
+    "method": "POST",
+    "path": "/insured-infos-validation/save-unschooled",
+    "actionTracking": null
+  },
+  {
+    "controller": "InsuredMobileApplicationController",
+    "method": "GET",
+    "path": "/insured-mobile-application/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "IosDeviceController",
+    "method": "GET",
+    "path": "/v1/devices/{deviceLibraryIdentifier}/registrations/{passTypeIdentifier}",
+    "actionTracking": null
+  },
+  {
+    "controller": "IosDeviceController",
+    "method": "DELETE",
+    "path": "/v1/devices/{deviceLibraryIdentifier}/registrations/{passTypeIdentifier}/{serialNumber}",
+    "actionTracking": null
+  },
+  {
+    "controller": "IosDeviceController",
+    "method": "POST",
+    "path": "/v1/devices/{deviceLibraryIdentifier}/registrations/{passTypeIdentifier}/{serialNumber}",
+    "actionTracking": null
+  },
+  {
+    "controller": "IosLogsController",
+    "method": "POST",
+    "path": "/v1/log",
+    "actionTracking": null
+  },
+  {
+    "controller": "IosPassController",
+    "method": "GET",
+    "path": "/v1/passes/{passTypeIdentifier}/{serialNumber}",
+    "actionTracking": null
+  },
+  {
+    "controller": "KalixiaApiController",
+    "method": "GET",
+    "path": "/kalixia",
+    "actionTracking": null
+  },
+  {
+    "controller": "KalixiaV2Controller",
+    "method": "GET",
+    "path": "/v2/kalixia/sso",
+    "actionTracking": null
+  },
+  {
+    "controller": "LegalPageController",
+    "method": "GET",
+    "path": "/v1/legal-pages",
+    "actionTracking": null
+  },
+  {
+    "controller": "LegalPageController",
+    "method": "PUT",
+    "path": "/v1/legal-pages",
+    "actionTracking": null
+  },
+  {
+    "controller": "LegalPageController",
+    "method": "DELETE",
+    "path": "/v1/legal-pages/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "LegalPageController",
+    "method": "POST",
+    "path": "/v1/legal-pages/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "LegalPageController",
+    "method": "GET",
+    "path": "/v1/legal-pages/with-entity-name",
+    "actionTracking": null
+  },
+  {
+    "controller": "MobileApplicationController",
+    "method": "GET",
+    "path": "/mobile/app/{id}/informations",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "GET",
+    "path": "/v1/news",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "POST",
+    "path": "/v1/news",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "DELETE",
+    "path": "/v1/news/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "GET",
+    "path": "/v1/news/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "PUT",
+    "path": "/v1/news/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "DELETE",
+    "path": "/v1/news/{id}/links",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "GET",
+    "path": "/v1/news/{id}/links",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "POST",
+    "path": "/v1/news/{id}/links",
+    "actionTracking": null
+  },
+  {
+    "controller": "NewsController",
+    "method": "POST",
+    "path": "/v1/news/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "OldSpaceReturnJustificationController",
+    "method": "PUT",
+    "path": "/old-space",
+    "actionTracking": null
+  },
+  {
+    "controller": "PaymentSchedulesController",
+    "method": "GET",
+    "path": "/payment-schedules/file",
+    "actionTracking": null
+  },
+  {
+    "controller": "RequestsController",
+    "method": "POST",
+    "path": "/requests/message",
+    "actionTracking": null
+  },
+  {
+    "controller": "RequestsController",
+    "method": "GET",
+    "path": "/requests/messages/file",
+    "actionTracking": null
+  },
+  {
+    "controller": "SanteClairApiController",
+    "method": "POST",
+    "path": "/sante-clair",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "GET",
+    "path": "/v1/services",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "POST",
+    "path": "/v1/services",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "DELETE",
+    "path": "/v1/services/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "GET",
+    "path": "/v1/services/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "PUT",
+    "path": "/v1/services/{id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "GET",
+    "path": "/v1/services/{id}/entities",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "DELETE",
+    "path": "/v1/services/delink/{entity-id}",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "POST",
+    "path": "/v1/services/link",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "POST",
+    "path": "/v1/services/search",
+    "actionTracking": null
+  },
+  {
+    "controller": "ServiceController",
+    "method": "POST",
+    "path": "/v1/services/search-with-groups",
+    "actionTracking": null
+  },
+  {
+    "controller": "SocialSecurityOrganizationController",
+    "method": "GET",
+    "path": "/social-security-funds/{searchTerm}",
+    "actionTracking": null
+  },
+  {
+    "controller": "SsoController",
+    "method": "POST",
+    "path": "/sso",
+    "actionTracking": null
+  },
+  {
+    "controller": "StatsController",
+    "method": "POST",
+    "path": "/v1/stats",
+    "actionTracking": null
+  },
+  {
+    "controller": "StatsController",
+    "method": "POST",
+    "path": "/v1/stats/insured",
+    "actionTracking": null
+  },
+  {
+    "controller": "TeletransmissionController",
+    "method": "POST",
+    "path": "/teletransmission/update/{amoCode}",
+    "actionTracking": {
+      "value": "Changer l'organisme de rattachement sécu. Social",
+      "type": "AuditTrailType.OPEN_ACTIONS",
+      "subType": "change_social_security_provider"
+    }
+  },
+  {
+    "controller": "TeletransmissionControllerV2",
+    "method": "POST",
+    "path": "/v2/teletransmission/update/{amoCode}",
+    "actionTracking": {
+      "value": "Changer l'organisme de rattachement sécu. Social",
+      "type": "AuditTrailType.OPEN_ACTIONS",
+      "subType": "change_social_security_provider"
+    }
+  },
+  {
+    "controller": "WalletController",
+    "method": "POST",
+    "path": "/wallet/ios",
+    "actionTracking": {
+      "value": "Ajout de la carte tiers payant dans le wallet",
+      "type": "AuditTrailType.INSURED_ACTIONS",
+      "subType": "add_third_party_card_to_wallet_ios"
+    }
+  },
+  {
+    "controller": "WalletController",
+    "method": "POST",
+    "path": "/wallet/send-notification",
+    "actionTracking": null
+  }
+]

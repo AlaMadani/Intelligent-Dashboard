@@ -1,0 +1,76 @@
+package com.noveocare.dataprocessor.redis;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.List;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class RedisCacheService {
+
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    public void setJson(String key, Object value, Duration ttl) {
+        try {
+            String payload = objectMapper.writeValueAsString(value);
+            redisTemplate.opsForValue().set(key, payload, ttl);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize value for Redis key={}", key, e);
+        }
+    }
+
+    public void addToJsonList(String key, Object value, Duration ttl) {
+        try {
+            String payload = objectMapper.writeValueAsString(value);
+            redisTemplate.opsForList().rightPush(key, payload);
+            redisTemplate.expire(key, ttl);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize list value for Redis key={}", key, e);
+        }
+    }
+
+    public <T> List<T> getJsonList(String key, Class<T> type) {
+        List<String> values = redisTemplate.opsForList().range(key, 0, -1);
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        List<T> result = new java.util.ArrayList<>(values.size());
+        for (String value : values) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            try {
+                result.add(objectMapper.readValue(value, type));
+            } catch (JsonProcessingException e) {
+                log.error("Failed to deserialize Redis list entry for key={}", key, e);
+            }
+        }
+        return result;
+    }
+
+    public void deleteKey(String key) {
+        redisTemplate.delete(key);
+    }
+
+    public void increment(String key, long delta, Duration ttl) {
+        Long updated = redisTemplate.opsForValue().increment(key, delta);
+        if (updated != null && updated == delta) {
+            redisTemplate.expire(key, ttl);
+        }
+    }
+
+    public void incrementHash(String key, String field, long delta, Duration ttl) {
+        Long updated = redisTemplate.opsForHash().increment(key, field, delta);
+        if (updated != null && updated == delta) {
+            redisTemplate.expire(key, ttl);
+        }
+    }
+}

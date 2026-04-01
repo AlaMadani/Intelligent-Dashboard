@@ -1,0 +1,234 @@
+{
+  "flow": {
+    "auth_to_logout": [
+      {
+        "step": "init_brand",
+        "endpoints": ["GET /init"]
+      },
+      {
+        "step": "redirect_or_sso_login",
+        "endpoints": [
+          "GET /auth/login-redirect",
+          "GET /auth/sso",
+          "GET /auth/sso/derogatory"
+        ]
+      },
+      {
+        "step": "credentials_login",
+        "endpoints": ["POST /auth/login"]
+      },
+      {
+        "step": "mfa",
+        "endpoints": [
+          "POST /auth/validate-mfa",
+          "POST /auth/regenerate-mfa",
+          "POST /auth/select-email"
+        ]
+      },
+      {
+        "step": "profile",
+        "endpoints": ["GET /auth/profile"]
+      },
+      {
+        "step": "session_refresh",
+        "endpoints": ["POST /auth/refresh"]
+      },
+      {
+        "step": "logout",
+        "endpoints": ["GET /auth/logout"]
+      }
+    ],
+    "account_recovery_and_creation": [
+      "POST /auth/login/forgot-login",
+      "POST /auth/login/forgot-password",
+      "POST /auth/login/forgot-password/reset-validation",
+      "GET /auth/login/get-logins",
+      "POST /auth/login/create-account",
+      "POST /auth/login/create-account-validation",
+      "POST /auth/activate-account/affiliation",
+      "PUT /auth/login/update",
+      "DELETE /auth/remove-email-from-spam",
+      "PUT /auth/password/change"
+    ]
+  },
+  "modules": {
+    "auth": {
+      "login": ["POST /auth/login"],
+      "logout": ["GET /auth/logout"],
+      "profile": ["GET /auth/profile"],
+      "mfa": ["POST /auth/validate-mfa", "POST /auth/regenerate-mfa", "POST /auth/select-email"],
+      "refresh": ["POST /auth/refresh"],
+      "sso": ["GET /auth/login-redirect", "GET /auth/sso", "GET /auth/sso/derogatory"],
+      "account": [
+        "POST /auth/login/forgot-login",
+        "POST /auth/login/forgot-password",
+        "POST /auth/login/forgot-password/reset-validation",
+        "GET /auth/login/get-logins",
+        "POST /auth/login/create-account",
+        "POST /auth/login/create-account-validation",
+        "POST /auth/activate-account/affiliation",
+        "PUT /auth/login/update",
+        "DELETE /auth/remove-email-from-spam",
+        "PUT /auth/password/change"
+      ]
+    },
+    "init": {
+      "brand": ["GET /init"]
+    },
+    "action_validation": {
+      "actions": ["POST /action-validation/generate", "POST /action-validation/validate"]
+    },
+    "content_and_info": {
+      "all_info": [
+        "GET /all-info?actionKey=acts",
+        "GET /all-info?actionKey=alerts",
+        "GET /all-info?actionKey=documents",
+        "GET /all-info?actionKey=healthcare",
+        "GET /all-info?actionKey=insured",
+        "GET /all-info?actionKey=news",
+        "GET /all-info?actionKey=refunds",
+        "GET /all-info?actionKey=requests",
+        "GET /all-info?actionKey=timeline_recent"
+      ],
+      "content": ["GET /content/{type}?brandId={brandId}"]
+    },
+    "insured_profile": {
+      "beneficiaries": [
+        "GET /all-info?actionKey=insured",
+        "POST /v2/insured/update-beneficiary",
+        "PUT /insured/notifications",
+        "GET /insured/checkPaidBenef"
+      ],
+      "contact_and_address": [
+        "GET /all-info?actionKey=insured",
+        "PUT /insured/contact",
+        "PUT /insured/address",
+        "GET /insured/validate-address",
+        "PUT /insured/info-validation"
+      ],
+      "subscription": [
+        "GET /all-info?actionKey=insured",
+        "PUT /insured/update-subscription"
+      ],
+      "first_connection": ["PUT /insured/update-first-connection"],
+      "insured_info_validation": [
+        "POST /insured-infos-validation/save-unschooled",
+        "POST /insured-infos-validation"
+      ],
+      "debug_reports": [
+        "POST /help/debug-reports",
+        "POST /help/authorize-connection/{debugReportId}",
+        "GET /insured/{insuredId}/debug-reports/{debugReportId}/revoke"
+      ]
+    },
+    "documents": {
+      "list_and_types": [
+        "GET /documents",
+        "GET /all-info?actionKey=documents"
+      ],
+      "files": [
+        "GET /documents/file?fileName={fileName}&documentId={documentId}",
+        "POST /documents/upload-documents"
+      ],
+      "display": [
+        "GET /document-display/download/{documentId}"
+      ],
+      "payment_schedules": [
+        "GET /payment-schedules/file?fileName={fileName}&documentId={documentId}"
+      ]
+    },
+    "requests": {
+      "timeline": [
+        "GET /all-info?actionKey=requests",
+        "GET /all-info?actionKey=timeline_recent"
+      ],
+      "messages": [
+        "GET /requests/messages/file?documentId={documentId}",
+        "POST /requests/message?idMessage={idMessage}"
+      ]
+    },
+    "refunds": {
+      "timeline": ["GET /all-info?actionKey=refunds"],
+      "documents": [
+        "POST /insured/refund-resume",
+        "POST /insured/adhesion-certificate",
+        "POST /insured/all-refund-resume"
+      ]
+    },
+    "healthcare": {
+      "types_and_frequent": ["GET /all-info?actionKey=healthcare"],
+      "hospitalization": ["POST /healthcare"]
+    },
+    "services": {
+      "professionals": [
+        "GET /services/healthcare-profession-types",
+        "GET /services/healthcare-professionals?code={code}&zipCode={zipCode}&healthcareNetworkConvention={value}"
+      ],
+      "sso": [
+        "POST /sante-clair",
+        "GET /v2/kalixia/sso?idEntityHasService={idService}",
+        "POST /services/carte-blanche"
+      ]
+    },
+    "teletransmission": {
+      "update": ["POST /v2/teletransmission/update/{amoCode}"]
+    },
+    "tp_card": {
+      "info": ["GET /all-info?actionKey=insured"],
+      "download": [
+        "GET /insured/tp-card",
+        "GET /insured/tp-card/{cardNumber}"
+      ],
+      "send": [
+        "POST /insured/send-by-post-office?environment={environment}",
+        "POST /insured/tpcard-mail?cardName={cardName}&beneficiaryMail={beneficiaryMail}"
+      ],
+      "wallet": ["POST /wallet/ios"]
+    },
+    "rib": {
+      "list": ["GET /all-info?actionKey=insured"],
+      "update": ["PUT /insured/rib"],
+      "signature": [
+        "POST /insured/sign-file",
+        "POST /insured/verify-signed-file"
+      ]
+    },
+    "contact": {
+      "insured_contact": ["GET /insured/insured-contact"],
+      "messages_v2": [
+        "POST /v2/contact/messages/files",
+        "POST /v2/contact/send-claim",
+        "POST /v2/contact/adhesion/add-beneficiary",
+        "POST /v2/contact/adhesion/resil-beneficiary",
+        "POST /v2/contact/adhesion/change-option",
+        "POST /v2/contact/adhesion/others",
+        "POST /v2/contact/adhesion/contract-termination",
+        "POST /v2/contact/adhesion/cancel-paid-option",
+        "POST /v2/contact/adhesion/proof-pacs",
+        "POST /v2/contact/adhesion/proof-common-life",
+        "POST /v2/contact/tp-card",
+        "POST /v2/contact/cotisations",
+        "POST /v2/contact/cotisations/send-timeline",
+        "POST /v2/contact/guarantee/hospitalisation",
+        "POST /v2/contact/guarantee/optical",
+        "POST /v2/contact/guarantee/dental",
+        "POST /v2/contact/guarantee/others",
+        "POST /v2/contact/refund/hospitalisation",
+        "POST /v2/contact/refund/optical",
+        "POST /v2/contact/refund/dental",
+        "POST /v2/contact/refund/others",
+        "POST /v2/contact/quote/optical",
+        "POST /v2/contact/quote/dental",
+        "POST /v2/contact/quote/others",
+        "POST /v2/contact/teletransmission",
+        "POST /v2/contact/rib-cotisation",
+        "POST /v2/contact/rib-prelevement",
+        "POST /v2/contact/rib-benef"
+      ]
+    },
+    "other": {
+      "social_security": ["GET /social-security-funds/{amoCode}"],
+      "old_space": ["PUT /old-space"]
+    }
+  }
+}
