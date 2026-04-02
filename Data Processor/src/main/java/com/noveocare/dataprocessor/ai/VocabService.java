@@ -17,6 +17,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Loads categorical vocabularies used during feature engineering and exposes
+ * safe string-to-id lookups with simple fallback handling.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -37,6 +41,7 @@ public class VocabService {
 
     @PostConstruct
     public void load() throws IOException {
+        // Load the authoritative id-to-label maps, then invert them for runtime lookups.
         actionIdToLabel = loadIdToLabel(properties.getFiles().getActionVocab());
         actionToId = invert(actionIdToLabel);
 
@@ -77,6 +82,7 @@ public class VocabService {
     }
 
     private Map<Integer, String> loadIdToLabel(String fileName) throws IOException {
+        // JSON vocab files use string keys, so convert them to integer ids after loading.
         String path = properties.getBasePath() + fileName;
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {
@@ -90,6 +96,7 @@ public class VocabService {
     }
 
     private Map<String, Integer> invert(Map<Integer, String> idToLabel) {
+        // Normalize labels before inversion so whitespace differences do not break lookups.
         Map<String, Integer> result = new HashMap<>();
         for (Map.Entry<Integer, String> entry : idToLabel.entrySet()) {
             result.put(normalize(entry.getValue()), entry.getKey());
@@ -98,6 +105,7 @@ public class VocabService {
     }
 
     private int lookup(Map<String, Integer> map, String value) {
+        // Unknown or null values map to zero, which is the reserved fallback id in the feature pipeline.
         if (value == null) {
             return 0;
         }
@@ -112,10 +120,12 @@ public class VocabService {
     }
 
     private String normalize(String value) {
+        // Keep normalization intentionally small so labels still match the training vocab exactly.
         return value == null ? null : value.trim();
     }
 
     private String toMojibake(String value) {
+        // Some source datasets contain encoding drift, so try the common UTF-8/Latin-1 mismatch as a fallback.
         if (value == null) {
             return null;
         }

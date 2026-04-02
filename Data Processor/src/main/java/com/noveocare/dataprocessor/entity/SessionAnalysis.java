@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/**
+ * Persisted session-level summary containing derived statistics and inference results.
+ */
 @Entity
 @Table(name = "session_analysis")
 @Data
@@ -13,6 +16,7 @@ public class SessionAnalysis {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Session identifiers and temporal boundaries.
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
@@ -31,6 +35,7 @@ public class SessionAnalysis {
     @Column(name = "session_duration_seconds")
     private Long sessionDurationSeconds;
 
+    // Aggregate metrics computed from the ordered session timeline.
     @Column(name = "unique_action_count")
     private Integer uniqueActionCount;
 
@@ -46,6 +51,7 @@ public class SessionAnalysis {
     @Column(name = "action_counts_json", columnDefinition = "NVARCHAR(MAX)")
     private String actionCountsJson;
 
+    // Model outputs and anomaly decisions retained for auditability.
     @Column(name = "ae_score")
     private Double aeScore;
 
@@ -67,6 +73,7 @@ public class SessionAnalysis {
     @Column(name = "rule_type", columnDefinition = "NVARCHAR(MAX)")
     private String ruleType;
 
+    // Persistence timestamp for this derived summary record.
     @Column(name = "created_at")
     private Instant createdAt;
 }

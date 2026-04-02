@@ -6,6 +6,9 @@ import lombok.Data;
 import java.time.Instant;
 import java.time.LocalDate;
 
+/**
+ * Daily per-action history used both as training/inference context and for spike reporting.
+ */
 @Entity
 @Table(name = "action_stats_daily", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"stat_date", "action_id"})
@@ -16,6 +19,7 @@ public class ActionStatsDaily {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Natural key identifying the action and day represented by this row.
     @Column(name = "stat_date", nullable = false)
     private LocalDate statDate;
 
@@ -28,6 +32,7 @@ public class ActionStatsDaily {
     @Column(name = "actual_count")
     private Long actualCount;
 
+    // Prediction outputs and rolling baseline used for spike detection.
     @Column(name = "predicted_count")
     private Double predictedCount;
 

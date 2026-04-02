@@ -1,7 +1,7 @@
 package com.noveocare.dataprocessor.ai;
 
-import com.noveocare.dataprocessor.dto.AuditTrailEvent;
 import com.noveocare.dataprocessor.config.FeatureEngineeringProperties;
+import com.noveocare.dataprocessor.dto.AuditTrailEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +16,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Converts ordered audit-trail sessions into the padded numeric feature matrix
+ * expected by the sequence models.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -27,21 +31,25 @@ public class FeatureEngineeringService {
     private final FeatureEngineeringProperties featureEngineeringProperties;
 
     public float[][] buildFeatureMatrix(List<AuditTrailEvent> sessionEvents) {
+        // Allocate the fully padded model input shape up front.
         FeatureConfig config = featureConfigLoader.getFeatureConfig();
         int seqLen = config.getSeqLen();
         int nFeatures = config.getNFeatures();
         float[][] matrix = new float[seqLen][nFeatures];
 
+        // Return an all-zero matrix for empty sessions so downstream models still receive valid input.
         if (sessionEvents == null || sessionEvents.isEmpty()) {
             return matrix;
         }
 
+        // Sort the raw session first, then compute one feature row per event.
         List<AuditTrailEvent> ordered = new ArrayList<>(sessionEvents);
         ordered.sort(eventComparator());
 
         int sessionLength = resolveSessionLength(ordered);
         List<float[]> rows = buildRows(ordered, sessionLength, config);
 
+        // Left-pad with zeros and keep only the most recent events if the session is too long.
         int start = Math.max(0, seqLen - rows.size());
         int copyStart = Math.max(0, rows.size() - seqLen);
         int targetIndex = start;
@@ -52,6 +60,7 @@ public class FeatureEngineeringService {
     }
 
     private List<float[]> buildRows(List<AuditTrailEvent> ordered, int sessionLength, FeatureConfig config) {
+        // Reuse the trained scaler statistics to normalize inter-event delays.
         List<float[]> rows = new ArrayList<>(ordered.size());
         DeltaScaler scaler = deltaScalerLoader.getDeltaScaler();
         double mean = scaler.meanValue();
@@ -68,6 +77,7 @@ public class FeatureEngineeringService {
             AuditTrailEvent event = ordered.get(index);
             int sequence = resolveSequence(event, index);
 
+            // Derive temporal features from the current event and its predecessor.
             Instant currentTime = event.getCreatedAt();
             double deltaSeconds = 0.0;
             if (prevTime != null && currentTime != null) {
@@ -79,6 +89,7 @@ public class FeatureEngineeringService {
             double deltaClipped = Math.min(deltaSeconds, featureEngineeringProperties.getDeltaClipSeconds());
             double deltaScaled = (deltaClipped - mean) / scale;
 
+            // Map string-valued categorical attributes onto the integer vocabularies used in training.
             int actionId = vocabService.actionId(event.getAction());
             int deviceId = vocabService.deviceId(event.getDevice());
             int countryId = vocabService.countryId(event.getCountryCode());
@@ -94,6 +105,7 @@ public class FeatureEngineeringService {
             int dayOfWeek = (time.getDayOfWeek().getValue() + 6) % 7;
             int month = time.getMonthValue();
 
+            // Encode cyclical time dimensions with sine/cosine pairs.
             float hourSin = (float) Math.sin(2 * Math.PI * hour / 24.0);
             float hourCos = (float) Math.cos(2 * Math.PI * hour / 24.0);
             float dowSin = (float) Math.sin(2 * Math.PI * dayOfWeek / 7.0);
@@ -107,6 +119,7 @@ public class FeatureEngineeringService {
             float isSessionEnd = sequence == sessionLength ? 1.0f : 0.0f;
             float sessionLenNorm = (float) sessionLength / (float) config.getMaxSessionLen();
 
+            // Keep rolling counters and flags that help models understand state progression.
             float koCountSoFar = (float) koCount;
             if (isKo) {
                 koCount++;
@@ -127,6 +140,7 @@ public class FeatureEngineeringService {
             }
             minDeltaSoFar = Math.min(minDeltaSoFar, deltaClipped);
 
+            // Assemble named feature values before projecting them onto the configured column order.
             Map<String, Float> values = new HashMap<>();
             values.put("action_id", (float) actionId);
             values.put("device_id", (float) deviceId);
@@ -151,6 +165,7 @@ public class FeatureEngineeringService {
             values.put("had_ip_change", hadIpChangeFlag);
             values.put("min_delta_so_far", minDeltaSoFarValue);
 
+            // Build the final dense feature row expected by the trained ONNX models.
             float[] row = new float[config.getFeatureCols().size()];
             for (int i = 0; i < config.getFeatureCols().size(); i++) {
                 row[i] = values.getOrDefault(config.getFeatureCols().get(i), 0.0f);
@@ -166,6 +181,7 @@ public class FeatureEngineeringService {
     }
 
     private int resolveSessionLength(List<AuditTrailEvent> ordered) {
+        // Prefer explicit session metadata, then fall back to the number of observed events.
         int maxSequence = 0;
         int maxLengthField = 0;
         for (AuditTrailEvent event : ordered) {
@@ -187,6 +203,7 @@ public class FeatureEngineeringService {
     }
 
     private int resolveSequence(AuditTrailEvent event, int index) {
+        // If sequence metadata is missing, preserve the chronological list position instead.
         if (event.getSequenceInSession() != null && event.getSequenceInSession() > 0) {
             return event.getSequenceInSession();
         }
@@ -194,6 +211,7 @@ public class FeatureEngineeringService {
     }
 
     private Comparator<AuditTrailEvent> eventComparator() {
+        // Order events primarily by explicit session sequence, then by timestamp as a fallback.
         return Comparator
                 .comparing(AuditTrailEvent::getSequenceInSession, Comparator.nullsLast(Integer::compareTo))
                 .thenComparing(AuditTrailEvent::getCreatedAt, Comparator.nullsLast(Instant::compareTo));

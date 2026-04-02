@@ -16,6 +16,9 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Loads classifier output labels so model indices can be translated into readable names.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -33,6 +36,7 @@ public class LabelMapService {
 
     @PostConstruct
     public void load() throws IOException {
+        // Keep separate maps because the anomaly classifier and next-action model use different label spaces.
         anomalyTypeLabels = loadLabelMap(properties.getFiles().getAnomalyTypeLabelMap());
         nextActionLabels = loadLabelMap(properties.getFiles().getNextActionLabelMap());
         log.info("Loaded label maps (anomalyTypes={}, nextActions={})", anomalyTypeLabels.size(), nextActionLabels.size());
@@ -47,6 +51,7 @@ public class LabelMapService {
     }
 
     private Map<Integer, String> loadLabelMap(String fileName) throws IOException {
+        // JSON label maps use string keys, so convert them to integers after deserialization.
         String path = properties.getBasePath() + fileName;
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {

@@ -6,6 +6,9 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Provides the shared ObjectMapper used by Kafka, Redis, and JPA helpers.
+ */
 @Configuration
 public class JacksonConfig {
 

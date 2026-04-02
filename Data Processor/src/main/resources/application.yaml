@@ -1,3 +1,4 @@
+# Spring infrastructure for the worker process itself.
 spring:
   application:
     name: data-processor
@@ -27,6 +28,7 @@ spring:
       host: localhost
       port: 6379
 
+# Application-specific wiring for Kafka topics, Redis TTLs, rules, and models.
 app:
   kafka:
     topics:

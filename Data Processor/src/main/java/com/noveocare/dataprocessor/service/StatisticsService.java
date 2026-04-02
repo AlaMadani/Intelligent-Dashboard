@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -33,6 +32,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Maintains live counters, session-level aggregates, and user-level risk
+ * profiles derived from processed audit sessions.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -51,6 +54,7 @@ public class StatisticsService {
     private final ObjectMapper objectMapper;
 
     public void recordEvent(AuditTrailEvent event) {
+        // Bucket each event by minute so Redis can serve rolling dashboard windows cheaply.
         LocalDateTime now = LocalDateTime.ofInstant(
                 event.getCreatedAt() == null ? Instant.now() : event.getCreatedAt(),
                 ZoneOffset.UTC);
@@ -60,6 +64,7 @@ public class StatisticsService {
         Duration ttl = cacheProperties.getLiveStats();
         redisCacheService.increment(CacheKeys.eventsMinuteKey(minute), 1, ttl);
 
+        // Keep per-minute distributions that will later be merged into live snapshots.
         String actionLabel = event.getAction() == null ? "UNKNOWN" : event.getAction();
         redisCacheService.incrementHash(CacheKeys.actionsMinuteKey(minute), actionLabel, 1, ttl);
 
@@ -76,12 +81,14 @@ public class StatisticsService {
     }
 
     public void recordAnomalyAlert(Instant detectedAt) {
+        // Alerts use the same minute bucketing strategy as raw events.
         LocalDateTime time = LocalDateTime.ofInstant(detectedAt, ZoneOffset.UTC);
         String minute = time.format(MINUTE_FORMAT);
         redisCacheService.increment(CacheKeys.alertsMinuteKey(minute), 1, cacheProperties.getLiveStats());
     }
 
     public SessionStats computeSessionStats(List<AuditTrailEvent> events) {
+        // Return an all-zero aggregate for empty sessions so downstream persistence stays simple.
         if (events == null || events.isEmpty()) {
             return SessionStats.builder()
                     .sessionDurationSeconds(0)
@@ -94,6 +101,7 @@ public class StatisticsService {
                     .build();
         }
 
+        // Rebuild the chronological session order before computing durations and transitions.
         List<AuditTrailEvent> ordered = new ArrayList<>(events);
         ordered.sort(Comparator
                 .comparing(AuditTrailEvent::getSequenceInSession, Comparator.nullsLast(Integer::compareTo))
@@ -112,6 +120,7 @@ public class StatisticsService {
         int deltaCount = 0;
         Instant prevTime = null;
 
+        // Count actions, KO statuses, and inter-event delays in a single pass.
         for (AuditTrailEvent event : ordered) {
             String action = event.getAction() == null ? "UNKNOWN" : event.getAction();
             actionCounts.put(action, actionCounts.getOrDefault(action, 0L) + 1);
@@ -133,6 +142,7 @@ public class StatisticsService {
         double meanDelta = deltaCount == 0 ? 0.0 : deltaSum / deltaCount;
         double diversity = shannonEntropy(actionCounts, total);
 
+        // Package all derived metrics into the DTO stored with the session analysis.
         return SessionStats.builder()
                 .sessionDurationSeconds(durationSeconds)
                 .sessionLength(total)
@@ -145,10 +155,12 @@ public class StatisticsService {
     }
 
     public void updateUserRiskProfile(String insuredId) {
+        // Recompute the whole profile from recent persisted sessions to avoid cache drift.
         Instant now = Instant.now();
         Instant since30 = now.minus(Duration.ofDays(30));
         Instant since7 = now.minus(Duration.ofDays(7));
 
+        // Load the recent history once, then derive the rolling counts and anomaly rates from it.
         List<SessionAnalysis> sessions30 = sessionAnalysisRepository
                 .findByInsuredIdAndEndTimeAfterOrderByEndTimeDesc(insuredId, since30);
         int sessions30Count = sessions30.size();
@@ -168,6 +180,7 @@ public class StatisticsService {
                 .findFirst()
                 .orElse(null);
 
+        // Count the clean streak from most recent to oldest until an anomaly breaks it.
         int consecutiveClean = 0;
         for (SessionAnalysis session : sessionAnalysisRepository.findTop200ByInsuredIdOrderByEndTimeDesc(insuredId)) {
             if (Boolean.TRUE.equals(session.getIsAnomaly())) {
@@ -179,6 +192,7 @@ public class StatisticsService {
         Map<String, Long> aggregatedActions = new HashMap<>();
         double durationSum = 0.0;
         int durationCount = 0;
+        // Rehydrate persisted action-count JSON to identify dominant user behavior over 30 days.
         for (SessionAnalysis session : sessions30) {
             durationSum += session.getSessionDurationSeconds() == null ? 0.0 : session.getSessionDurationSeconds();
             durationCount++;
@@ -205,6 +219,7 @@ public class StatisticsService {
                 .map(SessionAnalysis::getAnomalyType)
                 .anyMatch(type -> type != null && isHighRiskType(type));
 
+        // Translate the rolling metrics into the coarse risk tier used by downstream consumers.
         String riskTier = resolveRiskTier(anomalyRate, highRiskTypeSeen);
 
         UserRiskProfile profile = userRiskProfileRepository.findByInsuredId(insuredId)
@@ -227,10 +242,12 @@ public class StatisticsService {
 
         userRiskProfileRepository.save(profile);
 
+        // Cache the latest profile so read-heavy consumers avoid hitting SQL for every lookup.
         redisCacheService.setJson(CacheKeys.riskKey(insuredId), profile, cacheProperties.getRisk());
     }
 
     public void refreshLiveStatsSnapshot() {
+        // Build the rolling minute windows required by the live dashboard.
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         List<String> eventKeys = lastMinuteKeys(now, Math.max(1, (int) Math.ceil(liveStatsProperties.getEventsWindowSeconds() / 60.0)));
         List<String> actionKeys = lastMinuteKeys(now, liveStatsProperties.getActionsWindowMinutes());
@@ -243,6 +260,7 @@ public class StatisticsService {
         long alertsLastWindow = sumCounters(alertKeys, CacheKeys::alertsMinuteKey);
         double anomalyRate = eventsLastHour == 0 ? 0.0 : (double) alertsLastWindow / eventsLastHour;
 
+        // Merge per-minute hashes into a single snapshot view.
         Map<String, Long> actionCounts = sumHashes(actionKeys, CacheKeys::actionsMinuteKey);
         Map<String, Long> countryCounts = sumHashes(countryKeys, CacheKeys::countriesMinuteKey);
         Map<String, Long> koCounts = sumHashes(koKeys, CacheKeys::koMinuteKey);
@@ -251,6 +269,7 @@ public class StatisticsService {
         long koValue = koCounts.getOrDefault("ko", 0L);
         double koRate = koTotal == 0 ? 0.0 : (double) koValue / koTotal;
 
+        // Publish the small dashboard payload that external clients will poll from Redis.
         Map<String, Object> snapshot = new HashMap<>();
         snapshot.put("active_sessions", countActiveSessions());
         snapshot.put("events_per_minute", eventsLastWindow);
@@ -265,12 +284,14 @@ public class StatisticsService {
     }
 
     private long countActiveSessions() {
+        // Session buffers use the "session:*" pattern, so counting keys gives a cheap active estimate.
         return Optional.ofNullable(redisTemplate.keys("session:*"))
                 .map(set -> (long) set.size())
                 .orElse(0L);
     }
 
     private List<String> lastMinuteKeys(LocalDateTime now, int minutes) {
+        // Generate minute suffixes from newest to oldest for window aggregation.
         List<String> keys = new ArrayList<>();
         for (int i = 0; i < minutes; i++) {
             LocalDateTime time = now.minusMinutes(i);
@@ -280,6 +301,7 @@ public class StatisticsService {
     }
 
     private long sumCounters(List<String> minuteKeys, java.util.function.Function<String, String> keyFn) {
+        // Ignore malformed counter values instead of failing the whole stats refresh.
         long sum = 0;
         for (String minute : minuteKeys) {
             String value = redisTemplate.opsForValue().get(keyFn.apply(minute));
@@ -294,6 +316,7 @@ public class StatisticsService {
     }
 
     private Map<String, Long> sumHashes(List<String> minuteKeys, java.util.function.Function<String, String> keyFn) {
+        // Combine hash buckets from several minute windows into one aggregated map.
         Map<String, Long> aggregated = new HashMap<>();
         HashOperations<String, String, String> hashOps = redisTemplate.opsForHash();
         for (String minute : minuteKeys) {
@@ -313,6 +336,7 @@ public class StatisticsService {
     }
 
     private Map<String, Long> topN(Map<String, Long> counts, int limit) {
+        // Preserve descending order in the returned map so consumers can render directly.
         Map<String, Long> ordered = new java.util.LinkedHashMap<>();
         counts.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
@@ -322,6 +346,7 @@ public class StatisticsService {
     }
 
     private double shannonEntropy(Map<String, Long> counts, int total) {
+        // Entropy gives a simple measure of how diverse the action mix was inside the session.
         if (total == 0) {
             return 0.0;
         }
@@ -334,6 +359,7 @@ public class StatisticsService {
     }
 
     private String resolveRiskTier(double anomalyRate, boolean highRiskTypeSeen) {
+        // High-risk anomaly types override the pure rate-based thresholds.
         if (highRiskTypeSeen) {
             return "HIGH";
         }
@@ -347,6 +373,7 @@ public class StatisticsService {
     }
 
     private boolean isHighRiskType(String type) {
+        // Keep comparison case-insensitive because classifier labels may vary in casing.
         for (String highRisk : riskProperties.getHighRiskTypes()) {
             if (highRisk.equalsIgnoreCase(type)) {
                 return true;

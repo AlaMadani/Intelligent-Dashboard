@@ -14,6 +14,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Stores the ordered in-flight event list for each insured/session pair.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class RedisSessionBufferService {
     private final RedisCacheProperties cacheProperties;
 
     public void appendEvent(AuditTrailEvent event) {
+        // Every event is appended to the right so Redis preserves session order.
         String key = CacheKeys.sessionKey(event.getInsuredId(), event.getSessionId());
         try {
             String payload = objectMapper.writeValueAsString(event);
@@ -35,6 +39,7 @@ public class RedisSessionBufferService {
     }
 
     public List<AuditTrailEvent> getSessionEvents(String insuredId, String sessionId) {
+        // Rehydrate the full Redis list whenever downstream logic needs the current session timeline.
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         List<String> raw = redisTemplate.opsForList().range(key, 0, -1);
         if (raw == null || raw.isEmpty()) {
@@ -52,11 +57,13 @@ public class RedisSessionBufferService {
     }
 
     public void expireSession(String insuredId, String sessionId, Duration ttl) {
+        // Allow callers to extend or shrink the session lifetime without touching the payload.
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         redisTemplate.expire(key, ttl);
     }
 
     public void deleteSession(String insuredId, String sessionId) {
+        // Clear the buffer once the session-close workflow has completed.
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         redisTemplate.delete(key);
     }

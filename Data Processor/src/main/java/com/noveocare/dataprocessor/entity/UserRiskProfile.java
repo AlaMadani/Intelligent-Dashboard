@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/**
+ * Rolling user-level risk summary derived from recent persisted sessions.
+ */
 @Entity
 @Table(name = "user_risk_profile", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"insured_id"})
@@ -15,6 +18,7 @@ public class UserRiskProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // User identifier and freshness of the computed profile.
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
@@ -36,6 +40,7 @@ public class UserRiskProfile {
     @Column(name = "anomaly_rate_30d")
     private Double anomalyRate30d;
 
+    // Recent behavioral aggregates used to explain the assigned tier.
     @Column(name = "sessions_7d")
     private Integer sessions7d;
 

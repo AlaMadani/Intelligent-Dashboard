@@ -18,6 +18,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 
+/**
+ * Persists, caches, and publishes anomaly alerts once a tier decides that a
+ * session or event should be surfaced.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -32,8 +36,11 @@ public class AlertPublisher {
     private final StatisticsService statisticsService;
 
     public void publish(AnomalyAlert alert, String rawEventJson) {
+        // Store the alert first so it is not lost if Kafka delivery fails later.
         persist(alert, rawEventJson);
+        // Keep the latest active anomaly in Redis for fast API/dashboard access.
         cache(alert);
+        // Fan the alert out to the anomaly topic for downstream consumers.
         send(alert);
         log.info("Alert published insuredId={} sessionId={} tier={} type={} rule={}",
                 alert.getInsuredId(),
@@ -41,11 +48,13 @@ public class AlertPublisher {
                 alert.getAnomalyTier(),
                 alert.getAnomalyType(),
                 alert.getRuleType());
+        // Update the near-real-time metrics and user risk snapshot after publication.
         statisticsService.recordAnomalyAlert(alert.getDetectedAt() == null ? Instant.now() : alert.getDetectedAt());
         statisticsService.updateUserRiskProfile(alert.getInsuredId());
     }
 
     public void persistOnly(AnomalyAlert alert, String rawEventJson) {
+        // This path is used when inference or publishing failed but the alert still needs an audit record.
         persist(alert, rawEventJson);
         log.warn("Alert persisted without publish insuredId={} sessionId={} tier={} rule={}",
                 alert.getInsuredId(),
@@ -55,6 +64,7 @@ public class AlertPublisher {
     }
 
     private void persist(AnomalyAlert alert, String rawEventJson) {
+        // Copy the DTO into the JPA entity so the full alert history is queryable from SQL.
         AnomalyEvent entity = new AnomalyEvent();
         entity.setInsuredId(alert.getInsuredId());
         entity.setSessionId(alert.getSessionId());
@@ -71,15 +81,18 @@ public class AlertPublisher {
     }
 
     private void cache(AnomalyAlert alert) {
+        // Cache only the latest alert per insured user; historic events stay in SQL.
         redisCacheService.setJson(CacheKeys.activeAnomalyKey(alert.getInsuredId()), alert,
                 cacheProperties.getActiveAnomaly());
     }
 
     private void send(AnomalyAlert alert) {
         try {
+            // Serialize on demand so the persisted entity remains the source of truth.
             String payload = objectMapper.writeValueAsString(alert);
             kafkaTemplate.send(topicProperties.getAnomalyAlerts(), alert.getInsuredId(), payload)
                     .whenComplete((SendResult<String, String> result, Throwable ex) -> {
+                        // Log the broker outcome but do not retry inline from the Kafka callback.
                         if (ex != null) {
                             log.error("Alert Kafka send failed insuredId={} sessionId={}",
                                     alert.getInsuredId(), alert.getSessionId(), ex);

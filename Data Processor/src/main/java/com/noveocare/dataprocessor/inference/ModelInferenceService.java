@@ -8,14 +8,14 @@ import com.noveocare.dataprocessor.ai.FeatureConfigLoader;
 import com.noveocare.dataprocessor.ai.LabelMapService;
 import com.noveocare.dataprocessor.config.AiResourceProperties;
 import com.noveocare.dataprocessor.dto.AnomalyTypeResult;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -23,6 +23,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Wraps ONNX Runtime sessions for anomaly scoring, anomaly-type
+ * classification, and next-action ranking.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -44,6 +48,7 @@ public class ModelInferenceService {
 
     @PostConstruct
     public void init() throws IOException, OrtException {
+        // Load the shared ONNX environment once and keep one session per model.
         environment = OrtEnvironment.getEnvironment();
         aeSession = createSession(properties.getModels().getAnomalyAutoencoder());
         anomalyTypeSession = createSession(properties.getModels().getAnomalyTypeClassifier());
@@ -57,9 +62,11 @@ public class ModelInferenceService {
     }
 
     public double scoreAnomaly(float[][] matrix) throws OrtException {
+        // The autoencoder receives a batch of exactly one padded sequence.
         float[][][] input = wrap(matrix);
         try (OnnxTensor tensor = OnnxTensor.createTensor(environment, input)) {
             try (OrtSession.Result result = aeSession.run(Map.of(aeInputName, tensor))) {
+                // The anomaly score is the worst per-step reconstruction error in the sequence.
                 Object value = result.get(0).getValue();
                 float[][][] output = (float[][][]) value;
                 double score = maxStepMse(input[0], output[0]);
@@ -70,6 +77,7 @@ public class ModelInferenceService {
     }
 
     public AnomalyTypeResult classifyType(float[][] matrix) throws OrtException {
+        // The classifier outputs one probability/logit vector for the whole session.
         float[][][] input = wrap(matrix);
         try (OnnxTensor tensor = OnnxTensor.createTensor(environment, input)) {
             try (OrtSession.Result result = anomalyTypeSession.run(Map.of(typeInputName, tensor))) {
@@ -88,6 +96,7 @@ public class ModelInferenceService {
     }
 
     public List<String> predictNextActions(float[][] matrix, int topK) throws OrtException {
+        // The ranking model uses the same input tensor shape as the other session models.
         float[][][] input = wrap(matrix);
         try (OnnxTensor tensor = OnnxTensor.createTensor(environment, input)) {
             try (OrtSession.Result result = nextActionSession.run(Map.of(nextInputName, tensor))) {
@@ -104,6 +113,7 @@ public class ModelInferenceService {
     }
 
     private OrtSession createSession(String fileName) throws IOException, OrtException {
+        // Read model bytes from Spring resources so the same code works from JARs and IDE runs.
         String path = properties.getBasePath() + fileName;
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {
@@ -113,6 +123,7 @@ public class ModelInferenceService {
     }
 
     private float[][][] wrap(float[][] matrix) {
+        // Pad or truncate the incoming matrix to the exact sequence shape expected by the models.
         int seqLen = featureConfigLoader.getFeatureConfig().getSeqLen();
         int nFeatures = featureConfigLoader.getFeatureConfig().getNFeatures();
         float[][][] input = new float[1][seqLen][nFeatures];
@@ -123,6 +134,7 @@ public class ModelInferenceService {
     }
 
     private double maxStepMse(float[][] input, float[][] output) {
+        // Use the maximum step error so short local anomalies are not averaged away.
         double max = 0.0;
         for (int t = 0; t < input.length; t++) {
             double sum = 0.0;
@@ -139,6 +151,7 @@ public class ModelInferenceService {
     }
 
     private float[] extractVector(Object output) {
+        // Some exported models return [1, N] and others return [N]; normalize both forms.
         if (output instanceof float[][] matrix) {
             return matrix[0];
         }
@@ -156,6 +169,7 @@ public class ModelInferenceService {
     }
 
     private List<Integer> topKIndices(float[] scores, int topK) {
+        // Sort score indices descending and keep only the requested head of the ranking.
         List<Integer> indices = new ArrayList<>();
         for (int i = 0; i < scores.length; i++) {
             indices.add(i);
@@ -166,6 +180,7 @@ public class ModelInferenceService {
 
     @PreDestroy
     public void close() throws OrtException {
+        // Release native ONNX resources explicitly during shutdown.
         if (aeSession != null) {
             aeSession.close();
         }

@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/**
+ * Latest next-action recommendation snapshot stored per insured user.
+ */
 @Entity
 @Table(name = "next_action_predictions", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"insured_id"})
@@ -15,6 +18,7 @@ public class NextActionPrediction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // User and session context for the prediction snapshot.
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 

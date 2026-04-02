@@ -18,6 +18,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ * Focused tests that validate the feature-engineering contract used by the sequence models.
+ */
 @SpringJUnitConfig(classes = FeatureEngineeringServiceTest.TestConfig.class)
 class FeatureEngineeringServiceTest {
 
@@ -25,6 +28,7 @@ class FeatureEngineeringServiceTest {
     static class TestConfig {
         @Bean
         ObjectMapper objectMapper() {
+            // Match the production ObjectMapper configuration for Instant handling.
             ObjectMapper mapper = new ObjectMapper();
             mapper.registerModule(new JavaTimeModule());
             return mapper;
@@ -37,6 +41,7 @@ class FeatureEngineeringServiceTest {
 
         @Bean
         AiResourceProperties aiResourceProperties() {
+            // Point tests at the classpath copies of the AI metadata files.
             AiResourceProperties props = new AiResourceProperties();
             props.setBasePath("classpath:/AI/");
             AiResourceProperties.FilePaths files = new AiResourceProperties.FilePaths();
@@ -71,6 +76,7 @@ class FeatureEngineeringServiceTest {
                                                            DeltaScalerLoader deltaScalerLoader,
                                                            VocabService vocabService,
                                                            FeatureEngineeringProperties featureEngineeringProperties) {
+            // Wire the service under test with the same collaborators it uses in production.
             return new FeatureEngineeringService(featureConfigLoader, deltaScalerLoader, vocabService, featureEngineeringProperties);
         }
 
@@ -100,6 +106,7 @@ class FeatureEngineeringServiceTest {
 
     @BeforeEach
     void initLoaders() throws Exception {
+        // Explicitly load JSON resources because the test slices do not run full Spring startup hooks.
         featureConfigLoader.load();
         deltaScalerLoader.load();
         vocabService.load();
@@ -107,6 +114,7 @@ class FeatureEngineeringServiceTest {
 
     @Test
     void buildsMatrixWithMidSessionFeatures() {
+        // Validate predecessor, position, and scaled-delta features for a middle event.
         Instant base = Instant.parse("2025-06-15T10:00:00Z");
 
         AuditTrailEvent e1 = baseEvent("Connexion", "OK", base, 1, 3, "1.1.1.1", "logging_login");
@@ -131,6 +139,7 @@ class FeatureEngineeringServiceTest {
 
     @Test
     void buildsMatrixForSessionStart() {
+        // The first event should expose start-of-session flags and zero previous-state features.
         Instant base = Instant.parse("2025-06-15T10:00:00Z");
         AuditTrailEvent e1 = baseEvent("Connexion", "OK", base, 1, 3, "1.1.1.1", "logging_login");
 
@@ -145,6 +154,7 @@ class FeatureEngineeringServiceTest {
 
     @Test
     void handlesNullSubtype() {
+        // Null subtype values should safely collapse to the fallback vocabulary id.
         Instant base = Instant.parse("2025-06-15T10:00:00Z");
         AuditTrailEvent e1 = baseEvent("Connexion", "OK", base, 1, 3, "1.1.1.1", null);
         e1.setSubType(null);
@@ -156,6 +166,7 @@ class FeatureEngineeringServiceTest {
 
     private AuditTrailEvent baseEvent(String action, String status, Instant time,
                                       int sequence, int sessionLength, String ip, String subType) {
+        // Build a compact, production-like event fixture for the tests above.
         AuditTrailEvent event = new AuditTrailEvent();
         event.setAction(action);
         event.setStatus(status);

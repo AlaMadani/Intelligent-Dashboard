@@ -1,8 +1,12 @@
 package com.noveocare.dataprocessor.config;
 
+/**
+ * Centralizes Redis key naming so every service uses the same cache layout.
+ */
 public final class CacheKeys {
     private CacheKeys() {}
 
+    // Keys used for session-scoped intermediate state.
     public static String sessionKey(String insuredId, String sessionId) {
         return "session:" + insuredId + ":" + sessionId;
     }
@@ -43,6 +47,7 @@ public final class CacheKeys {
         return "alerts:pending:" + insuredId + ":" + sessionId;
     }
 
+    // Keys used for rolling minute-based live statistics.
     public static String eventsMinuteKey(String minute) {
         return "stats:events:minute:" + minute;
     }

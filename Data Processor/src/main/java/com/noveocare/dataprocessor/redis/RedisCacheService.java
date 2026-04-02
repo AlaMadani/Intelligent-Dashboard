@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.List;
 
+/**
+ * Small Redis utility that centralizes JSON serialization and counter updates.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ public class RedisCacheService {
 
     public void setJson(String key, Object value, Duration ttl) {
         try {
+            // Store objects as JSON strings so non-Java consumers can read the same cache entries.
             String payload = objectMapper.writeValueAsString(value);
             redisTemplate.opsForValue().set(key, payload, ttl);
         } catch (JsonProcessingException e) {
@@ -29,6 +33,7 @@ public class RedisCacheService {
 
     public void addToJsonList(String key, Object value, Duration ttl) {
         try {
+            // Lists are used for ordered buffers such as session event timelines.
             String payload = objectMapper.writeValueAsString(value);
             redisTemplate.opsForList().rightPush(key, payload);
             redisTemplate.expire(key, ttl);
@@ -38,6 +43,7 @@ public class RedisCacheService {
     }
 
     public <T> List<T> getJsonList(String key, Class<T> type) {
+        // Deserialize every list entry independently so one bad payload does not poison the whole result.
         List<String> values = redisTemplate.opsForList().range(key, 0, -1);
         if (values == null || values.isEmpty()) {
             return List.of();
@@ -65,6 +71,7 @@ public class RedisCacheService {
     }
 
     public void increment(String key, long delta, Duration ttl) {
+        // Apply the TTL only when the counter is created on this increment.
         Long updated = redisTemplate.opsForValue().increment(key, delta);
         if (updated != null && updated == delta) {
             redisTemplate.expire(key, ttl);
@@ -72,6 +79,7 @@ public class RedisCacheService {
     }
 
     public void incrementHash(String key, String field, long delta, Duration ttl) {
+        // Use the same "set TTL on first write" rule for hash-based aggregations.
         Long updated = redisTemplate.opsForHash().increment(key, field, delta);
         if (updated != null && updated == delta) {
             redisTemplate.expire(key, ttl);

@@ -15,6 +15,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
+/**
+ * Loads the ordered trend-feature column list used by the XGBoost model.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class TrendFeatureColsLoader {
 
     @PostConstruct
     public void load() throws IOException {
+        // Preserve file order because the trained model expects features in this exact sequence.
         String path = properties.getBasePath() + properties.getFiles().getTrendFeatureCols();
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {

@@ -13,6 +13,9 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Loads the JSON metadata that defines the feature matrix layout.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class FeatureConfigLoader {
 
     @PostConstruct
     public void load() throws IOException {
+        // Deserialize the feature configuration once so all services share the same layout.
         String path = properties.getBasePath() + properties.getFiles().getFeatureConfig();
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {

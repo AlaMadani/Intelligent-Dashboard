@@ -13,6 +13,9 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Loads the anomaly-score threshold produced during model calibration.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class AnomalyThresholdLoader {
 
     @PostConstruct
     public void load() throws IOException {
+        // Keep the threshold in memory because it is checked for many sessions.
         String path = properties.getBasePath() + properties.getFiles().getAnomalyThreshold();
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {

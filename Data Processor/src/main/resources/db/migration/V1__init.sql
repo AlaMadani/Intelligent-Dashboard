@@ -1,3 +1,4 @@
+-- Session-level analytics persisted after a session is closed and scored.
 CREATE TABLE session_analysis (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     insured_id NVARCHAR(64) NOT NULL,
@@ -21,6 +22,7 @@ CREATE TABLE session_analysis (
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 
+-- Immutable anomaly alert history for audit and downstream consumers.
 CREATE TABLE anomaly_events (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     insured_id NVARCHAR(64) NOT NULL,
@@ -36,6 +38,7 @@ CREATE TABLE anomaly_events (
     detected_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 
+-- Daily action-volume history used by the trend prediction job.
 CREATE TABLE action_stats_daily (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     stat_date DATE NOT NULL,
@@ -50,6 +53,7 @@ CREATE TABLE action_stats_daily (
     CONSTRAINT uq_action_stats_daily UNIQUE (stat_date, action_id)
 );
 
+-- Latest next-action prediction kept per insured user.
 CREATE TABLE next_action_predictions (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     insured_id NVARCHAR(64) NOT NULL,
@@ -59,6 +63,7 @@ CREATE TABLE next_action_predictions (
     CONSTRAINT uq_next_action_predictions UNIQUE (insured_id)
 );
 
+-- Rolling user-level risk profile derived from recent session history.
 CREATE TABLE user_risk_profile (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     insured_id NVARCHAR(64) NOT NULL,

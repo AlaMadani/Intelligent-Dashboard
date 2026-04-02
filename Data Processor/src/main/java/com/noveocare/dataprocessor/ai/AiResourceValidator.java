@@ -11,6 +11,9 @@ import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Verifies at startup that every configured AI artifact exists and is readable.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -21,6 +24,7 @@ public class AiResourceValidator {
 
     @PostConstruct
     public void validate() {
+        // Collect all missing or unreadable resources before failing the application startup.
         List<String> missing = new ArrayList<>();
         for (String name : properties.getRequiredResources()) {
             Resource resource = resourceLoader.getResource(properties.getBasePath() + name);
@@ -37,6 +41,7 @@ public class AiResourceValidator {
                 missing.add(name);
             }
         }
+        // Fail fast when mandatory models or vocab files are absent.
         if (!missing.isEmpty()) {
             log.error("Missing AI resources under {}: {}", properties.getBasePath(), missing);
             throw new IllegalStateException("Missing AI resources: " + missing);

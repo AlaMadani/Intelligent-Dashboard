@@ -10,6 +10,7 @@ import com.noveocare.dataprocessor.config.TrendProperties;
 import com.noveocare.dataprocessor.entity.ActionStatsDaily;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.repository.ActionStatsDailyRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ml.dmlc.xgboost4j.java.Booster;
@@ -22,7 +23,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -33,6 +33,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Periodically predicts next-day action volumes and flags actions that look
+ * like significant spikes versus recent history.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -53,6 +57,7 @@ public class TrendPredictionScheduler {
 
     @PostConstruct
     public void loadModel() throws IOException, XGBoostError {
+        // Load the serialized XGBoost booster once during startup.
         String path = properties.getBasePath() + properties.getModels().getTrendXgboost();
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {
@@ -63,16 +68,19 @@ public class TrendPredictionScheduler {
 
     @Scheduled(cron = "${app.scheduling.trend-cron}")
     public void runDailyPrediction() {
+        // Yesterday provides the last complete actual counts; tomorrow is the prediction target.
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate yesterday = today.minusDays(1);
         LocalDate predictionDate = today.plusDays(1);
 
         try {
+            // Persist yesterday's final counts before producing any future forecast.
             upsertActualCounts(yesterday);
             Map<String, Object> trendSnapshot = new HashMap<>();
 
             int actionCount = featureConfigLoader.getFeatureConfig().getActionVocabSize();
             for (int actionId = 0; actionId < actionCount; actionId++) {
+                // Generate the model prediction and compare it to a recent rolling baseline.
                 double prediction = predictForAction(actionId, predictionDate);
                 double rollingMean = rollingMean(actionId, predictionDate, 7);
                 double rollingStd = rollingStd(actionId, predictionDate, 7);
@@ -91,6 +99,7 @@ public class TrendPredictionScheduler {
                 record.setCreatedAt(Instant.now());
                 actionStatsDailyRepository.save(record);
 
+                // Keep a compact Redis snapshot for external consumers that do not query SQL.
                 Map<String, Object> entry = new HashMap<>();
                 entry.put("predicted", prediction);
                 entry.put("spike", spike);
@@ -105,6 +114,7 @@ public class TrendPredictionScheduler {
     }
 
     private void upsertActualCounts(LocalDate date) {
+        // Copy the aggregated Redis counters into SQL so the trend model has durable history.
         String key = CacheKeys.dailyActionCountsKey(date.toString());
         Map<Object, Object> counts = redisTemplate.opsForHash().entries(key);
         if (counts == null || counts.isEmpty()) {
@@ -126,6 +136,7 @@ public class TrendPredictionScheduler {
     }
 
     private double predictForAction(int actionId, LocalDate predictionDate) throws XGBoostError {
+        // XGBoost expects a single-row matrix containing all engineered trend features.
         float[] features = buildTrendFeatures(actionId, predictionDate);
         DMatrix matrix = new DMatrix(features, 1, features.length, Float.NaN);
         float[][] prediction = booster.predict(matrix);
@@ -133,6 +144,7 @@ public class TrendPredictionScheduler {
     }
 
     private float[] buildTrendFeatures(int actionId, LocalDate predictionDate) {
+        // Build the exact ordered feature vector used during trend-model training.
         List<String> cols = trendFeatureColsLoader.getFeatureColumns();
         Map<String, Float> values = new HashMap<>();
 
@@ -153,6 +165,7 @@ public class TrendPredictionScheduler {
         values.put("rolling_std_7", (float) rollingStd(actionId, predictionDate, 7));
         values.put("rolling_mean_30", (float) rollingMean(actionId, predictionDate, 30));
 
+        // Project the named feature map onto the model's required column order.
         float[] features = new float[cols.size()];
         for (int i = 0; i < cols.size(); i++) {
             features[i] = values.getOrDefault(cols.get(i), 0.0f);
@@ -161,12 +174,14 @@ public class TrendPredictionScheduler {
     }
 
     private double lagValue(int actionId, LocalDate predictionDate, int lag) {
+        // Missing history is treated as zero volume to keep inference resilient.
         LocalDate target = predictionDate.minusDays(lag);
         Optional<ActionStatsDaily> record = actionStatsDailyRepository.findByActionIdAndStatDate(actionId, target);
         return record.map(ActionStatsDaily::getActualCount).orElse(0L);
     }
 
     private double rollingMean(int actionId, LocalDate predictionDate, int days) {
+        // Use only fully observed days before the prediction target.
         LocalDate start = predictionDate.minusDays(days);
         LocalDate end = predictionDate.minusDays(1);
         List<ActionStatsDaily> history = actionStatsDailyRepository
@@ -182,6 +197,7 @@ public class TrendPredictionScheduler {
     }
 
     private double rollingStd(int actionId, LocalDate predictionDate, int days) {
+        // Compute volatility over the same history window used by the rolling mean.
         LocalDate start = predictionDate.minusDays(days);
         LocalDate end = predictionDate.minusDays(1);
         List<ActionStatsDaily> history = actionStatsDailyRepository

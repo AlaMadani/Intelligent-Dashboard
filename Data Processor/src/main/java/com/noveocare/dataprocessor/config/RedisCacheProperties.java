@@ -5,6 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
 
+/**
+ * Time-to-live values for the different Redis cache families.
+ */
 @Data
 @ConfigurationProperties(prefix = "app.redis.ttl")
 public class RedisCacheProperties {

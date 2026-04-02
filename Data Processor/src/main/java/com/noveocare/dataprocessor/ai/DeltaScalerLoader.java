@@ -13,6 +13,9 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Loads the normalization statistics used for delta-time features.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class DeltaScalerLoader {
 
     @PostConstruct
     public void load() throws IOException {
+        // Deserialize the scaler JSON once and share it across all feature builders.
         String path = properties.getBasePath() + properties.getFiles().getScalerDelta();
         Resource resource = resourceLoader.getResource(path);
         try (InputStream inputStream = resource.getInputStream()) {

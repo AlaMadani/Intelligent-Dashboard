@@ -8,10 +8,14 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/**
+ * Raw audit-trail payload consumed from Kafka and kept in Redis session buffers.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AuditTrailEvent {
 
+    // Core identifiers used to group events into user sessions.
     private String id;
 
     @JsonProperty("insuredId")
@@ -30,6 +34,7 @@ public class AuditTrailEvent {
 
     private String userAgent;
 
+    // Request and response fragments retained for investigation and replay use cases.
     private JsonNode requestData;
 
     private JsonNode requestReturn;
@@ -38,12 +43,14 @@ public class AuditTrailEvent {
     @JsonAlias("created_at")
     private Instant createdAt;
 
+    // Functional taxonomy and device dimensions consumed by feature engineering.
     private String type;
 
     private String environmentId;
 
     private String device;
 
+    // Optional business identifiers copied through without further transformation.
     private JsonNode companyIdList;
     private JsonNode companyGroupIdList;
     private JsonNode insurerIdList;
@@ -62,10 +69,12 @@ public class AuditTrailEvent {
 
     private Integer sessionNumber;
 
+    // Session-ordering metadata used to rebuild the event sequence.
     private Integer sequenceInSession;
 
     private Integer sessionLength;
 
+    // Navigation context used by simulators and potential downstream analytics.
     private String prevAction;
 
     private String route;
