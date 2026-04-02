@@ -75,7 +75,7 @@ app:
       ko-window-minutes: 15
   scheduling:
     live-stats-fixed-rate-ms: 60000
-    trend-cron: "0 0 0 * * *"
+    trend-cron: "0 */5 * * * *"
   trend:
     spike-sigma: 2.0
   ai:

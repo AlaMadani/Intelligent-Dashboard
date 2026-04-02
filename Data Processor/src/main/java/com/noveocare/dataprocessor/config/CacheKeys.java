@@ -35,6 +35,10 @@ public final class CacheKeys {
         return "anomaly:active:" + insuredId;
     }
 
+    public static String detectedAnomalyKey(String insuredId, String sessionId) {
+        return "anomaly:detected:" + insuredId + ":" + sessionId;
+    }
+
     public static String pendingAlertsKey(String insuredId, String sessionId) {
         return "alerts:pending:" + insuredId + ":" + sessionId;
     }

@@ -508,7 +508,7 @@ def parse_args(argv):
     p.add_argument("--seed",               type=int,   default=None)
     p.add_argument("--dry-run",            action="store_true", help="print to stdout instead of Kafka")
     p.add_argument("--insured-count",      type=int,   default=50)
-    p.add_argument("--virtual-day-start",  default="2026-04-01T07:30:00+01:00")
+    p.add_argument("--virtual-day-start",  default="2026-04-02T07:30:00+01:00")
     p.add_argument("--virtual-speed",      type=float, default=120.0)
     p.add_argument("--anomaly-mode",       action="store_true",
                    help="inject ~25%% illogical sessions for model validation")

@@ -11,7 +11,6 @@ import com.noveocare.dataprocessor.config.RuleProperties;
 import com.noveocare.dataprocessor.dto.AnomalyAlert;
 import com.noveocare.dataprocessor.dto.AnomalyTypeResult;
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
-import com.noveocare.dataprocessor.dto.PendingAlert;
 import com.noveocare.dataprocessor.dto.SessionStats;
 import com.noveocare.dataprocessor.entity.NextActionPrediction;
 import com.noveocare.dataprocessor.entity.SessionAnalysis;
@@ -122,7 +121,7 @@ public class AuditTrailConsumer {
                     .ruleType(rule)
                     .detectedAt(Instant.now())
                     .build();
-            enqueuePendingAlert(alert, payload);
+            publishDetectedAlert(alert, payload);
         }
 
         int tier2Every = Math.max(1, ruleProperties.getTier2EveryEvents());
@@ -152,7 +151,7 @@ public class AuditTrailConsumer {
                             .anomalyScore(score)
                             .detectedAt(Instant.now())
                             .build();
-                    enqueuePendingAlert(alert, payload);
+                    publishDetectedAlert(alert, payload);
                 }
             } catch (Exception e) {
                 log.error("AE inference failed; skipping ML scoring for event {}", event.getId(), e);
@@ -179,6 +178,7 @@ public class AuditTrailConsumer {
     private void handleSessionClose(AuditTrailEvent event, List<AuditTrailEvent> sessionEvents, String payload) {
         float[][] matrix = featureEngineeringService.buildFeatureMatrix(sessionEvents);
         Double aeScore = null;
+        double threshold = anomalyThresholdLoader.getAnomalyThreshold().getThreshold();
         try {
             aeScore = modelInferenceService.scoreAnomaly(matrix);
             redisCacheService.setJson(CacheKeys.aeScoreKey(event.getInsuredId()), aeScore,
@@ -192,30 +192,6 @@ public class AuditTrailConsumer {
                     .eventTime(event.getCreatedAt())
                     .anomalyTier("ML_ERROR")
                     .ruleType("autoencoder")
-                    .detectedAt(Instant.now())
-                    .build();
-            alertPublisher.persistOnly(alert, payload);
-        }
-
-        AnomalyTypeResult typeResult = null;
-        try {
-            typeResult = modelInferenceService.classifyType(matrix);
-            if (typeResult != null) {
-                log.info("Tier3 anomaly type insuredId={} sessionId={} type={} confidence={}",
-                        event.getInsuredId(),
-                        event.getSessionId(),
-                        typeResult.getType(),
-                        typeResult.getConfidence());
-            }
-        } catch (Exception e) {
-            log.error("Type classification failed for session {}", event.getSessionId(), e);
-            AnomalyAlert alert = AnomalyAlert.builder()
-                    .insuredId(event.getInsuredId())
-                    .sessionId(event.getSessionId())
-                    .eventId(event.getId())
-                    .eventTime(event.getCreatedAt())
-                    .anomalyTier("ML_ERROR")
-                    .ruleType("type_classifier")
                     .detectedAt(Instant.now())
                     .build();
             alertPublisher.persistOnly(alert, payload);
@@ -250,20 +226,37 @@ public class AuditTrailConsumer {
                 stats.getKoRate(),
                 stats.getMeanDeltaSeconds());
         List<String> triggeredRules = evaluateTier1ForSession(sessionEvents);
-        String pendingKey = CacheKeys.pendingAlertsKey(event.getInsuredId(), event.getSessionId());
-        List<PendingAlert> pendingAlerts = redisCacheService.getJsonList(pendingKey, PendingAlert.class);
-        boolean hasPendingAlerts = !pendingAlerts.isEmpty();
-        boolean unknownType = isUnknownType(typeResult);
-        if (unknownType) {
-            log.info("Anomaly type UNKNOWN detected insuredId={} sessionId={}, suppressing anomaly alert.",
-                    event.getInsuredId(), event.getSessionId());
-        }
+        boolean priorTierDetected = hasDetectedAnomaly(event.getInsuredId(), event.getSessionId());
+        boolean sessionTierDetected = !triggeredRules.isEmpty() || (aeScore != null && aeScore > threshold);
+        boolean isAnomaly = priorTierDetected || sessionTierDetected;
 
-        boolean isAnomaly = (!triggeredRules.isEmpty()) ||
-                (aeScore != null && aeScore > anomalyThresholdLoader.getAnomalyThreshold().getThreshold()) ||
-                hasPendingAlerts;
-        if (unknownType) {
-            isAnomaly = false;
+        AnomalyTypeResult typeResult = null;
+        if (isAnomaly) {
+            try {
+                typeResult = modelInferenceService.classifyType(matrix);
+                if (typeResult != null) {
+                    log.info("Tier3 anomaly type insuredId={} sessionId={} type={} confidence={}",
+                            event.getInsuredId(),
+                            event.getSessionId(),
+                            typeResult.getType(),
+                            typeResult.getConfidence());
+                }
+            } catch (Exception e) {
+                log.error("Type classification failed for session {}", event.getSessionId(), e);
+                AnomalyAlert alert = AnomalyAlert.builder()
+                        .insuredId(event.getInsuredId())
+                        .sessionId(event.getSessionId())
+                        .eventId(event.getId())
+                        .eventTime(event.getCreatedAt())
+                        .anomalyTier("ML_ERROR")
+                        .ruleType("type_classifier")
+                        .detectedAt(Instant.now())
+                        .build();
+                alertPublisher.persistOnly(alert, payload);
+            }
+        } else {
+            log.info("Skipping anomaly type classification insuredId={} sessionId={} because no tier detected anomaly.",
+                    event.getInsuredId(), event.getSessionId());
         }
 
         persistSessionAnalysis(event, sessionEvents, stats, aeScore, typeResult, nextActions, triggeredRules, isAnomaly);
@@ -273,7 +266,6 @@ public class AuditTrailConsumer {
                 redisCacheProperties.getNextActions());
 
         if (isAnomaly) {
-            publishPendingAlerts(pendingAlerts);
             String sessionPayload = payload;
             try {
                 sessionPayload = objectMapper.writeValueAsString(sessionEvents);
@@ -292,11 +284,11 @@ public class AuditTrailConsumer {
                     .ruleType(triggeredRules.isEmpty() ? null : String.join(",", triggeredRules))
                     .detectedAt(Instant.now())
                     .build();
-            alertPublisher.publish(alert, sessionPayload);
+            publishDetectedAlert(alert, sessionPayload);
         } else {
             statisticsService.updateUserRiskProfile(event.getInsuredId());
         }
-        redisCacheService.deleteKey(pendingKey);
+        redisCacheService.deleteKey(CacheKeys.detectedAnomalyKey(event.getInsuredId(), event.getSessionId()));
     }
 
     private void persistSessionAnalysis(AuditTrailEvent event,
@@ -467,32 +459,19 @@ public class AuditTrailConsumer {
         return false;
     }
 
-    private void enqueuePendingAlert(AnomalyAlert alert, String payload) {
-        PendingAlert pendingAlert = PendingAlert.builder()
-                .alert(alert)
-                .rawEventJson(payload)
-                .build();
-        String key = CacheKeys.pendingAlertsKey(alert.getInsuredId(), alert.getSessionId());
-        redisCacheService.addToJsonList(key, pendingAlert, redisCacheProperties.getPendingAlerts());
-        log.info("Queued pending alert insuredId={} sessionId={} tier={} rule={}",
+    private void publishDetectedAlert(AnomalyAlert alert, String payload) {
+        alertPublisher.publish(alert, payload);
+        markDetectedAnomaly(alert.getInsuredId(), alert.getSessionId());
+        log.info("Published immediate alert insuredId={} sessionId={} tier={} rule={}",
                 alert.getInsuredId(), alert.getSessionId(), alert.getAnomalyTier(), alert.getRuleType());
     }
 
-    private void publishPendingAlerts(List<PendingAlert> pendingAlerts) {
-        if (pendingAlerts == null || pendingAlerts.isEmpty()) {
-            return;
-        }
-        for (PendingAlert pending : pendingAlerts) {
-            if (pending == null || pending.getAlert() == null) {
-                continue;
-            }
-            alertPublisher.publish(pending.getAlert(), pending.getRawEventJson());
-        }
+    private boolean hasDetectedAnomaly(String insuredId, String sessionId) {
+        return redisCacheService.hasKey(CacheKeys.detectedAnomalyKey(insuredId, sessionId));
     }
 
-    private boolean isUnknownType(AnomalyTypeResult typeResult) {
-        return typeResult != null
-                && typeResult.getType() != null
-                && "UNKNOWN".equalsIgnoreCase(typeResult.getType());
+    private void markDetectedAnomaly(String insuredId, String sessionId) {
+        redisCacheService.setJson(CacheKeys.detectedAnomalyKey(insuredId, sessionId), Boolean.TRUE,
+                redisCacheProperties.getSessionBuffer());
     }
 }

@@ -24,7 +24,7 @@ spring:
   ai:
     google:
       genai:
-        api-key:  # Remplace par la cle AIzaSy...
+        api-key: AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw # Remplace par la cle AIzaSy...
         chat:
           options:
             model: gemini-2.5-flash # Modele super rapide et genereux en gratuit

@@ -60,6 +60,10 @@ public class RedisCacheService {
         redisTemplate.delete(key);
     }
 
+    public boolean hasKey(String key) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+    }
+
     public void increment(String key, long delta, Duration ttl) {
         Long updated = redisTemplate.opsForValue().increment(key, delta);
         if (updated != null && updated == delta) {
