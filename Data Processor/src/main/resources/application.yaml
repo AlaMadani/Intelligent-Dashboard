@@ -58,8 +58,18 @@ app:
         - BANKING_ACTIONS
         - LOGGING_ACTIONS
       consecutive: 3
+    # Additional heuristics for burst activity, country switches, long pauses, and unlikely transitions.
+    rapid-fire:
+      min-events: 3
+      window-seconds: 2
+    geo-jump:
+      enabled: true
+    session-timeout:
+      threshold-seconds: 1200
+    impossible-seq:
+      min-probability: 0.005
     session-end-actions:
-      - "D\u00e9connexion"
+      - "Déconnexion"
       - "SSO Disconnect"
     tier2-every-events: 5
   risk:

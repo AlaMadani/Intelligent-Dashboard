@@ -9,12 +9,16 @@ import org.hibernate.annotations.Immutable;
 
 import java.time.Instant;
 
-/* Read-only JPA entity for anomaly_events. */
+/**
+ * Read-only mapping of the `anomaly_events` table that stores anomaly
+ * detections emitted by the processing pipeline.
+ */
 @Entity
 @Table(name = "anomaly_events")
 @Data
 @Immutable
 public class AnomalyEvent {
+    /* Primary key plus correlation identifiers. */
     @Id
     private Long id;
 
@@ -27,6 +31,7 @@ public class AnomalyEvent {
     @Column(name = "event_id")
     private String eventId;
 
+    /* Detection timestamps and anomaly classification values. */
     @Column(name = "event_time")
     private Instant eventTime;
 
@@ -45,6 +50,7 @@ public class AnomalyEvent {
     @Column(name = "rule_type")
     private String ruleType;
 
+    /* Raw event payload and persistence timestamp. */
     @Column(name = "event_json", columnDefinition = "NVARCHAR(MAX)")
     private String eventJson;
 

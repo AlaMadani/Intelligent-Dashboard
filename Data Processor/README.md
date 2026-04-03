@@ -24,6 +24,7 @@ Core capabilities:
 - Kafka ingestion of audit-trail events
 - Session reconstruction using Redis lists
 - Tier 1 anomaly detection with deterministic business rules
+- Additional heuristic detection for rapid-fire bursts, geo jumps, session timeouts, and impossible transitions
 - Tier 2 anomaly detection with an ONNX autoencoder
 - Tier 3 anomaly enrichment with anomaly-type classification and next-action prediction
 - SQL persistence of session analytics, anomaly events, trend stats, and user risk profiles
@@ -58,8 +59,13 @@ flowchart LR
    - unusual hour
    - skip login
    - repeated fail
+   - rapid fire
+   - geo jump
+   - session timeout
+   - impossible sequence
 6. Every `N` events, the current session is transformed into a feature matrix and scored by the autoencoder.
-7. When the session ends:
+7. Mid-session next-action predictions can be cached for dashboards even before the session closes.
+8. When the session ends:
    - final session statistics are computed
    - final autoencoder score is stored
    - next actions are predicted
@@ -77,6 +83,10 @@ Fast deterministic rules catch obvious behavior without invoking ML:
 - Activity during suspicious UTC hours
 - Session starts without an allowed login action
 - Repeated consecutive `KO` events in configured action types
+- Very dense bursts of activity within a tiny time window
+- Country changes within one session
+- Large inactivity gaps inside the same logical session
+- Action transitions whose learned probability is below a configured threshold
 
 ### Tier 2: Autoencoder Scoring
 
@@ -147,6 +157,7 @@ Data Processor/
 |   |       `-- logback-spring.xml
 |   `-- test/
 |       `-- java/...          # Feature-engineering tests
+|-- scripts/                  # Offline training and metadata-generation helpers
 |-- .mvn/
 |-- mvnw
 |-- mvnw.cmd
@@ -172,6 +183,9 @@ Data Processor/
 ### `inference`
 
 - `ModelInferenceService`: runs ONNX models for anomaly scoring, anomaly typing, and next-action prediction
+- `VelocityDetector`: flags rapid-fire activity and long intra-session gaps
+- `GeoJumpDetector`: flags sessions whose country changes mid-flow
+- `TransitionMatrixService`: flags unlikely action transitions using a learned transition matrix
 
 ### `service`
 
@@ -203,6 +217,15 @@ The `src/main/resources/AI/` folder contains the runtime assets used by the syst
 
 This makes the repository useful both as an application and as a reproducible ML-backed prototype.
 
+## Scripts
+
+The `scripts/` folder contains offline utilities that support the runtime heuristics and experimentation workflow:
+
+- `generate_transition_matrix.py`: builds `transition_matrix.json` from sessionized audit data
+- `train_session_scorer.py`: trains a simple session-level XGBoost anomaly scorer and exports its feature list
+
+These scripts are not part of the Spring Boot runtime, but they help produce model-adjacent assets consumed by the application.
+
 ## Configuration
 
 Main configuration lives in `src/main/resources/application.yaml`.
@@ -228,9 +251,10 @@ Important sections:
 
 - Java 25
 - Maven Wrapper support
-- Kafka running locally
-- Redis running locally
 - SQL Server running locally
+- Kafka reachable at `localhost:9092`
+- Redis reachable at `localhost:6379`
+- Docker containers for Kafka and Redis are fine as long as those ports are published to the host
 
 ### Default Local Assumptions
 
@@ -240,7 +264,16 @@ The current configuration expects:
 - Redis at `localhost:6379`
 - SQL Server at `localhost:1433`
 
-If your environment differs, update `application.yaml` or externalize configuration before starting the app.
+If your Kafka and Redis instances already run in Docker and expose those ports, no extra setup is needed for them. If your environment differs, update `application.yaml` or externalize configuration before starting the app.
+
+### Typical Local Setup
+
+A practical local setup for this repository is:
+
+- Kafka running in Docker and exposed on `localhost:9092`
+- Redis running in Docker and exposed on `localhost:6379`
+- SQL Server running locally or in a separate container exposed on `localhost:1433`
+- The processor started from the host with Java and Maven Wrapper
 
 ### Build
 
@@ -292,6 +325,7 @@ Verified commands:
 - Redis is used both for short-lived operational state and fast dashboard access.
 - SQL Server stores the durable analytics layer.
 - If you change vocabularies, feature columns, or model files, update both runtime resources and any related training artifacts.
+- If you enable impossible-sequence detection, make sure `transition_matrix.json` is generated and available under the AI resources path.
 
 ## Suggested Next Improvements
 
@@ -310,7 +344,7 @@ If you are opening this repository for the first time, start here:
 2. Read `kafka/AuditTrailConsumer.java` to understand the main processing pipeline.
 3. Read `ai/FeatureEngineeringService.java` and `inference/ModelInferenceService.java` to understand the ML path.
 4. Read `service/StatisticsService.java` and `service/TrendPredictionScheduler.java` to understand analytics and forecasting.
-5. Explore `src/main/resources/AI/` to see the model assets and data-generation tooling.
+5. Explore `src/main/resources/AI/` and `scripts/` to see the model assets and data-generation tooling.
 
 ---
 

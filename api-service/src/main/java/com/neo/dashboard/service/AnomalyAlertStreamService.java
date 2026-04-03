@@ -20,19 +20,27 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Bridges Kafka anomaly alerts to Server-Sent Events and keeps a short replay
+ * buffer for newly connected clients.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AnomalyAlertStreamService {
 
+    /* Replay only the most recent alerts so reconnecting clients get quick context. */
     private static final int REPLAY_LIMIT = 20;
 
+    /* Message deserialization plus optional enrichment from the database. */
     private final ObjectMapper objectMapper;
     private final AnomalyEventRepository anomalyEventRepository;
 
+    /* Active SSE subscribers and the most recent alerts kept for replay. */
     private final CopyOnWriteArrayList<SseEmitter> emitters = new CopyOnWriteArrayList<>();
     private final Deque<AnomalyEventDto> replayBuffer = new ConcurrentLinkedDeque<>();
 
+    /* Register a new SSE client, acknowledge the connection, and replay recent alerts. */
     public SseEmitter subscribe() {
         SseEmitter emitter = new SseEmitter(0L);
         emitters.add(emitter);
@@ -41,6 +49,7 @@ public class AnomalyAlertStreamService {
         emitter.onError(error -> emitters.remove(emitter));
 
         try {
+            // Send a handshake event first, then replay the recent anomaly history.
             emitter.send(SseEmitter.event().name("connected").data("stream-ready"));
             for (AnomalyEventDto replay : snapshot()) {
                 emitter.send(SseEmitter.event().name("anomaly").data(replay));
@@ -53,6 +62,7 @@ public class AnomalyAlertStreamService {
         return emitter;
     }
 
+    /* Consume Kafka alert payloads, enrich them when possible, and broadcast them to SSE clients. */
     @KafkaListener(topics = "${app.kafka.topics.anomaly-alerts}", groupId = "${spring.kafka.consumer.group-id}")
     public void onAlertMessage(String payload) {
         if (payload == null || payload.isBlank()) {
@@ -60,6 +70,7 @@ public class AnomalyAlertStreamService {
         }
 
         try {
+            // Reuse the persisted event when available so streamed alerts include the full stored payload.
             AnomalyAlertDto alert = objectMapper.readValue(payload, AnomalyAlertDto.class);
             AnomalyEventDto event = resolveEvent(alert);
             addToReplay(event);
@@ -69,6 +80,7 @@ public class AnomalyAlertStreamService {
         }
     }
 
+    /* Try to replace the lightweight alert with the richer persisted event from SQL. */
     private AnomalyEventDto resolveEvent(AnomalyAlertDto alert) {
         Optional<AnomalyEvent> persisted = anomalyEventRepository
                 .findTopByInsuredIdAndSessionIdAndEventIdOrderByDetectedAtDesc(
@@ -95,6 +107,7 @@ public class AnomalyAlertStreamService {
             );
         }
 
+        // If the event has not been persisted yet, stream the Kafka payload as-is.
         return new AnomalyEventDto(
                 null,
                 alert.getInsuredId(),
@@ -111,6 +124,7 @@ public class AnomalyAlertStreamService {
         );
     }
 
+    /* Keep only the latest N events for replay on new subscriptions. */
     private void addToReplay(AnomalyEventDto event) {
         replayBuffer.addFirst(event);
         while (replayBuffer.size() > REPLAY_LIMIT) {
@@ -118,6 +132,7 @@ public class AnomalyAlertStreamService {
         }
     }
 
+    /* Broadcast one alert to every active SSE subscriber and clean up stale emitters. */
     private void broadcast(AnomalyEventDto event) {
         List<SseEmitter> stale = new ArrayList<>();
         for (SseEmitter emitter : emitters) {
@@ -133,6 +148,7 @@ public class AnomalyAlertStreamService {
         }
     }
 
+    /* Snapshot the replay buffer to avoid iterating over a structure that may change during sends. */
     private List<AnomalyEventDto> snapshot() {
         return new ArrayList<>(replayBuffer);
     }

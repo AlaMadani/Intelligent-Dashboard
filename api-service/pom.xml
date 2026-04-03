@@ -27,9 +27,11 @@
         <url/>
     </scm>
     <properties>
+        <!-- Target Java version used for compilation and runtime. -->
         <java.version>25</java.version>
     </properties>
     <dependencies>
+        <!-- Core Spring starters for HTTP APIs, SQL access, Redis, and Kafka. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -47,6 +49,7 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
+        <!-- Infrastructure drivers and developer productivity dependencies. -->
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
@@ -63,6 +66,7 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Observability and structured logging support. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
@@ -83,6 +87,7 @@
 
     <build>
         <plugins>
+            <!-- Enable Lombok annotation processing during compilation. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -95,6 +100,7 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+            <!-- Package the application as an executable Spring Boot artifact. -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

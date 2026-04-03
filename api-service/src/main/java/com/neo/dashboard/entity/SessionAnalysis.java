@@ -9,12 +9,16 @@ import org.hibernate.annotations.Immutable;
 
 import java.time.Instant;
 
-/* Read-only JPA entity for session_analysis. */
+/**
+ * Read-only mapping of the `session_analysis` table, which stores the output of
+ * session-level behavioral analysis.
+ */
 @Entity
 @Table(name = "session_analysis")
 @Data
 @Immutable
 public class SessionAnalysis {
+    /* Primary key plus user/session identifiers. */
     @Id
     private Long id;
 
@@ -24,6 +28,7 @@ public class SessionAnalysis {
     @Column(name = "session_id")
     private String sessionId;
 
+    /* Session timing and aggregate activity metrics. */
     @Column(name = "start_time")
     private Instant startTime;
 
@@ -48,6 +53,7 @@ public class SessionAnalysis {
     @Column(name = "action_diversity")
     private Double actionDiversity;
 
+    /* Serialized model features and anomaly classification outputs. */
     @Column(name = "action_counts_json", columnDefinition = "NVARCHAR(MAX)")
     private String actionCountsJson;
 
@@ -66,6 +72,7 @@ public class SessionAnalysis {
     @Column(name = "top3_next_actions", columnDefinition = "NVARCHAR(MAX)")
     private String top3NextActions;
 
+    /* Rule-engine results plus row creation time. */
     @Column(name = "rule_triggered")
     private Boolean ruleTriggered;
 

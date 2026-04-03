@@ -15,6 +15,9 @@ import com.noveocare.dataprocessor.dto.SessionStats;
 import com.noveocare.dataprocessor.entity.NextActionPrediction;
 import com.noveocare.dataprocessor.entity.SessionAnalysis;
 import com.noveocare.dataprocessor.inference.ModelInferenceService;
+import com.noveocare.dataprocessor.inference.VelocityDetector;
+import com.noveocare.dataprocessor.inference.GeoJumpDetector;
+import com.noveocare.dataprocessor.inference.TransitionMatrixService;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
 import com.noveocare.dataprocessor.repository.NextActionPredictionRepository;
@@ -58,6 +61,11 @@ public class AuditTrailConsumer {
     private final NextActionPredictionRepository nextActionPredictionRepository;
     private final AlertPublisher alertPublisher;
     private final VocabService vocabService;
+
+    // Additional lightweight detectors used by the expanded tier-1 rule set.
+    private final VelocityDetector velocityDetector;
+    private final GeoJumpDetector geoJumpDetector;
+    private final TransitionMatrixService transitionMatrixService;
 
     // Cache configured action labels as ids so runtime rule checks stay cheap.
     private Set<Integer> skipLoginAllowedIds = new HashSet<>();
@@ -167,6 +175,12 @@ public class AuditTrailConsumer {
                             .build();
                     publishDetectedAlert(alert, payload);
                 }
+
+                // Refresh the live next-action cache mid-session so dashboards can surface likely follow-ups early.
+                List<String> nextActions = modelInferenceService.predictNextActions(matrix, 3);
+                redisCacheService.setJson(CacheKeys.nextActionsKey(event.getInsuredId()), nextActions,
+                        redisCacheProperties.getNextActions());
+
             } catch (Exception e) {
                 log.error("AE inference failed; skipping ML scoring for event {}", event.getId(), e);
                 AnomalyAlert alert = AnomalyAlert.builder()
@@ -405,33 +419,37 @@ public class AuditTrailConsumer {
     private List<String> evaluateTier1(AuditTrailEvent event, List<AuditTrailEvent> sessionEvents) {
         // These rules are cheap enough to evaluate on every incoming event.
         List<String> rules = new ArrayList<>();
-        if (isUnusualHour(event)) {
-            rules.add("unusual_hour");
-        }
-        if (isSkipLogin(event)) {
-            rules.add("skip_login");
-        }
-        if (hasRepeatedFail(sessionEvents)) {
-            rules.add("repeated_fail");
-        }
+
+        // Keep the original static heuristics for time, login sequence, and repeated failures.
+        if (isUnusualHour(event)) rules.add("unusual_hour");
+        if (isSkipLogin(event)) rules.add("skip_login");
+        if (hasRepeatedFail(sessionEvents)) rules.add("repeated_fail");
+
+        // Add behavioral heuristics based on timing, geography, and learned transition likelihood.
+        if (velocityDetector.isRapidFire(sessionEvents)) rules.add("rapid_fire");
+        if (geoJumpDetector.isGeoJump(sessionEvents)) rules.add("geo_jump");
+        if (velocityDetector.isSessionTimeout(sessionEvents)) rules.add("session_timeout");
+        if (transitionMatrixService.isImpossibleTransition(sessionEvents)) rules.add("impossible_seq");
         return rules;
     }
 
     private List<String> evaluateTier1ForSession(List<AuditTrailEvent> sessionEvents) {
         // Re-evaluate the whole session at close so the persisted summary stays self-contained.
         List<String> rules = new ArrayList<>();
-        for (AuditTrailEvent event : sessionEvents) {
-            if (isUnusualHour(event)) {
+        for (AuditTrailEvent ev : sessionEvents) {
+            if (isUnusualHour(ev)) {
                 rules.add("unusual_hour");
                 break;
             }
         }
-        if (sessionEvents.stream().anyMatch(this::isSkipLogin)) {
-            rules.add("skip_login");
-        }
-        if (hasRepeatedFail(sessionEvents)) {
-            rules.add("repeated_fail");
-        }
+
+        // Recompute both the static rules and the newer behavioral heuristics against the full session.
+        if (sessionEvents.stream().anyMatch(this::isSkipLogin)) rules.add("skip_login");
+        if (hasRepeatedFail(sessionEvents)) rules.add("repeated_fail");
+        if (velocityDetector.isRapidFire(sessionEvents)) rules.add("rapid_fire");
+        if (geoJumpDetector.isGeoJump(sessionEvents)) rules.add("geo_jump");
+        if (velocityDetector.isSessionTimeout(sessionEvents)) rules.add("session_timeout");
+        if (transitionMatrixService.isImpossibleTransition(sessionEvents)) rules.add("impossible_seq");
         return rules;
     }
 

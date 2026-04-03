@@ -11,6 +11,7 @@ import com.neo.dashboard.dto.StatsResponseDto;
 import com.neo.dashboard.dto.UserRiskProfileDto;
 import com.neo.dashboard.service.ActiveAnomalyService;
 import com.neo.dashboard.service.AnomalyAlertStreamService;
+import com.neo.dashboard.service.LiveStatsStreamService;
 import com.neo.dashboard.service.AnomalyEventService;
 import com.neo.dashboard.service.AnomalyExplanationService;
 import com.neo.dashboard.service.NextActionPredictionService;
@@ -36,15 +37,21 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * Exposes read-only analytics endpoints used by the dashboard:
+ * paginated queries, detail views, summary widgets, and SSE streams.
+ */
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class AnalyticsController {
 
+    /* Shared pagination guardrails for list endpoints. */
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 200;
 
+    /* Read services behind each dashboard capability. */
     private final SessionAnalysisService sessionAnalysisService;
     private final AnomalyEventService anomalyEventService;
     private final RiskProfileService riskProfileService;
@@ -53,7 +60,9 @@ public class AnalyticsController {
     private final ActiveAnomalyService activeAnomalyService;
     private final AnomalyExplanationService anomalyExplanationService;
     private final AnomalyAlertStreamService anomalyAlertStreamService;
+    private final LiveStatsStreamService liveStatsStreamService;
 
+    /* Returns session analysis rows with optional filters and pagination metadata. */
     @GetMapping("/sessions")
     public ResponseEntity<ApiResponse<List<SessionAnalysisDto>>> listSessions(
             @RequestParam(required = false) String insuredId,
@@ -63,15 +72,19 @@ public class AnalyticsController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        // Build a safe pageable request so callers cannot ask for negative pages or oversized pages.
         PageRequest pageable = PageRequest.of(
                 Math.max(page, 0),
                 normalizeSize(size),
                 Sort.by(Sort.Direction.DESC, "startTime")
         );
+
+        // Delegate filtering to the service layer and wrap the page in the common API envelope.
         Page<SessionAnalysisDto> result = sessionAnalysisService.search(insuredId, from, to, isAnomaly, pageable);
         return ResponseEntity.ok(ApiResponse.of(result.getContent(), PaginationMeta.fromPage(result)));
     }
 
+    /* Returns one session analysis record or 404 when it does not exist. */
     @GetMapping("/sessions/{id}")
     public ResponseEntity<ApiResponse<SessionAnalysisDto>> getSession(@PathVariable Long id) {
         return sessionAnalysisService.getById(id)
@@ -79,6 +92,7 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Returns anomaly events with optional filters and pagination metadata. */
     @GetMapping("/anomaly-events")
     public ResponseEntity<ApiResponse<List<AnomalyEventDto>>> listAnomalyEvents(
             @RequestParam(required = false) String insuredId,
@@ -89,15 +103,19 @@ public class AnalyticsController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
+        // Sort by event time so the newest alerts appear first in the dashboard.
         PageRequest pageable = PageRequest.of(
                 Math.max(page, 0),
                 normalizeSize(size),
                 Sort.by(Sort.Direction.DESC, "eventTime")
         );
+
+        // Keep response formatting consistent with the sessions endpoint.
         Page<AnomalyEventDto> result = anomalyEventService.search(insuredId, from, to, tier, type, pageable);
         return ResponseEntity.ok(ApiResponse.of(result.getContent(), PaginationMeta.fromPage(result)));
     }
 
+    /* Returns one anomaly event or 404 when it does not exist. */
     @GetMapping("/anomaly-events/{id}")
     public ResponseEntity<ApiResponse<AnomalyEventDto>> getAnomalyEvent(@PathVariable Long id) {
         return anomalyEventService.getById(id)
@@ -105,6 +123,7 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Builds or refreshes an explanation for a single anomaly event. */
     @GetMapping("/anomaly-events/{id}/explanation")
     public ResponseEntity<ApiResponse<AnomalyExplanationDto>> explainAnomalyEvent(
             @PathVariable Long id,
@@ -115,6 +134,7 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Returns the latest risk summary for one insured user. */
     @GetMapping("/risk/{insuredId}")
     public ResponseEntity<ApiResponse<UserRiskProfileDto>> getRiskProfile(@PathVariable String insuredId) {
         return riskProfileService.getRiskProfile(insuredId)
@@ -122,6 +142,7 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Returns the predicted next actions for the insured user. */
     @GetMapping("/next-actions/{insuredId}")
     public ResponseEntity<ApiResponse<NextActionPredictionDto>> getNextActions(@PathVariable String insuredId) {
         return nextActionPredictionService.getPrediction(insuredId)
@@ -129,6 +150,7 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Returns the latest live stats snapshot for the requested date or today by default. */
     @GetMapping("/stats/live")
     public ResponseEntity<ApiResponse<StatsResponseDto>> getLiveStats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
@@ -136,6 +158,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.of(statsService.getLiveStats(date)));
     }
 
+    /* Returns trend stats, falling back to SQL when Redis does not contain the snapshot. */
     @GetMapping("/stats/trend")
     public ResponseEntity<ApiResponse<StatsResponseDto>> getTrendStats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
@@ -143,6 +166,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.of(statsService.getTrendStats(date)));
     }
 
+    /* Returns the currently active anomaly marker for the insured user, if any. */
     @GetMapping("/anomaly/active/{insuredId}")
     public ResponseEntity<ApiResponse<AnomalyAlertDto>> getActiveAnomaly(@PathVariable String insuredId) {
         return activeAnomalyService.getActiveAnomaly(insuredId)
@@ -150,11 +174,19 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Opens an SSE stream that pushes anomaly alerts to the dashboard in near real time. */
     @GetMapping(path = "/stream/anomalies", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamAnomalies() {
         return anomalyAlertStreamService.subscribe();
     }
 
+    /* Opens an SSE stream that continuously pushes live stats snapshots. */
+    @GetMapping(path = "/stream/live", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamLive() {
+        return liveStatsStreamService.subscribe();
+    }
+
+    /* Clamp the requested page size to a sensible range for the API. */
     private int normalizeSize(int size) {
         if (size < 1) {
             return DEFAULT_PAGE_SIZE;

@@ -19,17 +19,24 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Resolves dashboard statistics from Redis first and falls back to SQL-backed
+ * daily aggregates when needed.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class StatsService {
 
+    /* Redis may use either ISO dates or compact yyyyMMdd dates in cache keys. */
     private static final DateTimeFormatter COMPACT_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
+    /* Cache access, JSON conversion, and SQL fallback repository. */
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ActionStatsDailyRepository actionStatsDailyRepository;
 
+    /* Read the latest live snapshot from Redis and return an empty payload if nothing is cached. */
     @Transactional(readOnly = true)
     public StatsResponseDto getLiveStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
@@ -37,6 +44,7 @@ public class StatsService {
             String cached = redisTemplate.opsForValue().get(key);
             if (cached != null && !cached.isBlank()) {
                 try {
+                    // Cached stats are stored as generic JSON because the shape can evolve over time.
                     JsonNode payload = objectMapper.readTree(cached);
                     return new StatsResponseDto(resolvedDate, "redis", payload);
                 } catch (Exception e) {
@@ -48,6 +56,7 @@ public class StatsService {
         return buildMissing(resolvedDate);
     }
 
+    /* Read trend stats from Redis and fall back to SQL aggregates when Redis is empty. */
     @Transactional(readOnly = true)
     public StatsResponseDto getTrendStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
@@ -55,6 +64,7 @@ public class StatsService {
             String cached = redisTemplate.opsForValue().get(key);
             if (cached != null && !cached.isBlank()) {
                 try {
+                    // Trend payloads follow the same generic JSON contract as live stats.
                     JsonNode payload = objectMapper.readTree(cached);
                     return new StatsResponseDto(resolvedDate, "redis", payload);
                 } catch (Exception e) {
@@ -66,6 +76,7 @@ public class StatsService {
         return buildFromSql(resolvedDate, "sql");
     }
 
+    /* Convert SQL rows into the generic JSON payload expected by the API. */
     private StatsResponseDto buildFromSql(LocalDate date, String source) {
         List<ActionStatsDailyDto> dtos = actionStatsDailyRepository.findByStatDate(date).stream()
                 .map(this::toDto)
@@ -74,11 +85,13 @@ public class StatsService {
         return new StatsResponseDto(date, source, payload);
     }
 
+    /* Return a consistent empty payload instead of null when live cache data is absent. */
     private StatsResponseDto buildMissing(LocalDate date) {
         JsonNode payload = objectMapper.createObjectNode();
         return new StatsResponseDto(date, "missing", payload);
     }
 
+    /* Internal mapping from SQL aggregate entity to DTO. */
     ActionStatsDailyDto toDto(ActionStatsDaily entity) {
         return new ActionStatsDailyDto(
                 entity.getId(),
@@ -94,6 +107,7 @@ public class StatsService {
         );
     }
 
+    /* Support both supported key formats while avoiding duplicates. */
     private List<String> dateKeys(String prefix, LocalDate date) {
         List<String> keys = new ArrayList<>(2);
         keys.add(prefix + date);

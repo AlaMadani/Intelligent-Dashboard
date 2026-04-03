@@ -9,8 +9,13 @@ import tools.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Unit test for the DTO mapping logic that parses JSON-backed fields from the
+ * session analysis entity.
+ */
 class SessionAnalysisServiceTest {
 
+    /* Verify both JSON columns are converted into strongly typed DTO fields. */
     @Test
     void toDtoParsesJsonFields() {
         ObjectMapper mapper = new ObjectMapper();

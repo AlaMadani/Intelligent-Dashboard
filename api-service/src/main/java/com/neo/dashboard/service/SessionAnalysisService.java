@@ -18,14 +18,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Reads session analysis rows and converts JSON-heavy database columns into
+ * DTO fields that are easier for the API client to consume.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SessionAnalysisService {
 
+    /* Repository access plus JSON parsing support for denormalized columns. */
     private final SessionAnalysisRepository repository;
     private final ObjectMapper objectMapper;
 
+    /* Execute the paginated search and map each entity into its API projection. */
     @Transactional(readOnly = true)
     public Page<SessionAnalysisDto> search(String insuredId,
                                            Instant fromTime,
@@ -36,11 +42,13 @@ public class SessionAnalysisService {
                 .map(this::toDto);
     }
 
+    /* Fetch one session analysis record by primary key. */
     @Transactional(readOnly = true)
     public Optional<SessionAnalysisDto> getById(Long id) {
         return repository.findById(id).map(this::toDto);
     }
 
+    /* Convert one database row into the dashboard DTO, parsing embedded JSON fields on the way. */
     SessionAnalysisDto toDto(SessionAnalysis entity) {
         return new SessionAnalysisDto(
                 entity.getId(),
@@ -66,15 +74,18 @@ public class SessionAnalysisService {
         );
     }
 
+    /* Parse action counts defensively because historical rows may store integer-like values in different numeric shapes. */
     private Map<String, Long> parseActionCounts(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyMap();
         }
 
         try {
+            // Fast path for the expected "string -> long" JSON shape.
             return objectMapper.readValue(json, new TypeReference<Map<String, Long>>() {});
         } catch (Exception first) {
             try {
+                // Fallback for payloads that deserialize as generic numbers instead of longs.
                 Map<String, Number> raw = objectMapper.readValue(json, new TypeReference<Map<String, Number>>() {});
                 if (raw == null || raw.isEmpty()) {
                     return Collections.emptyMap();
@@ -92,6 +103,7 @@ public class SessionAnalysisService {
         }
     }
 
+    /* Parse the predicted next actions list, returning an empty list on malformed input. */
     private List<String> parseTop3Actions(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();

@@ -1,19 +1,28 @@
 spring:
+  # Application identity reused in logs, metrics, and dashboards.
   application:
     name: api-service
+
+  # SQL Server connection for read-side analytics snapshots.
   datasource:
-    url: jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=false
+    url: jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true
     username: app_user
     password: securePass123!
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+
+  # JPA only reads existing tables; schema generation stays disabled.
   jpa:
     hibernate:
-      ddl-auto: none # ou 'none' si tu as deja tes tables
+      ddl-auto: none
     show-sql: true
+
+  # Redis stores the freshest risk, anomaly, and stats snapshots.
   data:
     redis:
       host: localhost
       port: 6379
+
+  # Kafka feeds live anomaly alerts into the SSE bridge.
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
@@ -21,37 +30,40 @@ spring:
       auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+  # Gemini is optional; the service falls back to local heuristics when the key is absent.
   ai:
     google:
       genai:
-        api-key: AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw # Remplace par la cle AIzaSy...
+        api-key: ${GEMINI_API_KEY:AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw}
         chat:
           options:
-            model: gemini-2.5-flash # Modele super rapide et genereux en gratuit
+            model: gemini-2.5-flash
 
 app:
+  # Local topic names consumed by the stream bridge.
   kafka:
     topics:
       anomaly-alerts: topic-anomaly-alerts
 
-
 server:
-  port: 8081 # Le port de ton api-service
-
+  # HTTP port exposed by this analytics API.
+  port: 8081
 
 management:
+  # Expose actuator endpoints and Prometheus metrics for local observability.
   endpoints:
     web:
       exposure:
-        include: "*" # On ouvre tout comme dans ton ancien projet pour être tranquille
+        include: "*"
   endpoint:
     prometheus:
       enabled: true
   metrics:
     tags:
-      application: ${spring.application.name} # Lie automatiquement le tag au nom de l'app
+      application: ${spring.application.name}
     distribution:
       percentiles-histogram:
         http:
           server:
-            requests: true # LA MAGIE EST ICI : Active les données pour les graphiques HTTP
+            requests: true

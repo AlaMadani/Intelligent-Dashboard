@@ -10,12 +10,16 @@ import org.hibernate.annotations.Immutable;
 import java.time.Instant;
 import java.time.LocalDate;
 
-/* Read-only JPA entity for action_stats_daily. */
+/**
+ * Read-only mapping of the `action_stats_daily` aggregate table used by the
+ * dashboard stats views.
+ */
 @Entity
 @Table(name = "action_stats_daily")
 @Data
 @Immutable
 public class ActionStatsDaily {
+    /* Row identity and the business date being summarized. */
     @Id
     private Long id;
 
@@ -28,6 +32,7 @@ public class ActionStatsDaily {
     @Column(name = "action_label")
     private String actionLabel;
 
+    /* Observed and predicted activity statistics for the action. */
     @Column(name = "actual_count")
     private Long actualCount;
 
@@ -43,6 +48,7 @@ public class ActionStatsDaily {
     @Column(name = "spike_alert")
     private Boolean spikeAlert;
 
+    /* Persistence timestamp for the aggregate snapshot. */
     @Column(name = "created_at")
     private Instant createdAt;
 }

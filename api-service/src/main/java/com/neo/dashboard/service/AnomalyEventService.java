@@ -12,12 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Optional;
 
+/**
+ * Serves anomaly events to the API and keeps the DTO mapping isolated from
+ * controller code.
+ */
 @Service
 @RequiredArgsConstructor
 public class AnomalyEventService {
 
+    /* Read-only repository for anomaly event queries. */
     private final AnomalyEventRepository repository;
 
+    /* Execute the filtered page query used by the anomaly event list endpoint. */
     @Transactional(readOnly = true)
     public Page<AnomalyEventDto> search(String insuredId,
                                         Instant fromTime,
@@ -29,11 +35,13 @@ public class AnomalyEventService {
                 .map(this::toDto);
     }
 
+    /* Fetch one anomaly event by id. */
     @Transactional(readOnly = true)
     public Optional<AnomalyEventDto> getById(Long id) {
         return repository.findById(id).map(this::toDto);
     }
 
+    /* Flatten the entity into the DTO expected by API responses and SSE clients. */
     AnomalyEventDto toDto(AnomalyEvent entity) {
         return new AnomalyEventDto(
                 entity.getId(),

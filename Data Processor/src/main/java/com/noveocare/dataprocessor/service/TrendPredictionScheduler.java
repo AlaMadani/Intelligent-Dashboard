@@ -205,7 +205,14 @@ public class TrendPredictionScheduler {
         if (history.isEmpty()) {
             return 0.0;
         }
-        double mean = rollingMean(actionId, predictionDate, days);
+
+        // Derive the mean from the already loaded history to avoid a second repository round-trip.
+        double sum = 0.0;
+        for (ActionStatsDaily record : history) {
+            sum += record.getActualCount() == null ? 0.0 : record.getActualCount();
+        }
+        double mean = sum / history.size();
+        
         double sumSq = 0.0;
         for (ActionStatsDaily record : history) {
             double value = record.getActualCount() == null ? 0.0 : record.getActualCount();

@@ -9,12 +9,16 @@ import org.hibernate.annotations.Immutable;
 
 import java.time.Instant;
 
-/* Read-only JPA entity for next_action_predictions. */
+/**
+ * Read-only mapping of the `next_action_predictions` table containing model
+ * output for the next expected user actions.
+ */
 @Entity
 @Table(name = "next_action_predictions")
 @Data
 @Immutable
 public class NextActionPrediction {
+    /* Primary key plus the insured/session identifiers tied to the prediction. */
     @Id
     private Long id;
 
@@ -27,6 +31,7 @@ public class NextActionPrediction {
     @Column(name = "predicted_at")
     private Instant predictedAt;
 
+    /* Serialized ordered list of predicted next actions. */
     @Column(name = "top3_actions_json", columnDefinition = "NVARCHAR(MAX)")
     private String top3ActionsJson;
 }

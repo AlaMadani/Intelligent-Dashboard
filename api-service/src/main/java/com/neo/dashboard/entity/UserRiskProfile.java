@@ -9,12 +9,16 @@ import org.hibernate.annotations.Immutable;
 
 import java.time.Instant;
 
-/* Read-only JPA entity for user_risk_profile. */
+/**
+ * Read-only mapping of the `user_risk_profile` table containing rolling risk
+ * indicators for each insured user.
+ */
 @Entity
 @Table(name = "user_risk_profile")
 @Data
 @Immutable
 public class UserRiskProfile {
+    /* Primary key plus the insured user identifier. */
     @Id
     private Long id;
 
@@ -24,6 +28,7 @@ public class UserRiskProfile {
     @Column(name = "last_updated")
     private Instant lastUpdated;
 
+    /* Short and medium-term anomaly indicators. */
     @Column(name = "anomaly_count_7d")
     private Integer anomalyCount7d;
 
@@ -39,6 +44,7 @@ public class UserRiskProfile {
     @Column(name = "anomaly_rate_30d")
     private Double anomalyRate30d;
 
+    /* Session volume and baseline behavior metrics. */
     @Column(name = "sessions_7d")
     private Integer sessions7d;
 

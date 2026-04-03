@@ -11,9 +11,13 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.util.Optional;
 
+/**
+ * Repository for read-only session analysis queries exposed through the API.
+ */
 @Repository
 public interface SessionAnalysisRepository extends JpaRepository<SessionAnalysis, Long> {
 
+    /* Apply optional filters for insured id, time window, and anomaly flag. */
     @Query("""
             SELECT s
             FROM SessionAnalysis s
@@ -28,5 +32,6 @@ public interface SessionAnalysisRepository extends JpaRepository<SessionAnalysis
                                  @Param("isAnomaly") Boolean isAnomaly,
                                  Pageable pageable);
 
+    /* Load the freshest snapshot for one insured/session pair. */
     Optional<SessionAnalysis> findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(String insuredId, String sessionId);
 }

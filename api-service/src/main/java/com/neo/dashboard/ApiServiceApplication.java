@@ -3,12 +3,15 @@ package com.neo.dashboard;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * Boots the analytics API and lets Spring discover controllers, services,
+ * repositories, and configuration from the root package.
+ */
 @SpringBootApplication
 public class ApiServiceApplication {
 
-    /* Application entry point. */
+    /* Delegate startup to Spring Boot's auto-configuration pipeline. */
     public static void main(String[] args) {
         SpringApplication.run(ApiServiceApplication.class, args);
     }
-
 }

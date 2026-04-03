@@ -29,16 +29,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Builds a human-readable explanation for an anomaly by combining relational
+ * data, cache-backed snapshots, and an optional Gemini call.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AnomalyExplanationService {
 
+    /* Cache policy for final explanations and raw AI responses. */
     private static final Duration CACHE_TTL = Duration.ofHours(24);
     private static final String CACHE_PREFIX = "ai:explanation:anomaly:";
     private static final String RAW_RESPONSE_CACHE_PREFIX = "ai:explanation:anomaly:raw:";
+
+    /* Output limits used when calling Gemini. */
     private static final int MAX_OUTPUT_TOKENS = 2048;
     private static final int THINKING_BUDGET = 0;
+
+    /* Prompt-shaping limits that keep context concise and predictable. */
     private static final int MAX_JSON_CHARS = 400;
     private static final int MAX_STATS_ITEMS = 3;
     private static final List<String> REQUIRED_SECTIONS = List.of(
@@ -48,6 +57,7 @@ public class AnomalyExplanationService {
             "recommended action"
     );
 
+    /* Dependencies used to gather surrounding context for one anomaly event. */
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final AnomalyEventRepository anomalyEventRepository;
@@ -64,9 +74,11 @@ public class AnomalyExplanationService {
     @Value("${spring.ai.google.genai.chat.options.model:gemini-2.5-flash}")
     private String model;
 
+    /* Return a cached explanation when possible, otherwise rebuild it from contextual data. */
     @Transactional(readOnly = true)
     public Optional<AnomalyExplanationDto> explain(Long anomalyEventId, boolean refresh) {
         if (!refresh) {
+            // Reuse a complete cached explanation to avoid an expensive AI call.
             AnomalyExplanationDto cached = getCached(anomalyEventId);
             if (cached != null) {
                 cached.setCached(true);
@@ -80,6 +92,8 @@ public class AnomalyExplanationService {
         }
 
         AnomalyEvent anomaly = anomalyOpt.get();
+
+        // Gather the neighboring session, risk, prediction, alert, and stats context for prompt construction.
         SessionAnalysisDto session = sessionAnalysisRepository
                 .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(anomaly.getInsuredId(), anomaly.getSessionId())
                 .map(sessionAnalysisService::toDto)
@@ -90,6 +104,7 @@ public class AnomalyExplanationService {
         StatsResponseDto liveStats = statsService.getLiveStats(LocalDate.now());
         StatsResponseDto trendStats = statsService.getTrendStats(LocalDate.now().plusDays(1));
 
+        // Ask Gemini first, then fall back to a deterministic local explanation when AI is unavailable.
         String prompt = buildPrompt(anomaly, session, risk, nextActions, activeAnomaly, liveStats, trendStats);
         String aiText = generateWithGemini(anomalyEventId, prompt);
         String source = aiText == null || aiText.isBlank() ? "heuristic" : "gemini";
@@ -105,10 +120,13 @@ public class AnomalyExplanationService {
                 false,
                 explanation
         );
+
+        // Cache the normalized DTO so later requests can return instantly.
         cache(dto);
         return Optional.of(dto);
     }
 
+    /* Read a cached explanation and reject incomplete content that would confuse the UI. */
     private AnomalyExplanationDto getCached(Long anomalyEventId) {
         String payload = redisTemplate.opsForValue().get(CACHE_PREFIX + anomalyEventId);
         if (payload == null || payload.isBlank()) {
@@ -127,6 +145,7 @@ public class AnomalyExplanationService {
         }
     }
 
+    /* Persist the final explanation for future reads. */
     private void cache(AnomalyExplanationDto dto) {
         try {
             redisTemplate.opsForValue().set(
@@ -139,8 +158,10 @@ public class AnomalyExplanationService {
         }
     }
 
+    /* Call Gemini directly through the REST API and validate the returned markdown structure. */
     private String generateWithGemini(Long anomalyEventId, String prompt) {
         if (apiKey == null || apiKey.isBlank()) {
+            // The service can still function without AI by using the heuristic fallback.
             return null;
         }
 
@@ -162,6 +183,7 @@ public class AnomalyExplanationService {
                     )
             ));
 
+            // Execute the prompt, keep the raw response for troubleshooting, then extract the model text.
             String rawResponse = client.post()
                     .uri(uriBuilder -> uriBuilder
                             .path("/v1beta/models/{model}:generateContent")
@@ -187,7 +209,7 @@ public class AnomalyExplanationService {
             }
 
             String content = extractGeminiText(response);
-            String finishReason = response.at("/candidates/0/finishReason").asText("UNKNOWN");
+            String finishReason = response.at("/candidates/0/finishReason").asString("UNKNOWN");
             if (content == null || content.isBlank()) {
                 log.warn("Gemini explanation response did not contain text parts for anomaly {}. finishReason={}. Raw response: {}", anomalyEventId, finishReason, rawResponse);
                 return null;
@@ -203,6 +225,7 @@ public class AnomalyExplanationService {
         }
     }
 
+    /* Assemble the compact operational prompt sent to Gemini. */
     private String buildPrompt(AnomalyEvent anomaly,
                                SessionAnalysisDto session,
                                UserRiskProfileDto risk,
@@ -269,6 +292,7 @@ public class AnomalyExplanationService {
         return prompt.toString();
     }
 
+    /* Build a deterministic explanation when AI is disabled or the response is unusable. */
     private String buildFallbackExplanation(AnomalyEvent anomaly,
                                            SessionAnalysisDto session,
                                            UserRiskProfileDto risk,
@@ -327,6 +351,7 @@ public class AnomalyExplanationService {
         return builder.toString();
     }
 
+    /* Trim large payloads before embedding them in prompts or logs. */
     private String sanitizeJson(Object value) {
         if (value == null) {
             return "n/a";
@@ -346,10 +371,12 @@ public class AnomalyExplanationService {
         }
     }
 
+    /* Convert null values to a readable placeholder for prompt construction. */
     private String orUnknown(Object value) {
         return value == null ? "n/a" : String.valueOf(value);
     }
 
+    /* Extract plain text chunks from Gemini's nested candidate payload. */
     private String extractGeminiText(JsonNode response) {
         JsonNode parts = response.at("/candidates/0/content/parts");
         if (!parts.isArray()) {
@@ -358,7 +385,7 @@ public class AnomalyExplanationService {
 
         List<String> chunks = new ArrayList<>();
         for (JsonNode part : parts) {
-            String text = part.path("text").asText(null);
+            String text = part.path("text").asString(null);
             if (text != null && !text.isBlank()) {
                 chunks.add(text.trim());
             }
@@ -370,6 +397,7 @@ public class AnomalyExplanationService {
         return String.join("\n\n", chunks);
     }
 
+    /* Ensure the explanation contains every section expected by the frontend. */
     private boolean hasRequiredSections(String explanation) {
         if (explanation == null || explanation.isBlank()) {
             return false;
@@ -384,6 +412,7 @@ public class AnomalyExplanationService {
         return true;
     }
 
+    /* Compress stats payloads into a short natural-language summary for the AI prompt. */
     private String summarizeStats(StatsResponseDto stats) {
         if (stats == null || stats.getPayload() == null) {
             return "n/a";
@@ -406,13 +435,13 @@ public class AnomalyExplanationService {
             List<String> spikes = new ArrayList<>();
             for (JsonNode item : items) {
                 if (topActions.size() < MAX_STATS_ITEMS) {
-                    String label = item.path("actionLabel").asText("unknown");
+                    String label = item.path("actionLabel").asString("unknown");
                     long actual = item.path("actualCount").asLong(0L);
                     long predicted = Math.round(item.path("predictedCount").asDouble(0.0));
                     topActions.add(label + "=" + actual + " (pred " + predicted + ")");
                 }
                 if (spikes.size() < MAX_STATS_ITEMS && item.path("spikeAlert").asBoolean(false)) {
-                    spikes.add(item.path("actionLabel").asText("unknown"));
+                    spikes.add(item.path("actionLabel").asString("unknown"));
                 }
                 if (topActions.size() >= MAX_STATS_ITEMS && spikes.size() >= MAX_STATS_ITEMS) {
                     break;
@@ -436,6 +465,7 @@ public class AnomalyExplanationService {
         return sanitizeJson(payload);
     }
 
+    /* Store the raw Gemini payload separately to support debugging prompt or parsing issues. */
     private void storeRawGeminiResponse(Long anomalyEventId, String rawResponse) {
         try {
             redisTemplate.opsForValue().set(
