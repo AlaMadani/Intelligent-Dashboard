@@ -9,6 +9,8 @@ import com.neo.dashboard.dto.PaginationMeta;
 import com.neo.dashboard.dto.SessionAnalysisDto;
 import com.neo.dashboard.dto.StatsResponseDto;
 import com.neo.dashboard.dto.UserRiskProfileDto;
+import com.neo.dashboard.mapper.AnomalyEventMapper;
+import com.neo.dashboard.mapper.SessionAnalysisMapper;
 import com.neo.dashboard.service.ActiveAnomalyService;
 import com.neo.dashboard.service.AnomalyAlertStreamService;
 import com.neo.dashboard.service.LiveStatsStreamService;
@@ -61,6 +63,8 @@ public class AnalyticsController {
     private final AnomalyExplanationService anomalyExplanationService;
     private final AnomalyAlertStreamService anomalyAlertStreamService;
     private final LiveStatsStreamService liveStatsStreamService;
+    private final SessionAnalysisMapper sessionAnalysisMapper;
+    private final AnomalyEventMapper anomalyEventMapper;
 
     /* Returns session analysis rows with optional filters and pagination metadata. */
     @GetMapping("/sessions")
@@ -80,7 +84,8 @@ public class AnalyticsController {
         );
 
         // Delegate filtering to the service layer and wrap the page in the common API envelope.
-        Page<SessionAnalysisDto> result = sessionAnalysisService.search(insuredId, from, to, isAnomaly, pageable);
+        Page<SessionAnalysisDto> result = sessionAnalysisService.search(insuredId, from, to, isAnomaly, pageable)
+                .map(sessionAnalysisMapper::toDto);
         return ResponseEntity.ok(ApiResponse.of(result.getContent(), PaginationMeta.fromPage(result)));
     }
 
@@ -88,6 +93,7 @@ public class AnalyticsController {
     @GetMapping("/sessions/{id}")
     public ResponseEntity<ApiResponse<SessionAnalysisDto>> getSession(@PathVariable Long id) {
         return sessionAnalysisService.getById(id)
+                .map(sessionAnalysisMapper::toDto)
                 .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -111,7 +117,8 @@ public class AnalyticsController {
         );
 
         // Keep response formatting consistent with the sessions endpoint.
-        Page<AnomalyEventDto> result = anomalyEventService.search(insuredId, from, to, tier, type, pageable);
+        Page<AnomalyEventDto> result = anomalyEventService.search(insuredId, from, to, tier, type, pageable)
+                .map(anomalyEventMapper::toDto);
         return ResponseEntity.ok(ApiResponse.of(result.getContent(), PaginationMeta.fromPage(result)));
     }
 
@@ -119,6 +126,7 @@ public class AnalyticsController {
     @GetMapping("/anomaly-events/{id}")
     public ResponseEntity<ApiResponse<AnomalyEventDto>> getAnomalyEvent(@PathVariable Long id) {
         return anomalyEventService.getById(id)
+                .map(anomalyEventMapper::toDto)
                 .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

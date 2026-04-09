@@ -2,33 +2,44 @@ package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.SessionAnalysisDto;
 import com.neo.dashboard.entity.SessionAnalysis;
-import com.neo.dashboard.repository.SessionAnalysisRepository;
+import com.neo.dashboard.mapper.SessionAnalysisMapper;
+import org.instancio.Instancio;
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.ObjectMapper;
+import org.mapstruct.factory.Mappers;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
+import static org.instancio.Select.field;
 
 /**
- * Unit test for the DTO mapping logic that parses JSON-backed fields from the
- * session analysis entity.
+ * Unit tests for session mapping logic.
  */
 class SessionAnalysisServiceTest {
 
-    /* Verify both JSON columns are converted into strongly typed DTO fields. */
+    private final SessionAnalysisMapper mapper = Mappers.getMapper(SessionAnalysisMapper.class);
+
     @Test
     void toDtoParsesJsonFields() {
-        ObjectMapper mapper = new ObjectMapper();
-        SessionAnalysisService service = new SessionAnalysisService(mock(SessionAnalysisRepository.class), mapper);
+        SessionAnalysis entity = Instancio.of(SessionAnalysis.class)
+                .set(field(SessionAnalysis::getActionCountsJson), "{\"LOGIN\":2,\"LOGOUT\":1}")
+                .set(field(SessionAnalysis::getTop3NextActions), "[\"A\",\"B\",\"C\"]")
+                .create();
 
-        SessionAnalysis entity = new SessionAnalysis();
-        entity.setId(42L);
-        entity.setActionCountsJson("{\"LOGIN\":2,\"LOGOUT\":1}");
-        entity.setTop3NextActions("[\"A\",\"B\",\"C\"]");
-
-        SessionAnalysisDto dto = service.toDto(entity);
+        SessionAnalysisDto dto = mapper.toDto(entity);
 
         assertThat(dto.getActionCounts()).containsEntry("LOGIN", 2L);
         assertThat(dto.getTop3NextActions()).containsExactly("A", "B", "C");
+    }
+
+    @Test
+    void toDtoReturnsEmptyCollectionsWhenJsonIsInvalid() {
+        SessionAnalysis entity = Instancio.of(SessionAnalysis.class)
+                .set(field(SessionAnalysis::getActionCountsJson), "{invalid}")
+                .set(field(SessionAnalysis::getTop3NextActions), "not-json")
+                .create();
+
+        SessionAnalysisDto dto = mapper.toDto(entity);
+
+        assertThat(dto.getActionCounts()).isEmpty();
+        assertThat(dto.getTop3NextActions()).isEmpty();
     }
 }

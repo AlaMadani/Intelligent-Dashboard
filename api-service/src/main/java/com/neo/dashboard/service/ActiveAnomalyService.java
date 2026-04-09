@@ -1,7 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.AnomalyAlertDto;
-import com.neo.dashboard.entity.AnomalyEvent;
+import com.neo.dashboard.mapper.AnomalyAlertMapper;
 import com.neo.dashboard.repository.AnomalyEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +25,7 @@ public class ActiveAnomalyService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final AnomalyEventRepository anomalyEventRepository;
+    private final AnomalyAlertMapper anomalyAlertMapper;
 
     /* Return the current anomaly marker, ignoring empty or "UNKNOWN" placeholders. */
     @Transactional(readOnly = true)
@@ -46,24 +47,8 @@ public class ActiveAnomalyService {
 
         // Fall back to the freshest persisted anomaly event when the cache is cold or invalid.
         return anomalyEventRepository.findTopByInsuredIdOrderByDetectedAtDesc(insuredId)
-                .map(this::fromEvent)
+                .map(anomalyAlertMapper::toDto)
                 .filter(alert -> !isUnknown(alert));
-    }
-
-    /* Adapt a persisted anomaly event to the lighter alert DTO used by the dashboard. */
-    private AnomalyAlertDto fromEvent(AnomalyEvent event) {
-        return new AnomalyAlertDto(
-                event.getInsuredId(),
-                event.getSessionId(),
-                event.getEventId(),
-                event.getAnomalyTier(),
-                event.getAnomalyType(),
-                event.getAnomalyScore(),
-                event.getTypeConfidence(),
-                event.getRuleType(),
-                event.getEventTime(),
-                event.getDetectedAt()
-        );
     }
 
     /* Treat missing or placeholder anomaly types as "no active alert". */

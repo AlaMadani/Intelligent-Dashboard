@@ -1,4 +1,7 @@
 <configuration>
+    <springProperty name="applicationName" source="spring.application.name" defaultValue="api-service"/>
+    <springProperty name="logstashDestination" source="logging.logstash.destination" defaultValue="localhost:5000"/>
+
     <!-- Human-readable console logs for local development. -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -8,9 +11,9 @@
 
     <!-- Structured logs forwarded to Logstash for centralized analysis. -->
     <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
-        <destination>localhost:5000</destination>
+        <destination>${logstashDestination}</destination>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"app_name":"api-service"}</customFields>
+            <customFields>{"app_name":"${applicationName}"}</customFields>
         </encoder>
     </appender>
 

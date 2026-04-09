@@ -174,6 +174,7 @@ If you are opening this repository for the first time, these are the best entry 
 | Logging | Logback + Logstash encoder |
 | AI explanation | Gemini via REST |
 | Boilerplate reduction | Lombok |
+| DTO mapping | MapStruct + generic mapper contract |
 
 ## Local Development
 
@@ -252,6 +253,42 @@ Windows PowerShell equivalents:
 .\mvnw.cmd test
 ```
 
+### Build Docker image with Jib
+
+Windows PowerShell:
+
+```powershell
+.\mvnw.cmd jib:dockerBuild
+```
+
+This builds an OCI image named:
+
+```text
+api-service:0.0.1-SNAPSHOT
+```
+
+## Testing Strategy
+
+- unit tests cover mapper behavior with `Instancio` test data generation
+- integration tests use `Testcontainers` (Redis path example), with automatic skip when Docker is unavailable
+
+## Liquibase Baseline
+
+Liquibase is included and configured with:
+
+- `spring.liquibase.enabled: false`
+- changelog file at `src/main/resources/db/changelog/db.changelog-master.yaml`
+
+This keeps migrations ready for future ownership without changing current read-only runtime behavior.
+
+## Optional Vault in Docker
+
+If you want Vault as a local dependency, run:
+
+```bash
+docker run -d --name api-service-vault -p 8200:8200 -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 hashicorp/vault:1.17 server -dev
+```
+
 ## Configuration Notes
 
 The default configuration expects:
@@ -271,6 +308,14 @@ Important properties you will likely override per environment:
 - `SPRING_DATA_REDIS_PORT`
 - `SPRING_KAFKA_BOOTSTRAP_SERVERS`
 - `GEMINI_API_KEY`
+
+### Environment-first configuration (GitHub-safe)
+
+Sensitive values and deploy-specific URLs are read from environment variables.
+
+- Do not commit real values in source control.
+- Use `.env.example` as the template.
+- Keep your real values in `.env` (already gitignored).
 
 ## Observability
 

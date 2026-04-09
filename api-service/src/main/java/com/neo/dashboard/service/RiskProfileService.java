@@ -1,7 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.UserRiskProfileDto;
-import com.neo.dashboard.entity.UserRiskProfile;
+import com.neo.dashboard.mapper.UserRiskProfileMapper;
 import com.neo.dashboard.repository.UserRiskProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +25,7 @@ public class RiskProfileService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final UserRiskProfileRepository repository;
+    private final UserRiskProfileMapper userRiskProfileMapper;
 
     /* Return the latest risk profile for one insured id. */
     @Transactional(readOnly = true)
@@ -41,25 +42,6 @@ public class RiskProfileService {
         }
 
         // Fall back to the latest relational snapshot when Redis has no usable entry.
-        return repository.findByInsuredId(insuredId).map(this::toDto);
-    }
-
-    /* Flatten the persistence entity into the DTO exposed by the API. */
-    UserRiskProfileDto toDto(UserRiskProfile entity) {
-        return new UserRiskProfileDto(
-                entity.getId(),
-                entity.getInsuredId(),
-                entity.getLastUpdated(),
-                entity.getAnomalyCount7d(),
-                entity.getAnomalyCount30d(),
-                entity.getLastAnomalyType(),
-                entity.getRiskTier(),
-                entity.getAnomalyRate30d(),
-                entity.getSessions7d(),
-                entity.getSessions30d(),
-                entity.getMostFrequentAction30d(),
-                entity.getAvgSessionDuration30d(),
-                entity.getConsecutiveCleanSessions()
-        );
+        return repository.findByInsuredId(insuredId).map(userRiskProfileMapper::toDto);
     }
 }

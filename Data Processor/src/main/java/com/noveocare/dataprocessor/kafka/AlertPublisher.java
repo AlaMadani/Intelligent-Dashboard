@@ -7,6 +7,7 @@ import com.noveocare.dataprocessor.config.KafkaTopicProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.dto.AnomalyAlert;
 import com.noveocare.dataprocessor.entity.AnomalyEvent;
+import com.noveocare.dataprocessor.mapper.AnomalyAlertMapper;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.repository.AnomalyEventRepository;
 import com.noveocare.dataprocessor.service.StatisticsService;
@@ -34,6 +35,7 @@ public class AlertPublisher {
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties cacheProperties;
     private final StatisticsService statisticsService;
+    private final AnomalyAlertMapper anomalyAlertMapper;
 
     public void publish(AnomalyAlert alert, String rawEventJson) {
         // Store the alert first so it is not lost if Kafka delivery fails later.
@@ -64,19 +66,8 @@ public class AlertPublisher {
     }
 
     private void persist(AnomalyAlert alert, String rawEventJson) {
-        // Copy the DTO into the JPA entity so the full alert history is queryable from SQL.
-        AnomalyEvent entity = new AnomalyEvent();
-        entity.setInsuredId(alert.getInsuredId());
-        entity.setSessionId(alert.getSessionId());
-        entity.setEventId(alert.getEventId());
-        entity.setEventTime(alert.getEventTime());
-        entity.setAnomalyTier(alert.getAnomalyTier());
-        entity.setAnomalyType(alert.getAnomalyType());
-        entity.setAnomalyScore(alert.getAnomalyScore());
-        entity.setTypeConfidence(alert.getTypeConfidence());
-        entity.setRuleType(alert.getRuleType());
-        entity.setEventJson(rawEventJson);
-        entity.setDetectedAt(alert.getDetectedAt() == null ? Instant.now() : alert.getDetectedAt());
+        // Keep alert persistence declarative so DTO/entity drift is handled in one mapper.
+        AnomalyEvent entity = anomalyAlertMapper.toEntity(alert, rawEventJson);
         anomalyEventRepository.save(entity);
     }
 

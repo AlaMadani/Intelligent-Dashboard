@@ -1,14 +1,14 @@
 spring:
   # Application identity reused in logs, metrics, and dashboards.
   application:
-    name: api-service
+    name: ${SPRING_APPLICATION_NAME:api-service}
 
   # SQL Server connection for read-side analytics snapshots.
   datasource:
-    url: jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true
-    username: app_user
-    password: securePass123!
-    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true}
+    username: ${SPRING_DATASOURCE_USERNAME:app_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
 
   # JPA only reads existing tables; schema generation stays disabled.
   jpa:
@@ -16,39 +16,50 @@ spring:
       ddl-auto: none
     show-sql: true
 
+  # Liquibase can be enabled later if this service starts owning schema migrations.
+  liquibase:
+    enabled: ${SPRING_LIQUIBASE_ENABLED:false}
+    change-log: ${SPRING_LIQUIBASE_CHANGE_LOG:classpath:db/changelog/db.changelog-master.yaml}
+
   # Redis stores the freshest risk, anomaly, and stats snapshots.
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
   # Kafka feeds live anomaly alerts into the SSE bridge.
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: api-service-anomaly-stream
-      auto-offset-reset: latest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:api-service-anomaly-stream}
+      auto-offset-reset: ${SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET:latest}
+      key-deserializer: ${SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER:org.apache.kafka.common.serialization.StringDeserializer}
+      value-deserializer: ${SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER:org.apache.kafka.common.serialization.StringDeserializer}
 
   # Gemini is optional; the service falls back to local heuristics when the key is absent.
   ai:
     google:
       genai:
-        api-key: ${GEMINI_API_KEY:AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw}
+        api-key: ${GEMINI_API_KEY:}
+        base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
         chat:
           options:
-            model: gemini-2.5-flash
+            model: ${GEMINI_MODEL:gemini-2.5-flash}
 
 app:
   # Local topic names consumed by the stream bridge.
   kafka:
     topics:
-      anomaly-alerts: topic-anomaly-alerts
+      anomaly-alerts: ${APP_KAFKA_TOPIC_ANOMALY_ALERTS:topic-anomaly-alerts}
 
 server:
   # HTTP port exposed by this analytics API.
-  port: 8081
+  port: ${SERVER_PORT:8081}
+
+logging:
+  # Destination used by logback-spring for structured Logstash output.
+  logstash:
+    destination: ${LOGSTASH_DESTINATION:localhost:5000}
 
 management:
   # Expose actuator endpoints and Prometheus metrics for local observability.

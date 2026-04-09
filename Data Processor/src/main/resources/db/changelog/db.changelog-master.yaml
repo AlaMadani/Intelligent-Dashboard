@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: init-schema-v1
+      author: data-processor
+      preConditions:
+        onFail: MARK_RAN
+        onError: HALT
+        not:
+          tableExists:
+            tableName: session_analysis
+      changes:
+        - sqlFile:
+            path: db/migration/V1__init.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

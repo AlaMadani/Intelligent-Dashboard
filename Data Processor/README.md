@@ -124,14 +124,14 @@ When a session is considered suspicious, the system can:
 | Messaging | Apache Kafka |
 | Cache / session state | Redis |
 | Persistence | Spring Data JPA + SQL Server |
-| Migrations | Flyway-style SQL migration file |
+| Migrations | Liquibase + SQL changelog |
 | Sequence inference | ONNX Runtime |
 | Trend prediction | XGBoost4J |
 | Serialization | Jackson |
 | Boilerplate reduction | Lombok |
 | Logging | Logback + Logstash encoder |
 | Build | Maven Wrapper |
-| Testing | JUnit 5, Spring Test, Kafka Test |
+| Testing | JUnit 5, Spring Test, Instancio, Testcontainers |
 
 ## Project Structure
 
@@ -152,11 +152,13 @@ Data Processor/
 |   |   |   `-- DataProcessorApplication.java
 |   |   `-- resources/
 |   |       |-- AI/           # Models, vocab files, label maps, notebooks, generators
+|   |       |-- db/changelog/ # Liquibase changelog entrypoint
 |   |       |-- db/migration/ # Database bootstrap SQL
 |   |       |-- application.yaml
 |   |       `-- logback-spring.xml
 |   `-- test/
 |       `-- java/...          # Feature-engineering tests
+|-- docker/                   # Optional infrastructure compose files (for example Vault)
 |-- scripts/                  # Offline training and metadata-generation helpers
 |-- .mvn/
 |-- mvnw
@@ -233,6 +235,7 @@ Main configuration lives in `src/main/resources/application.yaml`.
 Important sections:
 
 - `spring.datasource`: SQL Server connection
+- `spring.liquibase`: database changelog bootstrap
 - `spring.kafka`: Kafka producer and consumer settings
 - `spring.data.redis`: Redis connection
 - `app.kafka.topics`: input and output topics
@@ -266,6 +269,24 @@ The current configuration expects:
 
 If your Kafka and Redis instances already run in Docker and expose those ports, no extra setup is needed for them. If your environment differs, update `application.yaml` or externalize configuration before starting the app.
 
+### Environment Variables (Recommended for GitHub)
+
+Use environment variables (or a local `.env` loaded by your shell/IDE) instead of committing credentials and host URLs.
+
+You can start from `.env.example` and set at least:
+
+- `DB_URL`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `KAFKA_BOOTSTRAP_SERVERS`
+- `KAFKA_CONSUMER_GROUP_ID`
+- `AUDIT_TRAIL_TOPIC`
+- `ANOMALY_ALERTS_TOPIC`
+- `REDIS_HOST`
+- `REDIS_PORT`
+
+The repository ignores `.env` files by default (`.gitignore`) and keeps only `.env.example` tracked.
+
 ### Typical Local Setup
 
 A practical local setup for this repository is:
@@ -283,8 +304,16 @@ A practical local setup for this repository is:
 
 ### Run Tests
 
+Unit tests:
+
 ```powershell
 .\mvnw.cmd test
+```
+
+Integration tests (`*IT`) with Testcontainers:
+
+```powershell
+.\mvnw.cmd verify
 ```
 
 ### Start the Processor
@@ -292,6 +321,20 @@ A practical local setup for this repository is:
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
+
+### Build Docker Image (Jib)
+
+```powershell
+.\mvnw.cmd jib:dockerBuild
+```
+
+### Optional Vault Container
+
+```powershell
+docker compose -f docker/docker-compose.vault.yaml up -d
+```
+
+This starts a local dev Vault instance. Application-side secret loading from Vault is intentionally left optional and can be wired when you decide on the final secret-management flow.
 
 ## Example Runtime Outputs
 
@@ -316,6 +359,7 @@ Verified commands:
 ```powershell
 .\mvnw.cmd -q -DskipTests compile
 .\mvnw.cmd -q test
+.\mvnw.cmd -q verify
 ```
 
 ## Notes for Contributors

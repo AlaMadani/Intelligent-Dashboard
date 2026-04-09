@@ -3,6 +3,7 @@ package com.neo.dashboard.service;
 import com.neo.dashboard.dto.AnomalyAlertDto;
 import com.neo.dashboard.dto.AnomalyEventDto;
 import com.neo.dashboard.entity.AnomalyEvent;
+import com.neo.dashboard.mapper.AnomalyEventMapper;
 import com.neo.dashboard.repository.AnomalyEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +13,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
@@ -35,6 +35,7 @@ public class AnomalyAlertStreamService {
     /* Message deserialization plus optional enrichment from the database. */
     private final ObjectMapper objectMapper;
     private final AnomalyEventRepository anomalyEventRepository;
+    private final AnomalyEventMapper anomalyEventMapper;
 
     /* Active SSE subscribers and the most recent alerts kept for replay. */
     private final CopyOnWriteArrayList<SseEmitter> emitters = new CopyOnWriteArrayList<>();
@@ -90,38 +91,11 @@ public class AnomalyAlertStreamService {
                 );
 
         if (persisted.isPresent()) {
-            AnomalyEvent event = persisted.get();
-            return new AnomalyEventDto(
-                    event.getId(),
-                    event.getInsuredId(),
-                    event.getSessionId(),
-                    event.getEventId(),
-                    event.getEventTime(),
-                    event.getAnomalyTier(),
-                    event.getAnomalyType(),
-                    event.getAnomalyScore(),
-                    event.getTypeConfidence(),
-                    event.getRuleType(),
-                    event.getEventJson(),
-                    event.getDetectedAt()
-            );
+            return anomalyEventMapper.toDto(persisted.get());
         }
 
         // If the event has not been persisted yet, stream the Kafka payload as-is.
-        return new AnomalyEventDto(
-                null,
-                alert.getInsuredId(),
-                alert.getSessionId(),
-                alert.getEventId(),
-                alert.getEventTime(),
-                alert.getAnomalyTier(),
-                alert.getAnomalyType(),
-                alert.getAnomalyScore(),
-                alert.getTypeConfidence(),
-                alert.getRuleType(),
-                null,
-                alert.getDetectedAt() == null ? Instant.now() : alert.getDetectedAt()
-        );
+        return anomalyEventMapper.fromAlert(alert);
     }
 
     /* Keep only the latest N events for replay on new subscriptions. */

@@ -2,7 +2,7 @@ package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.ActionStatsDailyDto;
 import com.neo.dashboard.dto.StatsResponseDto;
-import com.neo.dashboard.entity.ActionStatsDaily;
+import com.neo.dashboard.mapper.ActionStatsDailyMapper;
 import com.neo.dashboard.repository.ActionStatsDailyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +35,7 @@ public class StatsService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ActionStatsDailyRepository actionStatsDailyRepository;
+    private final ActionStatsDailyMapper actionStatsDailyMapper;
 
     /* Read the latest live snapshot from Redis and return an empty payload if nothing is cached. */
     @Transactional(readOnly = true)
@@ -79,7 +80,7 @@ public class StatsService {
     /* Convert SQL rows into the generic JSON payload expected by the API. */
     private StatsResponseDto buildFromSql(LocalDate date, String source) {
         List<ActionStatsDailyDto> dtos = actionStatsDailyRepository.findByStatDate(date).stream()
-                .map(this::toDto)
+                .map(actionStatsDailyMapper::toDto)
                 .collect(Collectors.toList());
         JsonNode payload = objectMapper.valueToTree(dtos);
         return new StatsResponseDto(date, source, payload);
@@ -89,22 +90,6 @@ public class StatsService {
     private StatsResponseDto buildMissing(LocalDate date) {
         JsonNode payload = objectMapper.createObjectNode();
         return new StatsResponseDto(date, "missing", payload);
-    }
-
-    /* Internal mapping from SQL aggregate entity to DTO. */
-    ActionStatsDailyDto toDto(ActionStatsDaily entity) {
-        return new ActionStatsDailyDto(
-                entity.getId(),
-                entity.getStatDate(),
-                entity.getActionId(),
-                entity.getActionLabel(),
-                entity.getActualCount(),
-                entity.getPredictedCount(),
-                entity.getRollingMean7(),
-                entity.getRollingStd7(),
-                entity.getSpikeAlert(),
-                entity.getCreatedAt()
-        );
     }
 
     /* Support both supported key formats while avoiding duplicates. */

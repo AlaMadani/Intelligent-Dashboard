@@ -1,7 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.NextActionPredictionDto;
-import com.neo.dashboard.entity.NextActionPrediction;
+import com.neo.dashboard.mapper.NextActionPredictionMapper;
 import com.neo.dashboard.repository.NextActionPredictionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +28,7 @@ public class NextActionPredictionService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final NextActionPredictionRepository repository;
+    private final NextActionPredictionMapper nextActionPredictionMapper;
 
     /* Return the current next-action prediction for one insured id. */
     @Transactional(readOnly = true)
@@ -51,31 +52,6 @@ public class NextActionPredictionService {
         }
 
         // The SQL snapshot includes metadata such as prediction time and source session.
-        return repository.findByInsuredId(insuredId).map(this::toDto);
-    }
-
-    /* Convert the persisted row into the DTO exposed by the API. */
-    NextActionPredictionDto toDto(NextActionPrediction entity) {
-        return new NextActionPredictionDto(
-                entity.getId(),
-                entity.getInsuredId(),
-                entity.getSessionId(),
-                entity.getPredictedAt(),
-                parseActions(entity.getTop3ActionsJson())
-        );
-    }
-
-    /* Parse the stored JSON array of top predicted actions. */
-    private List<String> parseActions(String json) {
-        if (json == null || json.isBlank()) {
-            return Collections.emptyList();
-        }
-
-        try {
-            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
-        } catch (Exception e) {
-            log.warn("Failed to parse top3_actions_json", e);
-            return Collections.emptyList();
-        }
+        return repository.findByInsuredId(insuredId).map(nextActionPredictionMapper::toDto);
     }
 }

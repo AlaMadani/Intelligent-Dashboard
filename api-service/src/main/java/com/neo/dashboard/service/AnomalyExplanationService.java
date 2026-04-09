@@ -7,6 +7,7 @@ import com.neo.dashboard.dto.SessionAnalysisDto;
 import com.neo.dashboard.dto.StatsResponseDto;
 import com.neo.dashboard.dto.UserRiskProfileDto;
 import com.neo.dashboard.entity.AnomalyEvent;
+import com.neo.dashboard.mapper.SessionAnalysisMapper;
 import com.neo.dashboard.repository.AnomalyEventRepository;
 import com.neo.dashboard.repository.SessionAnalysisRepository;
 import lombok.RequiredArgsConstructor;
@@ -62,7 +63,7 @@ public class AnomalyExplanationService {
     private final ObjectMapper objectMapper;
     private final AnomalyEventRepository anomalyEventRepository;
     private final SessionAnalysisRepository sessionAnalysisRepository;
-    private final SessionAnalysisService sessionAnalysisService;
+    private final SessionAnalysisMapper sessionAnalysisMapper;
     private final RiskProfileService riskProfileService;
     private final NextActionPredictionService nextActionPredictionService;
     private final ActiveAnomalyService activeAnomalyService;
@@ -70,6 +71,9 @@ public class AnomalyExplanationService {
 
     @Value("${spring.ai.google.genai.api-key:}")
     private String apiKey;
+
+    @Value("${spring.ai.google.genai.base-url:https://generativelanguage.googleapis.com}")
+    private String baseUrl;
 
     @Value("${spring.ai.google.genai.chat.options.model:gemini-2.5-flash}")
     private String model;
@@ -96,7 +100,7 @@ public class AnomalyExplanationService {
         // Gather the neighboring session, risk, prediction, alert, and stats context for prompt construction.
         SessionAnalysisDto session = sessionAnalysisRepository
                 .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(anomaly.getInsuredId(), anomaly.getSessionId())
-                .map(sessionAnalysisService::toDto)
+                .map(sessionAnalysisMapper::toDto)
                 .orElse(null);
         UserRiskProfileDto risk = riskProfileService.getRiskProfile(anomaly.getInsuredId()).orElse(null);
         NextActionPredictionDto nextActions = nextActionPredictionService.getPrediction(anomaly.getInsuredId()).orElse(null);
@@ -167,7 +171,7 @@ public class AnomalyExplanationService {
 
         try {
             RestClient client = RestClient.builder()
-                    .baseUrl("https://generativelanguage.googleapis.com")
+                    .baseUrl(baseUrl)
                     .build();
 
             Map<String, Object> body = new LinkedHashMap<>();

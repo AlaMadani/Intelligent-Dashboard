@@ -5,18 +5,21 @@ spring:
   main:
     web-application-type: none
   datasource:
-    url: jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true;
-    username: app_user
-    password: securePass123!
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true;}
+    username: ${DB_USERNAME:app_user}
+    password: ${DB_PASSWORD:change_me}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: data-processor-group
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:data-processor-group}
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -25,15 +28,15 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 # Application-specific wiring for Kafka topics, Redis TTLs, rules, and models.
 app:
   kafka:
     topics:
-      audit-trail: topic-audit-trail
-      anomaly-alerts: topic-anomaly-alerts
+      audit-trail: ${AUDIT_TRAIL_TOPIC:topic-audit-trail}
+      anomaly-alerts: ${ANOMALY_ALERTS_TOPIC:topic-anomaly-alerts}
   redis:
     ttl:
       session-buffer: 30m
@@ -107,7 +110,7 @@ app:
       - next_action_label_map.json
       - scaler_delta.json
       - scaler_delta.pkl
-      - "SimData_v3_(2).ipynb"
+      - "SimData_v3_final.ipynb"
       - simulator_final_revised.py
       - subtype_vocab.json
       - trend_feature_cols.json
