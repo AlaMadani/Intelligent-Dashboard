@@ -1,0 +1,261 @@
+{
+  "global": {
+    "on_every_navigation": [
+      "GET /heartbeat"
+    ],
+    "unauthenticated_boot": [
+      "GET /init"
+    ],
+    "token_refresh_background": [
+      "POST /auth/refresh"
+    ],
+    "unauthenticated_route_guard": [
+      "GET /auth/logout"
+    ]
+  },
+  "auth_flow": {
+    "start": "login",
+    "steps": [
+      {
+        "state": "login",
+        "action": "submit_credentials",
+        "api": ["POST /auth/login"],
+        "branches": [
+          { "if_status": 202, "next": "mfa" },
+          { "if_status": 206, "next": "mfa_email_list" },
+          { "if_status": 208, "next": "spam_warning" },
+          { "default": "home" }
+        ]
+      },
+      {
+        "state": "spam_warning",
+        "action": "remove_from_spam",
+        "api": ["DELETE /auth/remove-email-from-spam"],
+        "next": "login"
+      },
+      {
+        "state": "mfa_email_list",
+        "action": "select_email",
+        "api": ["POST /auth/select-email"],
+        "next": "mfa"
+      },
+      {
+        "state": "mfa",
+        "action": "validate_code",
+        "api": ["POST /auth/validate-mfa"],
+        "next": "home"
+      },
+      {
+        "state": "mfa",
+        "action": "resend_or_switch",
+        "api": ["POST /auth/regenerate-mfa"],
+        "next": "mfa"
+      },
+      {
+        "state": "forgot_login",
+        "action": "submit_identity",
+        "api": ["POST /auth/login/forgot-login"],
+        "next": "forgot_login_done"
+      },
+      {
+        "state": "forgot_password",
+        "action": "request_reset",
+        "api": ["POST /auth/login/forgot-password"],
+        "next": "forgot_password_email_sent"
+      },
+      {
+        "state": "forgot_password_validation",
+        "action": "validate_token",
+        "api": ["GET /auth/login/get-logins"],
+        "next": "reset_password_form"
+      },
+      {
+        "state": "reset_password_form",
+        "action": "submit_new_password",
+        "api": ["POST /auth/login/forgot-password/reset-validation"],
+        "next": "login"
+      },
+      {
+        "state": "create_account",
+        "action": "request_creation",
+        "api": ["POST /auth/login/create-account"],
+        "next": "create_account_email_sent"
+      },
+      {
+        "state": "create_account_final_step",
+        "action": "load_logins",
+        "api": ["GET /auth/login/get-logins"]
+      },
+      {
+        "state": "create_account_final_step",
+        "action": "validate_creation",
+        "api": ["POST /auth/login/create-account-validation"],
+        "next": "home"
+      },
+      {
+        "state": "activate_account",
+        "action": "start_affiliation",
+        "api": ["POST /auth/activate-account/affiliation"]
+      },
+      {
+        "state": "logout",
+        "action": "explicit_logout",
+        "api": ["GET /auth/logout"],
+        "next": "login"
+      }
+    ]
+  },
+  "post_login_gates": {
+    "validate_legal_pages": {
+      "route": "ValidateLegalPages",
+      "action": "confirm_all",
+      "api": ["PUT /insured/update-first-connection"]
+    },
+    "validate_info_dialog": {
+      "route": "ValidateInfoDialog",
+      "actions": [
+        { "name": "update_contact", "api": ["PUT /insured/contact"] },
+        { "name": "update_address", "api": ["PUT /insured/address"] },
+        { "name": "validate_address", "api": ["GET /insured/validate-address"] },
+        { "name": "validate_info", "api": ["PUT /insured/info-validation"] }
+      ]
+    }
+  },
+  "routes": {
+    "Home": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "refresh_requests", "api": ["GET /all-info?actionKey=requests"] },
+        { "name": "mark_message_read", "api": ["POST /requests/message"] },
+        { "name": "download_refund_pdf", "api": ["POST /insured/refund-resume"] },
+        { "name": "download_all_refunds_pdf", "api": ["POST /insured/all-refund-resume"] },
+        { "name": "download_adhesion_certificate", "api": ["POST /insured/adhesion-certificate"] },
+        { "name": "send_contact_message", "api": ["POST /v2/contact/*"] },
+        { "name": "save_schooling_validation", "api": ["POST /insured-infos-validation"] },
+        { "name": "download_tp_card_ios_wallet", "api": ["POST /wallet/ios"] }
+      ]
+    },
+    "Requests": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "refresh_requests", "api": ["GET /all-info?actionKey=requests"] },
+        { "name": "download_request_doc", "api": ["GET /requests/messages/file"] },
+        { "name": "upload_supporting_doc", "api": ["POST /documents/upload-documents"] },
+        { "name": "send_contact_message", "api": ["POST /v2/contact/*"] },
+        { "name": "download_refund_pdf", "api": ["POST /insured/refund-resume"] }
+      ]
+    },
+    "Refunds": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "download_refund_pdf", "api": ["POST /insured/refund-resume"] },
+        { "name": "download_all_refunds_pdf", "api": ["POST /insured/all-refund-resume"] }
+      ]
+    },
+    "Documents": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "list_documents", "api": ["GET /documents"] },
+        { "name": "get_document_types", "api": ["GET /all-info?actionKey=documents"] },
+        { "name": "download_document", "api": ["GET /documents/file"] },
+        { "name": "upload_document", "api": ["POST /documents/upload-documents"] },
+        { "name": "payment_schedule_file", "api": ["GET /payment-schedules/file"] },
+        { "name": "document_display_download", "api": ["GET /document-display/download/{id}"] }
+      ]
+    },
+    "Beneficiaries": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "update_beneficiary", "api": ["POST /v2/insured/update-beneficiary"] },
+        { "name": "update_notifications", "api": ["PUT /insured/notifications"] },
+        { "name": "check_paid_benef", "api": ["GET /insured/checkPaidBenef"] }
+      ]
+    },
+    "UpdateBeneficiaries": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "manage_benef_transaction", "api": ["POST /insured/manage/beneficiary"] },
+        { "name": "upload_document", "api": ["POST /documents/upload-documents"] },
+        { "name": "update_rib", "api": ["PUT /insured/rib"] },
+        { "name": "sign_rib", "api": ["POST /insured/sign-file"] },
+        { "name": "verify_signed_file", "api": ["POST /insured/verify-signed-file"] },
+        { "name": "teletransmission_update", "api": ["POST /v2/teletransmission/update/{amoCode}"] },
+        { "name": "sso_social_security_fund", "api": ["GET /social-security-funds/{amoCode}"] }
+      ]
+    },
+    "PersonalInformation": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "update_contact", "api": ["PUT /insured/contact"] },
+        { "name": "update_address", "api": ["PUT /insured/address"] },
+        { "name": "validate_address", "api": ["GET /insured/validate-address"] },
+        { "name": "validate_info", "api": ["PUT /insured/info-validation"] },
+        { "name": "change_password", "api": ["PUT /auth/password/change"] }
+      ]
+    },
+    "BankingInformation": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "update_rib", "api": ["PUT /insured/rib"] },
+        { "name": "sign_rib", "api": ["POST /insured/sign-file"] },
+        { "name": "verify_signed_file", "api": ["POST /insured/verify-signed-file"] },
+        { "name": "send_contact_message", "api": ["POST /v2/contact/*"] }
+      ]
+    },
+    "GlobalPreferences": {
+      "entry": ["(uses store data from login)"],
+      "user_actions": [
+        { "name": "update_subscription", "api": ["PUT /insured/update-subscription"] },
+        { "name": "teletransmission_update", "api": ["POST /v2/teletransmission/update/{amoCode}"] },
+        { "name": "tp_card_post_office", "api": ["POST /insured/send-by-post-office"] },
+        { "name": "tp_card_mail", "api": ["POST /insured/tpcard-mail"] },
+        { "name": "sso_social_security_fund", "api": ["GET /social-security-funds/{amoCode}"] },
+        { "name": "request_actions_refresh", "api": ["GET /all-info?actionKey=requests"] }
+      ]
+    },
+    "Help": {
+      "user_actions": [
+        { "name": "debug_report", "api": ["POST /help/debug-reports"] },
+        { "name": "authorize_connection", "api": ["POST /help/authorize-connection/{id}"] }
+      ]
+    },
+    "TpCardDownload": {
+      "user_actions": [
+        { "name": "download_tp_card_pdf", "api": ["GET /insured/tp-card", "GET /insured/tp-card/{cardNumber}"] }
+      ]
+    }
+  },
+  "transition_graph": {
+    "nodes": [
+      "login",
+      "mfa",
+      "mfa_email_list",
+      "home",
+      "requests",
+      "refunds",
+      "documents",
+      "beneficiaries",
+      "personal_info",
+      "banking_info",
+      "preferences",
+      "help",
+      "logout"
+    ],
+    "edges": [
+      { "from": "login", "to": "mfa", "condition": "auth.login status 202" },
+      { "from": "login", "to": "mfa_email_list", "condition": "auth.login status 206" },
+      { "from": "login", "to": "home", "condition": "auth.login success" },
+      { "from": "mfa_email_list", "to": "mfa" },
+      { "from": "mfa", "to": "home", "condition": "auth.validate-mfa success" },
+      { "from": "home", "to": "requests" },
+      { "from": "home", "to": "refunds" },
+      { "from": "home", "to": "documents" },
+      { "from": "home", "to": "beneficiaries" },
+      { "from": "home", "to": "personal_info" },
+      { "from": "home", "to": "banking_info" },
+      { "from": "home", "to": "preferences" },
+      { "from": "home", "to": "help" },
+      { "from": "*", "to": "logout", "condition": "token invalid or user logout" }
+    ]
+  }
+}
