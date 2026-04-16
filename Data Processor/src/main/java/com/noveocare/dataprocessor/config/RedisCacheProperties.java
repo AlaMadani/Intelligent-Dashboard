@@ -12,10 +12,12 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "app.redis.ttl")
 public class RedisCacheProperties {
     private Duration sessionBuffer;
-    private Duration aeScore;
     private Duration nextActions;
     private Duration risk;
     private Duration liveStats;
     private Duration activeAnomaly;
     private Duration pendingAlerts;
+    private Duration sessionInsight;
+    private Duration dashboard;
+    private Duration forecast;
 }

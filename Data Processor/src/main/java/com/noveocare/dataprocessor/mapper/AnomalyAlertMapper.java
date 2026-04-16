@@ -10,6 +10,7 @@ import org.mapstruct.Named;
 import org.mapstruct.ReportingPolicy;
 
 import java.time.Instant;
+import java.util.List;
 
 @Mapper(
         componentModel = MappingConstants.ComponentModel.SPRING,
@@ -20,6 +21,7 @@ public interface AnomalyAlertMapper extends GenericMapper<AnomalyAlert, AnomalyE
     @Override
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "eventJson", ignore = true)
+    @Mapping(target = "nextActionsJson", source = "nextActions", qualifiedByName = "stringifyList")
     @Mapping(target = "detectedAt", source = "detectedAt", qualifiedByName = "detectedAtOrNow")
     AnomalyEvent toEntity(AnomalyAlert dto);
 
@@ -28,11 +30,17 @@ public interface AnomalyAlertMapper extends GenericMapper<AnomalyAlert, AnomalyE
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "eventJson", source = "rawEventJson")
+    @Mapping(target = "nextActionsJson", source = "alert.nextActions", qualifiedByName = "stringifyList")
     @Mapping(target = "detectedAt", source = "alert.detectedAt", qualifiedByName = "detectedAtOrNow")
     AnomalyEvent toEntity(AnomalyAlert alert, String rawEventJson);
 
     @Named("detectedAtOrNow")
     default Instant detectedAtOrNow(Instant detectedAt) {
         return detectedAt != null ? detectedAt : Instant.now();
+    }
+
+    @Named("stringifyList")
+    default String stringifyList(List<String> values) {
+        return values == null ? null : values.toString();
     }
 }

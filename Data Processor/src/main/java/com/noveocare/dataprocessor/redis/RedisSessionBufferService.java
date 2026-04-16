@@ -38,6 +38,14 @@ public class RedisSessionBufferService {
         }
     }
 
+    public void replaceSession(String insuredId, String sessionId, List<AuditTrailEvent> events) {
+        String key = CacheKeys.sessionKey(insuredId, sessionId);
+        redisTemplate.delete(key);
+        for (AuditTrailEvent event : events) {
+            appendEvent(event);
+        }
+    }
+
     public List<AuditTrailEvent> getSessionEvents(String insuredId, String sessionId) {
         // Rehydrate the full Redis list whenever downstream logic needs the current session timeline.
         String key = CacheKeys.sessionKey(insuredId, sessionId);

@@ -12,13 +12,14 @@ import com.neo.dashboard.dto.UserRiskProfileDto;
 import com.neo.dashboard.mapper.AnomalyEventMapper;
 import com.neo.dashboard.mapper.SessionAnalysisMapper;
 import com.neo.dashboard.service.ActiveAnomalyService;
-import com.neo.dashboard.service.AnomalyAlertStreamService;
-import com.neo.dashboard.service.LiveStatsStreamService;
 import com.neo.dashboard.service.AnomalyEventService;
 import com.neo.dashboard.service.AnomalyExplanationService;
+import com.neo.dashboard.service.DashboardReadService;
+import com.neo.dashboard.service.LiveStatsStreamService;
 import com.neo.dashboard.service.NextActionPredictionService;
 import com.neo.dashboard.service.RiskProfileService;
 import com.neo.dashboard.service.SessionAnalysisService;
+import com.neo.dashboard.service.SessionInsightReadService;
 import com.neo.dashboard.service.StatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,7 +28,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,15 +38,17 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Exposes read-only analytics endpoints used by the dashboard:
  * paginated queries, detail views, summary widgets, and SSE streams.
  */
 @RestController
-@RequestMapping("/api/analytics")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AnalyticsController {
 
     /* Shared pagination guardrails for list endpoints. */
@@ -61,13 +63,14 @@ public class AnalyticsController {
     private final StatsService statsService;
     private final ActiveAnomalyService activeAnomalyService;
     private final AnomalyExplanationService anomalyExplanationService;
-    private final AnomalyAlertStreamService anomalyAlertStreamService;
     private final LiveStatsStreamService liveStatsStreamService;
+    private final DashboardReadService dashboardReadService;
+    private final SessionInsightReadService sessionInsightReadService;
     private final SessionAnalysisMapper sessionAnalysisMapper;
     private final AnomalyEventMapper anomalyEventMapper;
 
     /* Returns session analysis rows with optional filters and pagination metadata. */
-    @GetMapping("/sessions")
+    @GetMapping("/sessions/risk-scores")
     public ResponseEntity<ApiResponse<List<SessionAnalysisDto>>> listSessions(
             @RequestParam(required = false) String insuredId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
@@ -99,7 +102,7 @@ public class AnalyticsController {
     }
 
     /* Returns anomaly events with optional filters and pagination metadata. */
-    @GetMapping("/anomaly-events")
+    @GetMapping("/anomalies")
     public ResponseEntity<ApiResponse<List<AnomalyEventDto>>> listAnomalyEvents(
             @RequestParam(required = false) String insuredId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
@@ -123,7 +126,7 @@ public class AnalyticsController {
     }
 
     /* Returns one anomaly event or 404 when it does not exist. */
-    @GetMapping("/anomaly-events/{id}")
+    @GetMapping("/anomalies/{id}")
     public ResponseEntity<ApiResponse<AnomalyEventDto>> getAnomalyEvent(@PathVariable Long id) {
         return anomalyEventService.getById(id)
                 .map(anomalyEventMapper::toDto)
@@ -132,18 +135,19 @@ public class AnalyticsController {
     }
 
     /* Builds or refreshes an explanation for a single anomaly event. */
-    @GetMapping("/anomaly-events/{id}/explanation")
-    public ResponseEntity<ApiResponse<AnomalyExplanationDto>> explainAnomalyEvent(
+    @GetMapping("/anomalies/{id}/explain")
+    public CompletableFuture<ResponseEntity<ApiResponse<AnomalyExplanationDto>>> explainAnomalyEvent(
             @PathVariable Long id,
             @RequestParam(defaultValue = "false") boolean refresh
     ) {
-        return anomalyExplanationService.explain(id, refresh)
-                .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return anomalyExplanationService.explainAsync(id, refresh)
+                .thenApply(result -> result
+                        .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
+                        .orElseGet(() -> ResponseEntity.notFound().build()));
     }
 
     /* Returns the latest risk summary for one insured user. */
-    @GetMapping("/risk/{insuredId}")
+    @GetMapping("/sessions/risk-scores/{insuredId}")
     public ResponseEntity<ApiResponse<UserRiskProfileDto>> getRiskProfile(@PathVariable String insuredId) {
         return riskProfileService.getRiskProfile(insuredId)
                 .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
@@ -158,6 +162,31 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Returns a dashboard snapshot from Redis ({@code dashboard:{view}}) written by the Data Processor.
+     * Allowed views: alerts, risky-sessions, cluster-mix, drop-offs, path-deviations, forecasts, forecast-series.
+     */
+    @GetMapping("/dashboard/{view}")
+    public ResponseEntity<ApiResponse<JsonNode>> getDashboardSnapshot(@PathVariable String view) {
+        return dashboardReadService.getSnapshot(view)
+                .map(payload -> ResponseEntity.ok(ApiResponse.of(payload)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Returns the live session insight blob from Redis while the session is still active
+     * ({@code session:insight:{insuredId}:{sessionId}}).
+     */
+    @GetMapping("/sessions/{insuredId}/{sessionId}/insight")
+    public ResponseEntity<ApiResponse<JsonNode>> getSessionInsight(
+            @PathVariable String insuredId,
+            @PathVariable String sessionId
+    ) {
+        return sessionInsightReadService.getInsight(insuredId, sessionId)
+                .map(payload -> ResponseEntity.ok(ApiResponse.of(payload)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     /* Returns the latest live stats snapshot for the requested date or today by default. */
     @GetMapping("/stats/live")
     public ResponseEntity<ApiResponse<StatsResponseDto>> getLiveStats(
@@ -167,7 +196,7 @@ public class AnalyticsController {
     }
 
     /* Returns trend stats, falling back to SQL when Redis does not contain the snapshot. */
-    @GetMapping("/stats/trend")
+    @GetMapping("/trends/forecast")
     public ResponseEntity<ApiResponse<StatsResponseDto>> getTrendStats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
@@ -180,12 +209,6 @@ public class AnalyticsController {
         return activeAnomalyService.getActiveAnomaly(insuredId)
                 .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    /* Opens an SSE stream that pushes anomaly alerts to the dashboard in near real time. */
-    @GetMapping(path = "/stream/anomalies", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamAnomalies() {
-        return anomalyAlertStreamService.subscribe();
     }
 
     /* Opens an SSE stream that continuously pushes live stats snapshots. */

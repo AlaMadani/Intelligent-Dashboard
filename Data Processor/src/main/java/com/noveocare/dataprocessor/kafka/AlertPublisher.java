@@ -5,11 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.noveocare.dataprocessor.config.CacheKeys;
 import com.noveocare.dataprocessor.config.KafkaTopicProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
+import com.noveocare.dataprocessor.config.RedisPubSubProperties;
+import com.noveocare.dataprocessor.config.RiskProperties;
 import com.noveocare.dataprocessor.dto.AnomalyAlert;
 import com.noveocare.dataprocessor.entity.AnomalyEvent;
 import com.noveocare.dataprocessor.mapper.AnomalyAlertMapper;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.repository.AnomalyEventRepository;
+import com.noveocare.dataprocessor.service.DashboardSnapshotService;
 import com.noveocare.dataprocessor.service.StatisticsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +38,10 @@ public class AlertPublisher {
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties cacheProperties;
     private final StatisticsService statisticsService;
+    private final DashboardSnapshotService dashboardSnapshotService;
     private final AnomalyAlertMapper anomalyAlertMapper;
+    private final RedisPubSubProperties redisPubSubProperties;
+    private final RiskProperties riskProperties;
 
     public void publish(AnomalyAlert alert, String rawEventJson) {
         // Store the alert first so it is not lost if Kafka delivery fails later.
@@ -53,6 +59,11 @@ public class AlertPublisher {
         // Update the near-real-time metrics and user risk snapshot after publication.
         statisticsService.recordAnomalyAlert(alert.getDetectedAt() == null ? Instant.now() : alert.getDetectedAt());
         statisticsService.updateUserRiskProfile(alert.getInsuredId());
+        dashboardSnapshotService.refreshAlertsFeed();
+        String pubSubChannel = resolvePubSubChannel(alert);
+        if (pubSubChannel != null) {
+            redisCacheService.publishJson(pubSubChannel, alert);
+        }
     }
 
     public void persistOnly(AnomalyAlert alert, String rawEventJson) {
@@ -102,5 +113,18 @@ public class AlertPublisher {
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize anomaly alert for Kafka", e);
         }
+    }
+
+    private String resolvePubSubChannel(AnomalyAlert alert) {
+        if (alert == null) {
+            return null;
+        }
+        if ("SYSTEM_TRAFFIC_ANOMALY".equalsIgnoreCase(alert.getAnomalyType())) {
+            return redisPubSubProperties.getSystemTrafficAnomalyChannel();
+        }
+        if (alert.getRiskScore() != null && alert.getRiskScore() >= riskProperties.getCriticalThreshold()) {
+            return redisPubSubProperties.getCriticalAlertsChannel();
+        }
+        return null;
     }
 }

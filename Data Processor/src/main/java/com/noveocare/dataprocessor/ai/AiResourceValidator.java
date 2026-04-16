@@ -3,8 +3,6 @@ package com.noveocare.dataprocessor.ai;
 import com.noveocare.dataprocessor.config.AiResourceProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -20,32 +18,70 @@ import java.util.List;
 public class AiResourceValidator {
 
     private final AiResourceProperties properties;
-    private final ResourceLoader resourceLoader;
+    private final RuntimeArtifactService runtimeArtifactService;
 
     @PostConstruct
     public void validate() {
-        // Collect all missing or unreadable resources before failing the application startup.
-        List<String> missing = new ArrayList<>();
-        for (String name : properties.getRequiredResources()) {
-            Resource resource = resourceLoader.getResource(properties.getBasePath() + name);
-            if (!resource.exists()) {
-                missing.add(name);
+        List<String> missingRequired = new ArrayList<>();
+        List<String> missingOptionalModels = new ArrayList<>();
+        List<String> required = new ArrayList<>();
+        List<String> optionalModels = new ArrayList<>();
+        required.add(properties.getManifest());
+        required.add(properties.getFeatureBundle());
+        required.add(runtimeArtifactService.getDeploymentManifest().getBinaryDetection().getFeatureColumns());
+        required.add(runtimeArtifactService.getDeploymentManifest().getBinaryDetection().getNumericMedians());
+        required.add(runtimeArtifactService.getDeploymentManifest().getNextAction().getArtifact());
+        optionalModels.add(runtimeArtifactService.getDeploymentManifest().getBinaryDetection().getPreferred());
+        optionalModels.add(runtimeArtifactService.getDeploymentManifest().getBinaryDetection().getFallback());
+        optionalModels.add(runtimeArtifactService.getDeploymentManifest().getAnomalyType().getModel());
+        optionalModels.add(runtimeArtifactService.getDeploymentManifest().getChurn().getModel());
+        optionalModels.add(runtimeArtifactService.getDeploymentManifest().getClustering().getModel());
+
+        if (runtimeArtifactService.getDeploymentManifest().getAnomalyType().getLabels() != null) {
+            required.add(runtimeArtifactService.getDeploymentManifest().getAnomalyType().getLabels());
+        }
+        if (runtimeArtifactService.getDeploymentManifest().getChurn().getNumericMedians() != null) {
+            required.add(runtimeArtifactService.getDeploymentManifest().getChurn().getNumericMedians());
+        }
+        if (runtimeArtifactService.getDeploymentManifest().getChurn().getFeatureColumns() != null) {
+            required.add(runtimeArtifactService.getDeploymentManifest().getChurn().getFeatureColumns());
+        }
+        if (runtimeArtifactService.getDeploymentManifest().getClustering().getScalerParams() != null) {
+            required.add(runtimeArtifactService.getDeploymentManifest().getClustering().getScalerParams());
+        }
+
+        for (String name : required) {
+            if (name == null || name.isBlank()) {
                 continue;
             }
-            try (java.io.InputStream inputStream = resource.getInputStream()) {
-                if (inputStream.read() < 0) {
-                    log.warn("AI resource is empty: {}", name);
-                }
-            } catch (Exception e) {
-                log.error("Failed to open AI resource {}", name, e);
-                missing.add(name);
+            if (!runtimeArtifactService.resourceExists(name)) {
+                missingRequired.add(name);
             }
         }
-        // Fail fast when mandatory models or vocab files are absent.
-        if (!missing.isEmpty()) {
-            log.error("Missing AI resources under {}: {}", properties.getBasePath(), missing);
-            throw new IllegalStateException("Missing AI resources: " + missing);
+
+        for (String name : optionalModels) {
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            if (!runtimeArtifactService.resourceExists(name)) {
+                missingOptionalModels.add(name);
+            }
         }
-        log.info("Validated {} AI resources under {}", properties.getRequiredResources().size(), properties.getBasePath());
+
+        if (!missingRequired.isEmpty()) {
+            log.error("Missing required AI resources under {}: {}", properties.getBasePath(), missingRequired);
+            throw new IllegalStateException("Missing required AI resources: " + missingRequired);
+        }
+        if (!missingOptionalModels.isEmpty()) {
+            log.warn("Optional model artifacts are missing under {} (runtime fallbacks will be used): {}",
+                    properties.getBasePath(), missingOptionalModels);
+        }
+
+        for (String name : runtimeArtifactService.getDeploymentManifest().getDashboardExports()) {
+            if (!runtimeArtifactService.resourceExists(name)) {
+                log.warn("Dashboard export {} is not present under {}", name, properties.getBasePath());
+            }
+        }
+        log.info("Validated manifest-driven AI resources under {}", properties.getBasePath());
     }
 }

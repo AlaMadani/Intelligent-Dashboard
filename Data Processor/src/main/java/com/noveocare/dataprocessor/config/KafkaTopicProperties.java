@@ -13,4 +13,6 @@ public class KafkaTopicProperties {
     private String auditTrail;
     // Output topic that receives detected anomaly alerts.
     private String anomalyAlerts;
+    // Dead-letter topic receiving malformed or failed records.
+    private String dlq;
 }

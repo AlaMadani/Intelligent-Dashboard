@@ -10,39 +10,92 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * API projection for one analyzed session, including behavioral metrics,
- * anomaly classification, and parsed JSON aggregates.
+ * API projection for one analyzed session (SQL snapshot after session end).
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class SessionAnalysisDto {
-    /* Identity and ownership fields. */
+
     private Long id;
     private String insuredId;
     private String sessionId;
 
-    /* Time window and volume metrics for the session. */
+    private String persona;
+    private String countryCode;
+    private String city;
+    private String month;
+    private Integer sessionNumber;
+
     private Instant startTime;
     private Instant endTime;
-    private Integer sessionLength;
+
+    private String firstAction;
+    private String lastAction;
+    private String firstRoute;
+    private String lastRoute;
+
+    private Integer totalEvents;
     private Long sessionDurationSeconds;
-    private Integer uniqueActionCount;
+
+    private Integer uniqueActions;
+    private Integer uniqueRoutes;
+    private Integer uniqueIpsUsed;
+    private Integer uniqueDevicesUsed;
+
+    private Integer totalKOs;
+    private Integer totalOKs;
+    private Integer longestKoStreak;
+
     private Double koRate;
-    private Double meanDeltaSeconds;
+    private Double avgInterActionSeconds;
+    private Double minInterActionSeconds;
+    private Double maxInterActionSeconds;
     private Double actionDiversity;
 
-    /* Parsed model inputs and outputs stored as JSON in SQL. */
+    private Boolean hasLogin;
+    private Boolean hasLogout;
+    private Boolean ipChanged;
+    private Boolean deviceChanged;
+
+    private Integer totalDownloadActions;
+    private Integer maxDownloadsIn2Minutes;
+    private Integer pingPongCount;
+
+    private Double riskScoreMax;
+    private Double riskScoreAvg;
+    private Boolean endedAbruptly;
+    private Integer anomalyEventCount;
+
+    private List<String> anomalyTypes;
+    private List<String> campaignIds;
+
+    private String actionSequenceSignature;
+    private String routeSequenceSignature;
+
     private Map<String, Long> actionCounts;
-    private Double aeScore;
+
+    private Double isoScore;
     @JsonProperty("isAnomaly")
     private Boolean isAnomaly;
     private String anomalyType;
     private Double typeConfidence;
+    private Double anomalyProbability;
+    private Double churnProbability;
+    private Double ensembleRiskScore;
+    private Integer personaCluster;
+    private String binaryDetectorArtifact;
+
+    private Boolean pathDeviation;
+    private Double transitionProbability;
+    private String transitionFromAction;
+    private String transitionToAction;
+
     private List<String> top3NextActions;
 
-    /* Rule-engine flags and ingestion timestamp. */
     private Boolean ruleTriggered;
     private String ruleType;
+
     private Instant createdAt;
+    private Instant updatedAt;
 }

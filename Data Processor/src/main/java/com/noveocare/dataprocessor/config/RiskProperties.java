@@ -14,5 +14,6 @@ import java.util.List;
 public class RiskProperties {
     private double mediumThreshold;
     private double highThreshold;
+    private double criticalThreshold = 80.0;
     private List<String> highRiskTypes = new ArrayList<>();
 }

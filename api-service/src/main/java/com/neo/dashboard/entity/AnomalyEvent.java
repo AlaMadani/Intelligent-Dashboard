@@ -10,15 +10,14 @@ import org.hibernate.annotations.Immutable;
 import java.time.Instant;
 
 /**
- * Read-only mapping of the `anomaly_events` table that stores anomaly
- * detections emitted by the processing pipeline.
+ * Read-only mapping of {@code anomaly_events} as written by the Data Processor.
  */
 @Entity
 @Table(name = "anomaly_events")
 @Data
 @Immutable
 public class AnomalyEvent {
-    /* Primary key plus correlation identifiers. */
+
     @Id
     private Long id;
 
@@ -31,7 +30,6 @@ public class AnomalyEvent {
     @Column(name = "event_id")
     private String eventId;
 
-    /* Detection timestamps and anomaly classification values. */
     @Column(name = "event_time")
     private Instant eventTime;
 
@@ -44,13 +42,45 @@ public class AnomalyEvent {
     @Column(name = "anomaly_score")
     private Double anomalyScore;
 
+    @Column(name = "anomaly_probability")
+    private Double anomalyProbability;
+
     @Column(name = "type_confidence")
     private Double typeConfidence;
 
     @Column(name = "rule_type")
     private String ruleType;
 
-    /* Raw event payload and persistence timestamp. */
+    @Column(name = "anomaly_flag")
+    private Boolean anomalyFlag;
+
+    @Column(name = "churn_probability")
+    private Double churnProbability;
+
+    @Column(name = "risk_score")
+    private Double riskScore;
+
+    @Column(name = "persona_cluster")
+    private Integer personaCluster;
+
+    @Column(name = "path_deviation")
+    private Boolean pathDeviation;
+
+    @Column(name = "transition_probability")
+    private Double transitionProbability;
+
+    @Column(name = "transition_from_action", columnDefinition = "NVARCHAR(512)")
+    private String transitionFromAction;
+
+    @Column(name = "transition_to_action", columnDefinition = "NVARCHAR(512)")
+    private String transitionToAction;
+
+    @Column(name = "model_artifact", columnDefinition = "NVARCHAR(128)")
+    private String modelArtifact;
+
+    @Column(name = "next_actions_json", columnDefinition = "NVARCHAR(MAX)")
+    private String nextActionsJson;
+
     @Column(name = "event_json", columnDefinition = "NVARCHAR(MAX)")
     private String eventJson;
 

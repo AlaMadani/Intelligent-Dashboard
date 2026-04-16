@@ -10,16 +10,17 @@ import com.neo.dashboard.entity.AnomalyEvent;
 import com.neo.dashboard.mapper.SessionAnalysisMapper;
 import com.neo.dashboard.repository.AnomalyEventRepository;
 import com.neo.dashboard.repository.SessionAnalysisRepository;
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClient;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.scheduling.annotation.Async;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -29,13 +30,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Builds a human-readable explanation for an anomaly by combining relational
  * data, cache-backed snapshots, and an optional Gemini call.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AnomalyExplanationService {
 
@@ -47,6 +49,7 @@ public class AnomalyExplanationService {
     /* Output limits used when calling Gemini. */
     private static final int MAX_OUTPUT_TOKENS = 2048;
     private static final int THINKING_BUDGET = 0;
+    private static final Duration GEMINI_TIMEOUT = Duration.ofSeconds(10);
 
     /* Prompt-shaping limits that keep context concise and predictable. */
     private static final int MAX_JSON_CHARS = 400;
@@ -61,6 +64,7 @@ public class AnomalyExplanationService {
     /* Dependencies used to gather surrounding context for one anomaly event. */
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final WebClient webClient;
     private final AnomalyEventRepository anomalyEventRepository;
     private final SessionAnalysisRepository sessionAnalysisRepository;
     private final SessionAnalysisMapper sessionAnalysisMapper;
@@ -77,6 +81,34 @@ public class AnomalyExplanationService {
 
     @Value("${spring.ai.google.genai.chat.options.model:gemini-2.5-flash}")
     private String model;
+
+    public AnomalyExplanationService(StringRedisTemplate redisTemplate,
+                                     ObjectMapper objectMapper,
+                                     AnomalyEventRepository anomalyEventRepository,
+                                     SessionAnalysisRepository sessionAnalysisRepository,
+                                     SessionAnalysisMapper sessionAnalysisMapper,
+                                     RiskProfileService riskProfileService,
+                                     NextActionPredictionService nextActionPredictionService,
+                                     ActiveAnomalyService activeAnomalyService,
+                                     StatsService statsService) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+        this.anomalyEventRepository = anomalyEventRepository;
+        this.sessionAnalysisRepository = sessionAnalysisRepository;
+        this.sessionAnalysisMapper = sessionAnalysisMapper;
+        this.riskProfileService = riskProfileService;
+        this.nextActionPredictionService = nextActionPredictionService;
+        this.activeAnomalyService = activeAnomalyService;
+        this.statsService = statsService;
+        this.webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector())
+                .build();
+    }
+
+    @Async
+    public CompletableFuture<Optional<AnomalyExplanationDto>> explainAsync(Long anomalyEventId, boolean refresh) {
+        return CompletableFuture.completedFuture(explain(anomalyEventId, refresh));
+    }
 
     /* Return a cached explanation when possible, otherwise rebuild it from contextual data. */
     @Transactional(readOnly = true)
@@ -106,7 +138,7 @@ public class AnomalyExplanationService {
         NextActionPredictionDto nextActions = nextActionPredictionService.getPrediction(anomaly.getInsuredId()).orElse(null);
         AnomalyAlertDto activeAnomaly = activeAnomalyService.getActiveAnomaly(anomaly.getInsuredId()).orElse(null);
         StatsResponseDto liveStats = statsService.getLiveStats(LocalDate.now());
-        StatsResponseDto trendStats = statsService.getTrendStats(LocalDate.now().plusDays(1));
+        StatsResponseDto trendStats = statsService.getTrendStats(LocalDate.now());
 
         // Ask Gemini first, then fall back to a deterministic local explanation when AI is unavailable.
         String prompt = buildPrompt(anomaly, session, risk, nextActions, activeAnomaly, liveStats, trendStats);
@@ -170,10 +202,7 @@ public class AnomalyExplanationService {
         }
 
         try {
-            RestClient client = RestClient.builder()
-                    .baseUrl(baseUrl)
-                    .build();
-
+            // Build the request body
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("contents", List.of(Map.of(
                     "parts", List.of(Map.of("text", prompt))
@@ -187,44 +216,32 @@ public class AnomalyExplanationService {
                     )
             ));
 
-            // Execute the prompt, keep the raw response for troubleshooting, then extract the model text.
-            String rawResponse = client.post()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v1beta/models/{model}:generateContent")
-                            .queryParam("key", apiKey)
-                            .build(model))
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
+            // Make the async call with timeout
+            JsonNode response = webClient.post()
+                    .uri(baseUrl + "/v1beta/models/" + model + ":generateContent?key=" + apiKey)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
                     .retrieve()
-                    .body(String.class);
+                    .bodyToMono(JsonNode.class)
+                    .timeout(GEMINI_TIMEOUT)
+                    .onErrorResume(TimeoutException.class, e -> {
+                        log.warn("Gemini API call timed out after {} seconds for anomaly {}", GEMINI_TIMEOUT.toSeconds(), anomalyEventId);
+                        return Mono.empty();
+                    })
+                    .onErrorResume(e -> {
+                        log.warn("Gemini API call failed for anomaly {}", anomalyEventId, e);
+                        return Mono.empty();
+                    })
+                    .block(GEMINI_TIMEOUT.plusSeconds(1));
+            if (response == null) {
+                return null;
+            }
+            storeRawGeminiResponse(anomalyEventId, response.toString());
+            String text = extractGeminiText(response);
+            return (text == null || text.isBlank()) ? null : text;
 
-            if (rawResponse == null || rawResponse.isBlank()) {
-                log.warn("Gemini explanation response was empty for anomaly {}", anomalyEventId);
-                return null;
-            }
-            storeRawGeminiResponse(anomalyEventId, rawResponse);
-
-            JsonNode response;
-            try {
-                response = objectMapper.readTree(rawResponse);
-            } catch (Exception e) {
-                log.warn("Failed to parse raw Gemini explanation response for anomaly {}. Raw response: {}", anomalyEventId, rawResponse, e);
-                return null;
-            }
-
-            String content = extractGeminiText(response);
-            String finishReason = response.at("/candidates/0/finishReason").asString("UNKNOWN");
-            if (content == null || content.isBlank()) {
-                log.warn("Gemini explanation response did not contain text parts for anomaly {}. finishReason={}. Raw response: {}", anomalyEventId, finishReason, rawResponse);
-                return null;
-            }
-            if (!hasRequiredSections(content)) {
-                log.warn("Gemini explanation response was incomplete for anomaly {}. finishReason={}. Raw response: {}", anomalyEventId, finishReason, rawResponse);
-                return null;
-            }
-            return content;
         } catch (Exception e) {
-            log.warn("Gemini explanation call failed, using fallback explanation", e);
+            log.warn("Gemini API call failed for anomaly {}", anomalyEventId, e);
             return null;
         }
     }
@@ -251,7 +268,11 @@ public class AnomalyExplanationService {
                 .append("- Tier: ").append(orUnknown(anomaly.getAnomalyTier())).append('\n')
                 .append("- Type: ").append(orUnknown(anomaly.getAnomalyType())).append('\n')
                 .append("- Score: ").append(orUnknown(anomaly.getAnomalyScore())).append('\n')
+                .append("- Anomaly probability: ").append(orUnknown(anomaly.getAnomalyProbability())).append('\n')
                 .append("- Confidence: ").append(orUnknown(anomaly.getTypeConfidence())).append('\n')
+                .append("- Churn probability: ").append(orUnknown(anomaly.getChurnProbability())).append('\n')
+                .append("- Risk score: ").append(orUnknown(anomaly.getRiskScore())).append('\n')
+                .append("- Path deviation: ").append(orUnknown(anomaly.getPathDeviation())).append('\n')
                 .append("- Triggered rules: ").append(orUnknown(anomaly.getRuleType())).append('\n')
                 .append("- Event time: ").append(orUnknown(anomaly.getEventTime())).append('\n')
                 .append("- Detected at: ").append(orUnknown(anomaly.getDetectedAt())).append('\n')
@@ -260,11 +281,14 @@ public class AnomalyExplanationService {
         prompt.append("Session summary:\n")
                 .append("- Available: ").append(session != null).append('\n');
         if (session != null) {
-            prompt.append("- Session length: ").append(orUnknown(session.getSessionLength())).append('\n')
+            prompt.append("- Total events: ").append(orUnknown(session.getTotalEvents())).append('\n')
                     .append("- Duration seconds: ").append(orUnknown(session.getSessionDurationSeconds())).append('\n')
-                    .append("- Unique actions: ").append(orUnknown(session.getUniqueActionCount())).append('\n')
+                    .append("- Unique actions: ").append(orUnknown(session.getUniqueActions())).append('\n')
                     .append("- KO rate: ").append(orUnknown(session.getKoRate())).append('\n')
-                    .append("- AE score: ").append(orUnknown(session.getAeScore())).append('\n')
+                    .append("- ISO / tabular anomaly score: ").append(orUnknown(session.getIsoScore())).append('\n')
+                    .append("- Ensemble risk: ").append(orUnknown(session.getEnsembleRiskScore())).append('\n')
+                    .append("- Churn probability: ").append(orUnknown(session.getChurnProbability())).append('\n')
+                    .append("- Path deviation: ").append(orUnknown(session.getPathDeviation())).append('\n')
                     .append("- Session anomaly flag: ").append(orUnknown(session.getIsAnomaly())).append('\n')
                     .append("- Session anomaly type: ").append(orUnknown(session.getAnomalyType())).append('\n')
                     .append("- Rule type: ").append(orUnknown(session.getRuleType())).append('\n')
@@ -298,10 +322,10 @@ public class AnomalyExplanationService {
 
     /* Build a deterministic explanation when AI is disabled or the response is unusable. */
     private String buildFallbackExplanation(AnomalyEvent anomaly,
-                                           SessionAnalysisDto session,
-                                           UserRiskProfileDto risk,
-                                           NextActionPredictionDto nextActions,
-                                           AnomalyAlertDto activeAnomaly) {
+                                             SessionAnalysisDto session,
+                                             UserRiskProfileDto risk,
+                                             NextActionPredictionDto nextActions,
+                                             AnomalyAlertDto activeAnomaly) {
         List<String> evidence = new ArrayList<>();
         if (anomaly.getAnomalyTier() != null) {
             evidence.add("detected as " + anomaly.getAnomalyTier());
@@ -311,6 +335,15 @@ public class AnomalyExplanationService {
         }
         if (anomaly.getAnomalyScore() != null) {
             evidence.add("anomaly score is " + String.format("%.2f", anomaly.getAnomalyScore()));
+        }
+        if (anomaly.getAnomalyProbability() != null) {
+            evidence.add("model anomaly probability is " + String.format("%.2f", anomaly.getAnomalyProbability()));
+        }
+        if (anomaly.getChurnProbability() != null) {
+            evidence.add("churn probability is " + String.format("%.2f", anomaly.getChurnProbability()));
+        }
+        if (Boolean.TRUE.equals(anomaly.getPathDeviation())) {
+            evidence.add("the latest action transition was a low-probability (path deviation) step");
         }
         if (anomaly.getRuleType() != null && !anomaly.getRuleType().isBlank()) {
             evidence.add("rule engine flagged `" + anomaly.getRuleType() + "`");
@@ -327,6 +360,7 @@ public class AnomalyExplanationService {
 
         StringBuilder builder = new StringBuilder();
         builder.append("## Assessment\n")
+                .append("Explanation temporarily unavailable from Gemini. ")
                 .append("This anomaly should be reviewed because the current session deviates from the insured's normal behavior profile");
         if (anomaly.getAnomalyType() != null && !anomaly.getAnomalyType().isBlank()) {
             builder.append(" and was classified as `").append(anomaly.getAnomalyType()).append('`');
@@ -389,8 +423,8 @@ public class AnomalyExplanationService {
 
         List<String> chunks = new ArrayList<>();
         for (JsonNode part : parts) {
-            String text = part.path("text").asString(null);
-            if (text != null && !text.isBlank()) {
+            String text = part.path("text").asText("");
+            if (!text.isBlank()) {
                 chunks.add(text.trim());
             }
         }
@@ -429,6 +463,15 @@ public class AnomalyExplanationService {
             if (items.isEmpty()) {
                 return "no items";
             }
+            if (looksLikeForecastSeries(items.get(0))) {
+                JsonNode latest = items.get(items.size() - 1);
+                return "points=" + items.size()
+                        + ", source=" + orUnknown(stats.getSource())
+                        + ", latest=" + orUnknown(latest.path("ds").asText(null))
+                        + ", expected=" + orUnknown(numberOrNull(latest, "yhat"))
+                        + ", lower=" + orUnknown(numberOrNull(latest, "yhatLower", "yhat_lower"))
+                        + ", upper=" + orUnknown(numberOrNull(latest, "yhatUpper", "yhat_upper"));
+            }
 
             items.sort((left, right) -> Long.compare(
                     right.path("actualCount").asLong(0L),
@@ -439,13 +482,13 @@ public class AnomalyExplanationService {
             List<String> spikes = new ArrayList<>();
             for (JsonNode item : items) {
                 if (topActions.size() < MAX_STATS_ITEMS) {
-                    String label = item.path("actionLabel").asString("unknown");
+                    String label = item.path("actionLabel").asText("unknown");
                     long actual = item.path("actualCount").asLong(0L);
                     long predicted = Math.round(item.path("predictedCount").asDouble(0.0));
                     topActions.add(label + "=" + actual + " (pred " + predicted + ")");
                 }
                 if (spikes.size() < MAX_STATS_ITEMS && item.path("spikeAlert").asBoolean(false)) {
-                    spikes.add(item.path("actionLabel").asString("unknown"));
+                    spikes.add(item.path("actionLabel").asText("unknown"));
                 }
                 if (topActions.size() >= MAX_STATS_ITEMS && spikes.size() >= MAX_STATS_ITEMS) {
                     break;
@@ -467,6 +510,29 @@ public class AnomalyExplanationService {
         }
 
         return sanitizeJson(payload);
+    }
+
+    private boolean looksLikeForecastSeries(JsonNode node) {
+        return node != null
+                && (node.has("ds")
+                || node.has("yhat")
+                || node.has("yhatLower")
+                || node.has("yhat_lower")
+                || node.has("yhatUpper")
+                || node.has("yhat_upper"));
+    }
+
+    private Double numberOrNull(JsonNode node, String... fieldNames) {
+        if (node == null || fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            if (fieldName == null || fieldName.isBlank() || !node.has(fieldName) || node.path(fieldName).isNull()) {
+                continue;
+            }
+            return node.path(fieldName).asDouble();
+        }
+        return null;
     }
 
     /* Store the raw Gemini payload separately to support debugging prompt or parsing issues. */

@@ -49,6 +49,7 @@ public class AuditTrailEvent {
     private String environmentId;
 
     private String device;
+    private String persona;
 
     // Optional business identifiers copied through without further transformation.
     private JsonNode companyIdList;
@@ -78,4 +79,48 @@ public class AuditTrailEvent {
     private String prevAction;
 
     private String route;
+
+    private String nextAction;
+
+    private Long sessionDurationSeconds;
+
+    private Long timeDeltaSinceLastAction;
+
+    private Integer hourOfDay;
+
+    private Integer dayOfWeek;
+
+    private Integer isWeekend;
+
+    private Integer isIpChanged;
+
+    private Integer uniqueIpsInSession;
+
+    private Integer cumulativeKOs;
+
+    private Integer longestKoStreak;
+
+    private Integer hasLoggedIn;
+
+    private Integer isDeviceChanged;
+
+    private Integer uniqueDevicesInSession;
+
+    private Integer isDownloadAction;
+
+    private Integer downloadActionsInSession;
+
+    private Integer downloadsLast2Minutes;
+
+    private Integer pingPongCount;
+
+    private Double sessionRiskScore;
+
+    @JsonProperty("is_anomaly")
+    private Integer isAnomaly;
+
+    @JsonProperty("anomaly_type")
+    private String anomalyType;
+
+    private String campaignId;
 }

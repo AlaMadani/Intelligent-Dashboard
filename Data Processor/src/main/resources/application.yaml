@@ -7,7 +7,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true;}
     username: ${DB_USERNAME:app_user}
-    password: ${DB_PASSWORD:change_me}
+    password: ${DB_PASSWORD:securePass123!}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   jpa:
     hibernate:
@@ -31,21 +31,29 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
-# Application-specific wiring for Kafka topics, Redis TTLs, rules, and models.
 app:
   kafka:
     topics:
       audit-trail: ${AUDIT_TRAIL_TOPIC:topic-audit-trail}
       anomaly-alerts: ${ANOMALY_ALERTS_TOPIC:topic-anomaly-alerts}
+      dlq: ${AUDIT_TRAIL_DLQ_TOPIC:topic-audit-trail-dlq}
+    consumer:
+      concurrency: ${KAFKA_CONSUMER_CONCURRENCY:3}
+      load-shedding-lag-threshold: ${KAFKA_LOAD_SHEDDING_LAG_THRESHOLD:10000}
   redis:
     ttl:
       session-buffer: 30m
-      ae-score: 1h
       next-actions: 2h
       risk: 15m
       live-stats: 24h
       active-anomaly: 30m
       pending-alerts: 30m
+      session-insight: 2h
+      dashboard: 15m
+      forecast: 24h
+    pubsub:
+      critical-alerts-channel: ${REDIS_CRITICAL_ALERTS_CHANNEL:CRITICAL_ALERT}
+      system-traffic-anomaly-channel: ${REDIS_SYSTEM_TRAFFIC_ANOMALY_CHANNEL:SYSTEM_TRAFFIC_ANOMALY}
   rules:
     unusual-hour:
       start: 2
@@ -61,7 +69,6 @@ app:
         - BANKING_ACTIONS
         - LOGGING_ACTIONS
       consecutive: 3
-    # Additional heuristics for burst activity, country switches, long pauses, and unlikely transitions.
     rapid-fire:
       min-events: 3
       window-seconds: 2
@@ -71,16 +78,22 @@ app:
       threshold-seconds: 1200
     impossible-seq:
       min-probability: 0.005
+    path-deviation:
+      min-probability: 0.02
     session-end-actions:
       - "Déconnexion"
+      - "Deconnexion"
+      - "DÃ©connexion"
       - "SSO Disconnect"
-    tier2-every-events: 5
   risk:
     medium-threshold: 0.05
     high-threshold: 0.20
+    critical-threshold: 80.0
     high-risk-types:
       - geo_jump
       - skip_login
+      - data_exfiltration
+      - impossible_device_switch
   stats:
     live:
       events-window-seconds: 60
@@ -95,44 +108,9 @@ app:
     spike-sigma: 2.0
   ai:
     base-path: "classpath:/AI/"
-    required-resources:
-      - action_vocab.json
-      - anomaly_lstm_autoencoder.onnx
-      - anomaly_test_generator.py
-      - anomaly_threshold.json
-      - anomaly_type_classifier.onnx
-      - anomaly_type_label_map.json
-      - audit_trail_2025.csv
-      - country_vocab.json
-      - device_vocab.json
-      - feature_config.json
-      - next_action_gru.onnx
-      - next_action_label_map.json
-      - scaler_delta.json
-      - scaler_delta.pkl
-      - "SimData_v3_final.ipynb"
-      - simulator_final_revised.py
-      - subtype_vocab.json
-      - trend_feature_cols.json
-      - trend_xgboost.json
-      - trend_xgboost.pkl
-      - type_vocab.json
-    models:
-      anomaly-autoencoder: anomaly_lstm_autoencoder.onnx
-      anomaly-type-classifier: anomaly_type_classifier.onnx
-      next-action-gru: next_action_gru.onnx
-      trend-xgboost: trend_xgboost.json
-    files:
-      feature-config: feature_config.json
-      scaler-delta: scaler_delta.json
-      anomaly-threshold: anomaly_threshold.json
-      action-vocab: action_vocab.json
-      device-vocab: device_vocab.json
-      country-vocab: country_vocab.json
-      type-vocab: type_vocab.json
-      subtype-vocab: subtype_vocab.json
-      anomaly-type-label-map: anomaly_type_label_map.json
-      next-action-label-map: next_action_label_map.json
-      trend-feature-cols: trend_feature_cols.json
+    manifest: deployment_manifest.json
+    feature-bundle: feature_bundle.json
   features:
-    delta-clip-seconds: 3600
+    download-window-seconds: 120
+    rapid-action-seconds: 7
+    session-alert-risk-threshold: 60.0

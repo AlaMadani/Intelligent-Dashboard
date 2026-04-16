@@ -11,4 +11,5 @@ import java.util.List;
 public interface AnomalyEventRepository extends JpaRepository<AnomalyEvent, Long> {
     // Return the most recent anomaly events for one insured user.
     List<AnomalyEvent> findTop100ByInsuredIdOrderByDetectedAtDesc(String insuredId);
+    List<AnomalyEvent> findTop100ByOrderByDetectedAtDesc();
 }

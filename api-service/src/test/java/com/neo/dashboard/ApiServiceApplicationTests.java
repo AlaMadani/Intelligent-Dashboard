@@ -7,7 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * Smoke test that verifies the Spring application context can start with the
  * current configuration.
  */
-@SpringBootTest
+@SpringBootTest(properties = "app.redis.pubsub.enabled=false")
 class ApiServiceApplicationTests {
 
     /* Fail fast if bean wiring or auto-configuration breaks. */

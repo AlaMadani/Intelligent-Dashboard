@@ -6,29 +6,38 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
- * Lightweight DTO matching anomaly alert payloads published by the data
- * processor and reused by the active-anomaly endpoint.
+ * DTO aligned with {@code AnomalyAlert} JSON from the Data Processor (Kafka and Redis).
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AnomalyAlertDto {
-    /* Correlation keys used to link the alert back to persisted data. */
+
     private String insuredId;
     private String sessionId;
     private String eventId;
 
-    /* Alert classification and scoring fields sent by the detector. */
     private String anomalyTier;
     private String anomalyType;
     private Double anomalyScore;
+    private Double anomalyProbability;
     private Double typeConfidence;
     private String ruleType;
+    private Boolean anomalyFlag;
+    private Double churnProbability;
+    private Double riskScore;
+    private Integer personaCluster;
+    private Boolean pathDeviation;
+    private Double transitionProbability;
+    private String transitionFromAction;
+    private String transitionToAction;
+    private String modelArtifact;
+    private List<String> nextActions;
 
-    /* Event occurrence time plus alert emission time. */
     private Instant eventTime;
     private Instant detectedAt;
 }

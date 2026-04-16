@@ -14,3 +14,48 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: observability-pipeline-v2
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V2__observability_pipeline.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: align-timestamp-types-v3
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V3__align_timestamp_types.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: complete-timestamp-alignment-v4
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V4__complete_timestamp_alignment.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: complete-session-analysis-timestamps-v5
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V5__complete_session_analysis_timestamps.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: final-timestamp-alignment-v6
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V6__final_timestamp_alignment.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

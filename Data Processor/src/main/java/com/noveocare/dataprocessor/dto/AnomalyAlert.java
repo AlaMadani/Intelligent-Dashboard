@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Alert payload shared between the detection pipeline, persistence, and Kafka publishing.
@@ -24,8 +25,19 @@ public class AnomalyAlert {
     private String anomalyTier;
     private String anomalyType;
     private Double anomalyScore;
+    private Double anomalyProbability;
     private Double typeConfidence;
     private String ruleType;
+    private Boolean anomalyFlag;
+    private Double churnProbability;
+    private Double riskScore;
+    private Integer personaCluster;
+    private Boolean pathDeviation;
+    private Double transitionProbability;
+    private String transitionFromAction;
+    private String transitionToAction;
+    private String modelArtifact;
+    private List<String> nextActions;
 
     // Timestamps for the triggering event and the actual detection moment.
     private Instant eventTime;

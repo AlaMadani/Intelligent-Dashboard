@@ -11,10 +11,6 @@ public final class CacheKeys {
         return "session:" + insuredId + ":" + sessionId;
     }
 
-    public static String aeScoreKey(String insuredId) {
-        return "ae_score:" + insuredId;
-    }
-
     public static String nextActionsKey(String insuredId) {
         return "next_actions:" + insuredId;
     }
@@ -29,6 +25,10 @@ public final class CacheKeys {
 
     public static String sessionAnalysisKey(String insuredId, String sessionId) {
         return "session:analysis:" + insuredId + ":" + sessionId;
+    }
+
+    public static String sessionInsightKey(String insuredId, String sessionId) {
+        return "session:insight:" + insuredId + ":" + sessionId;
     }
 
     public static String trendStatsKey(String date) {
@@ -70,5 +70,9 @@ public final class CacheKeys {
 
     public static String dailyActionCountsKey(String date) {
         return "stats:daily:" + date;
+    }
+
+    public static String dashboardKey(String view) {
+        return "dashboard:" + view;
     }
 }

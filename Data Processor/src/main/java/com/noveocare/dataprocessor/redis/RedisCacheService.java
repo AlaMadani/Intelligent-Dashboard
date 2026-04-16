@@ -1,6 +1,7 @@
 package com.noveocare.dataprocessor.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -70,6 +71,32 @@ public class RedisCacheService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(key));
     }
 
+    public <T> T getJson(String key, Class<T> type) {
+        String value = redisTemplate.opsForValue().get(key);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(value, type);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to deserialize Redis value for key={}", key, e);
+            return null;
+        }
+    }
+
+    public <T> T getJson(String key, TypeReference<T> type) {
+        String value = redisTemplate.opsForValue().get(key);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(value, type);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to deserialize Redis value for key={}", key, e);
+            return null;
+        }
+    }
+
     public void increment(String key, long delta, Duration ttl) {
         // Apply the TTL only when the counter is created on this increment.
         Long updated = redisTemplate.opsForValue().increment(key, delta);
@@ -83,6 +110,17 @@ public class RedisCacheService {
         Long updated = redisTemplate.opsForHash().increment(key, field, delta);
         if (updated != null && updated == delta) {
             redisTemplate.expire(key, ttl);
+        }
+    }
+
+    public void publishJson(String channel, Object value) {
+        if (channel == null || channel.isBlank() || value == null) {
+            return;
+        }
+        try {
+            redisTemplate.convertAndSend(channel, objectMapper.writeValueAsString(value));
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize pubsub payload for Redis channel={}", channel, e);
         }
     }
 }

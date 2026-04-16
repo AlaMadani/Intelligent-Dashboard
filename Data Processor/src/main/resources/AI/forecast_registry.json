@@ -1,0 +1,20 @@
+{
+  "total_events": {
+    "forecast_csv": "forecast_total_events.csv",
+    "mae": 50.07326335445202,
+    "rmse": 58.708900986631775,
+    "prophet_json": "prophet_total_events.json"
+  },
+  "anomaly_events": {
+    "forecast_csv": "forecast_anomaly_events.csv",
+    "mae": 23.584168348935965,
+    "rmse": 27.40396659430848,
+    "prophet_json": "prophet_anomaly_events.json"
+  },
+  "download_events": {
+    "forecast_csv": "forecast_download_events.csv",
+    "mae": 13.225859503166935,
+    "rmse": 14.48889395333015,
+    "prophet_json": "prophet_download_events.json"
+  }
+}

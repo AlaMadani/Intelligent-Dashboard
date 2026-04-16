@@ -3,18 +3,20 @@ package com.neo.dashboard.service;
 import com.neo.dashboard.dto.ActionStatsDailyDto;
 import com.neo.dashboard.dto.StatsResponseDto;
 import com.neo.dashboard.mapper.ActionStatsDailyMapper;
+import com.neo.dashboard.redis.CacheKeys;
 import com.neo.dashboard.repository.ActionStatsDailyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -61,6 +63,10 @@ public class StatsService {
     @Transactional(readOnly = true)
     public StatsResponseDto getTrendStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
+        StatsResponseDto forecastSnapshot = getForecastSnapshot(resolvedDate);
+        if (forecastSnapshot != null) {
+            return forecastSnapshot;
+        }
         for (String key : dateKeys("stats:trend:", resolvedDate)) {
             String cached = redisTemplate.opsForValue().get(key);
             if (cached != null && !cached.isBlank()) {
@@ -77,6 +83,25 @@ public class StatsService {
         return buildFromSql(resolvedDate, "sql");
     }
 
+    private StatsResponseDto getForecastSnapshot(LocalDate date) {
+        for (String view : Arrays.asList("forecast-series", "forecasts")) {
+            String cached = redisTemplate.opsForValue().get(CacheKeys.dashboardKey(view));
+            if (cached == null || cached.isBlank()) {
+                continue;
+            }
+            try {
+                JsonNode payload = objectMapper.readTree(cached);
+                JsonNode points = extractForecastPoints(payload);
+                if (points != null && points.isArray() && !points.isEmpty()) {
+                    return new StatsResponseDto(date, "redis", points);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse forecast snapshot view={}", view, e);
+            }
+        }
+        return null;
+    }
+
     /* Convert SQL rows into the generic JSON payload expected by the API. */
     private StatsResponseDto buildFromSql(LocalDate date, String source) {
         List<ActionStatsDailyDto> dtos = actionStatsDailyRepository.findByStatDate(date).stream()
@@ -90,6 +115,21 @@ public class StatsService {
     private StatsResponseDto buildMissing(LocalDate date) {
         JsonNode payload = objectMapper.createObjectNode();
         return new StatsResponseDto(date, "missing", payload);
+    }
+
+    private JsonNode extractForecastPoints(JsonNode payload) {
+        if (payload == null || payload.isMissingNode() || payload.isNull()) {
+            return null;
+        }
+        JsonNode direct = payload.path("total_events").path("points");
+        if (direct.isArray() && !direct.isEmpty()) {
+            return direct;
+        }
+        JsonNode wrapped = payload.path("items").path("total_events").path("points");
+        if (wrapped.isArray() && !wrapped.isEmpty()) {
+            return wrapped;
+        }
+        return null;
     }
 
     /* Support both supported key formats while avoiding duplicates. */

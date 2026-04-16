@@ -2,6 +2,7 @@ package com.noveocare.dataprocessor.ai;
 
 import com.noveocare.dataprocessor.config.FeatureEngineeringProperties;
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
+import com.noveocare.dataprocessor.dto.SessionSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,210 +11,446 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
-/**
- * Converts ordered audit-trail sessions into the padded numeric feature matrix
- * expected by the sequence models.
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class FeatureEngineeringService {
 
-    private final FeatureConfigLoader featureConfigLoader;
-    private final DeltaScalerLoader deltaScalerLoader;
-    private final VocabService vocabService;
-    private final FeatureEngineeringProperties featureEngineeringProperties;
+    private static final Set<String> LOGIN_ACTIONS = Set.of("Connexion", "Connexion SSO", "Connexion en tant que");
+    private static final Set<String> LOGOUT_ACTIONS = Set.of("Déconnexion", "Deconnexion", "DÃ©connexion", "SSO Disconnect");
+    private static final String[] DOWNLOAD_WORDS = {"download", "document", "card", "wallet", "certificate", "refund"};
 
-    public float[][] buildFeatureMatrix(List<AuditTrailEvent> sessionEvents) {
-        // Allocate the fully padded model input shape up front.
-        FeatureConfig config = featureConfigLoader.getFeatureConfig();
-        int seqLen = config.getSeqLen();
-        int nFeatures = config.getNFeatures();
-        float[][] matrix = new float[seqLen][nFeatures];
+    private final FeatureEngineeringProperties properties;
+    private final RuntimeArtifactService runtimeArtifactService;
 
-        // Return an all-zero matrix for empty sessions so downstream models still receive valid input.
-        if (sessionEvents == null || sessionEvents.isEmpty()) {
-            return matrix;
+    public List<AuditTrailEvent> enrichSessionEvents(List<AuditTrailEvent> events) {
+        if (events == null || events.isEmpty()) {
+            return List.of();
         }
 
-        // Sort the raw session first, then compute one feature row per event.
-        List<AuditTrailEvent> ordered = new ArrayList<>(sessionEvents);
+        List<AuditTrailEvent> ordered = new ArrayList<>(events);
         ordered.sort(eventComparator());
 
-        int sessionLength = resolveSessionLength(ordered);
-        List<float[]> rows = buildRows(ordered, sessionLength, config);
+        Instant sessionStart = ordered.get(0).getCreatedAt();
+        Instant sessionEnd = ordered.get(ordered.size() - 1).getCreatedAt();
+        long totalDurationSeconds = sessionStart != null && sessionEnd != null
+                ? Math.max(0, Duration.between(sessionStart, sessionEnd).getSeconds())
+                : 0;
 
-        // Left-pad with zeros and keep only the most recent events if the session is too long.
-        int start = Math.max(0, seqLen - rows.size());
-        int copyStart = Math.max(0, rows.size() - seqLen);
-        int targetIndex = start;
-        for (int i = copyStart; i < rows.size(); i++) {
-            matrix[targetIndex++] = rows.get(i);
-        }
-        return matrix;
-    }
-
-    private List<float[]> buildRows(List<AuditTrailEvent> ordered, int sessionLength, FeatureConfig config) {
-        // Reuse the trained scaler statistics to normalize inter-event delays.
-        List<float[]> rows = new ArrayList<>(ordered.size());
-        DeltaScaler scaler = deltaScalerLoader.getDeltaScaler();
-        double mean = scaler.meanValue();
-        double scale = scaler.scaleValue();
-
-        Instant prevTime = null;
-        Integer prevActionId = null;
-        String prevIp = null;
-        int koCount = 0;
-        boolean hadIpChange = false;
-        double minDeltaSoFar = Double.MAX_VALUE;
+        String firstIp = ordered.get(0).getIp();
+        String firstDevice = ordered.get(0).getDevice();
+        Set<String> seenIps = new LinkedHashSet<>();
+        Set<String> seenDevices = new LinkedHashSet<>();
+        int cumulativeKos = 0;
+        int currentKoStreak = 0;
+        int longestKoStreak = 0;
+        int hasLoggedIn = 0;
+        int downloadCount = 0;
+        int pingPongCount = 0;
+        Deque<Instant> downloadWindow = new ArrayDeque<>();
 
         for (int index = 0; index < ordered.size(); index++) {
             AuditTrailEvent event = ordered.get(index);
-            int sequence = resolveSequence(event, index);
-
-            // Derive temporal features from the current event and its predecessor.
+            AuditTrailEvent prev = index > 0 ? ordered.get(index - 1) : null;
+            AuditTrailEvent next = index + 1 < ordered.size() ? ordered.get(index + 1) : null;
             Instant currentTime = event.getCreatedAt();
-            double deltaSeconds = 0.0;
-            if (prevTime != null && currentTime != null) {
-                deltaSeconds = Duration.between(prevTime, currentTime).toMillis() / 1000.0;
-                if (deltaSeconds < 0) {
-                    deltaSeconds = 0.0;
-                }
+            long timeDelta = prev != null && prev.getCreatedAt() != null && currentTime != null
+                    ? Math.max(0, Duration.between(prev.getCreatedAt(), currentTime).getSeconds())
+                    : 0;
+
+            if (notBlank(event.getIp())) {
+                seenIps.add(event.getIp());
             }
-            double deltaClipped = Math.min(deltaSeconds, featureEngineeringProperties.getDeltaClipSeconds());
-            double deltaScaled = (deltaClipped - mean) / scale;
-
-            // Map string-valued categorical attributes onto the integer vocabularies used in training.
-            int actionId = vocabService.actionId(event.getAction());
-            int deviceId = vocabService.deviceId(event.getDevice());
-            int countryId = vocabService.countryId(event.getCountryCode());
-            int typeId = vocabService.typeId(event.getType());
-            int subtypeId = vocabService.subtypeId(event.getSubType());
-
-            int prevActionFeature = prevActionId == null ? 0 : prevActionId + 1;
-
-            ZonedDateTime time = currentTime == null
-                    ? ZonedDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC)
-                    : ZonedDateTime.ofInstant(currentTime, ZoneOffset.UTC);
-            int hour = time.getHour();
-            int dayOfWeek = (time.getDayOfWeek().getValue() + 6) % 7;
-            int month = time.getMonthValue();
-
-            // Encode cyclical time dimensions with sine/cosine pairs.
-            float hourSin = (float) Math.sin(2 * Math.PI * hour / 24.0);
-            float hourCos = (float) Math.cos(2 * Math.PI * hour / 24.0);
-            float dowSin = (float) Math.sin(2 * Math.PI * dayOfWeek / 7.0);
-            float dowCos = (float) Math.cos(2 * Math.PI * dayOfWeek / 7.0);
-
-            boolean isOk = "OK".equalsIgnoreCase(event.getStatus());
-            boolean isKo = "KO".equalsIgnoreCase(event.getStatus());
-
-            float seqPosNorm = sessionLength > 0 ? (float) sequence / (float) sessionLength : 0.0f;
-            float isSessionStart = sequence == 1 ? 1.0f : 0.0f;
-            float isSessionEnd = sequence == sessionLength ? 1.0f : 0.0f;
-            float sessionLenNorm = (float) sessionLength / (float) config.getMaxSessionLen();
-
-            // Keep rolling counters and flags that help models understand state progression.
-            float koCountSoFar = (float) koCount;
-            if (isKo) {
-                koCount++;
+            if (notBlank(event.getDevice())) {
+                seenDevices.add(event.getDevice());
             }
 
-            boolean ipChanged = prevIp != null && event.getIp() != null && !event.getIp().equals(prevIp);
-            if (ipChanged) {
-                hadIpChange = true;
-            }
-            float ipChangedFlag = ipChanged ? 1.0f : 0.0f;
-            float hadIpChangeFlag = hadIpChange ? 1.0f : 0.0f;
-
-            float minDeltaSoFarValue;
-            if (prevTime == null) {
-                minDeltaSoFarValue = (float) deltaClipped;
+            if ("KO".equalsIgnoreCase(event.getStatus())) {
+                cumulativeKos++;
+                currentKoStreak++;
             } else {
-                minDeltaSoFarValue = (float) minDeltaSoFar;
+                currentKoStreak = 0;
             }
-            minDeltaSoFar = Math.min(minDeltaSoFar, deltaClipped);
+            longestKoStreak = Math.max(longestKoStreak, currentKoStreak);
 
-            // Assemble named feature values before projecting them onto the configured column order.
-            Map<String, Float> values = new HashMap<>();
-            values.put("action_id", (float) actionId);
-            values.put("device_id", (float) deviceId);
-            values.put("country_id", (float) countryId);
-            values.put("type_id", (float) typeId);
-            values.put("subtype_id", (float) subtypeId);
-            values.put("prev_action_id", (float) prevActionFeature);
-            values.put("hour_sin", hourSin);
-            values.put("hour_cos", hourCos);
-            values.put("dow_sin", dowSin);
-            values.put("dow_cos", dowCos);
-            values.put("month_num", (float) month);
-            values.put("delta_scaled", (float) deltaScaled);
-            values.put("is_ok", isOk ? 1.0f : 0.0f);
-            values.put("is_ko", isKo ? 1.0f : 0.0f);
-            values.put("seq_pos_norm", seqPosNorm);
-            values.put("is_session_start", isSessionStart);
-            values.put("is_session_end", isSessionEnd);
-            values.put("session_len_norm", sessionLenNorm);
-            values.put("ko_count_so_far", koCountSoFar);
-            values.put("ip_changed", ipChangedFlag);
-            values.put("had_ip_change", hadIpChangeFlag);
-            values.put("min_delta_so_far", minDeltaSoFarValue);
-
-            // Build the final dense feature row expected by the trained ONNX models.
-            float[] row = new float[config.getFeatureCols().size()];
-            for (int i = 0; i < config.getFeatureCols().size(); i++) {
-                row[i] = values.getOrDefault(config.getFeatureCols().get(i), 0.0f);
+            while (!downloadWindow.isEmpty() && currentTime != null
+                    && Duration.between(downloadWindow.peekFirst(), currentTime).getSeconds() > properties.getDownloadWindowSeconds()) {
+                downloadWindow.removeFirst();
             }
-            rows.add(row);
 
-            prevTime = currentTime;
-            prevActionId = actionId;
-            prevIp = event.getIp();
+            int isDownload = isDownloadAction(event.getAction()) ? 1 : 0;
+            if (isDownload == 1 && currentTime != null) {
+                downloadCount++;
+                downloadWindow.addLast(currentTime);
+            }
+            int downloadsLast2Minutes = downloadWindow.size();
+
+            if (index >= 2
+                    && same(event.getAction(), ordered.get(index - 2).getAction())
+                    && !same(event.getAction(), ordered.get(index - 1).getAction())) {
+                pingPongCount++;
+            }
+
+            event.setPrevAction(prev == null ? "" : safeString(prev.getAction()));
+            event.setNextAction(next == null ? "" : safeString(next.getAction()));
+            event.setSessionDurationSeconds(totalDurationSeconds);
+            event.setTimeDeltaSinceLastAction(timeDelta);
+            event.setHourOfDay(currentTime == null ? 0 : currentTime.atZone(ZoneOffset.UTC).getHour());
+            event.setDayOfWeek(currentTime == null ? 0 : currentTime.atZone(ZoneOffset.UTC).getDayOfWeek().getValue() - 1);
+            event.setIsWeekend((event.getDayOfWeek() != null && event.getDayOfWeek() >= 5) ? 1 : 0);
+            event.setIsIpChanged(isChanged(event.getIp(), firstIp));
+            event.setUniqueIpsInSession(Math.max(1, seenIps.size()));
+            event.setCumulativeKOs(cumulativeKos);
+            event.setLongestKoStreak(longestKoStreak);
+            event.setHasLoggedIn(hasLoggedIn);
+            event.setIsDeviceChanged(isChanged(event.getDevice(), firstDevice));
+            event.setUniqueDevicesInSession(Math.max(1, seenDevices.size()));
+            event.setIsDownloadAction(isDownload);
+            event.setDownloadActionsInSession(downloadCount);
+            event.setDownloadsLast2Minutes(downloadsLast2Minutes);
+            event.setPingPongCount(pingPongCount);
+            event.setSessionRiskScore((double) computeRiskScore(event, timeDelta, hasLoggedIn));
+
+            if (LOGIN_ACTIONS.contains(safeString(event.getAction()))) {
+                hasLoggedIn = 1;
+            }
         }
 
-        return rows;
+        return ordered;
     }
 
-    private int resolveSessionLength(List<AuditTrailEvent> ordered) {
-        // Prefer explicit session metadata, then fall back to the number of observed events.
-        int maxSequence = 0;
-        int maxLengthField = 0;
+    public SessionSummary buildSessionSummary(List<AuditTrailEvent> sessionEvents) {
+        if (sessionEvents == null || sessionEvents.isEmpty()) {
+            return SessionSummary.builder()
+                    .anomalyTypes(List.of())
+                    .campaignIds(List.of())
+                    .actionCounts(Map.of())
+                    .primaryAnomalyType("normal")
+                    .build();
+        }
+
+        List<AuditTrailEvent> ordered = new ArrayList<>(sessionEvents);
+        ordered.sort(eventComparator());
+
+        AuditTrailEvent first = ordered.get(0);
+        AuditTrailEvent last = ordered.get(ordered.size() - 1);
+        Instant start = first.getCreatedAt();
+        Instant end = last.getCreatedAt();
+        long durationSeconds = start != null && end != null
+                ? Math.max(0, Duration.between(start, end).getSeconds())
+                : 0;
+
+        List<Long> interActionSeconds = ordered.stream()
+                .skip(1)
+                .map(AuditTrailEvent::getTimeDeltaSinceLastAction)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<String, Long> actionCounts = new LinkedHashMap<>();
+        Set<String> uniqueRoutes = new LinkedHashSet<>();
+        Set<String> uniqueIps = new LinkedHashSet<>();
+        Set<String> uniqueDevices = new LinkedHashSet<>();
+        List<String> actionSequence = new ArrayList<>(ordered.size());
+        List<String> routeSequence = new ArrayList<>(ordered.size());
+        List<String> anomalyTypes = new ArrayList<>();
+        Set<String> campaignIds = new LinkedHashSet<>();
+        List<Double> riskScores = new ArrayList<>(ordered.size());
+        int totalKos = 0;
+        int totalOks = 0;
+        int totalDownloads = 0;
+        int maxDownloadsIn2Minutes = 0;
+        int maxPingPongCount = 0;
+        int anomalyEventCount = 0;
+
         for (AuditTrailEvent event : ordered) {
-            if (event.getSequenceInSession() != null) {
-                maxSequence = Math.max(maxSequence, event.getSequenceInSession());
+            String action = safeString(event.getAction());
+            actionSequence.add(action);
+            actionCounts.put(action, actionCounts.getOrDefault(action, 0L) + 1);
+
+            if (notBlank(event.getRoute())) {
+                uniqueRoutes.add(event.getRoute());
+                routeSequence.add(event.getRoute());
             }
-            if (event.getSessionLength() != null) {
-                maxLengthField = Math.max(maxLengthField, event.getSessionLength());
+            if (notBlank(event.getIp())) {
+                uniqueIps.add(event.getIp());
+            }
+            if (notBlank(event.getDevice())) {
+                uniqueDevices.add(event.getDevice());
+            }
+            if ("KO".equalsIgnoreCase(event.getStatus())) {
+                totalKos++;
+            }
+            if ("OK".equalsIgnoreCase(event.getStatus())) {
+                totalOks++;
+            }
+            totalDownloads += defaultInt(event.getIsDownloadAction());
+            maxDownloadsIn2Minutes = Math.max(maxDownloadsIn2Minutes, defaultInt(event.getDownloadsLast2Minutes()));
+            maxPingPongCount = Math.max(maxPingPongCount, defaultInt(event.getPingPongCount()));
+
+            if (event.getSessionRiskScore() != null) {
+                riskScores.add(event.getSessionRiskScore());
+            }
+            if (defaultInt(event.getIsAnomaly()) == 1) {
+                anomalyEventCount++;
+            }
+            if (notBlank(event.getAnomalyType()) && !"normal".equalsIgnoreCase(event.getAnomalyType())) {
+                anomalyTypes.add(event.getAnomalyType());
+            }
+            if (notBlank(event.getCampaignId())) {
+                campaignIds.add(event.getCampaignId());
             }
         }
-        int length = Math.max(maxSequence, maxLengthField);
-        if (length <= 0) {
-            length = ordered.size();
+
+        Map<String, Long> anomalyTypeCounts = new LinkedHashMap<>();
+        for (String anomalyType : anomalyTypes) {
+            anomalyTypeCounts.put(anomalyType, anomalyTypeCounts.getOrDefault(anomalyType, 0L) + 1);
         }
-        if (length <= 0) {
-            length = 1;
-        }
-        return length;
+        String primaryAnomalyType = anomalyTypeCounts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse("normal");
+
+        ZonedDateTime startTime = start == null ? Instant.EPOCH.atZone(ZoneOffset.UTC) : start.atZone(ZoneOffset.UTC);
+        ZonedDateTime endTime = end == null ? Instant.EPOCH.atZone(ZoneOffset.UTC) : end.atZone(ZoneOffset.UTC);
+
+        return SessionSummary.builder()
+                .sessionId(first.getSessionId())
+                .insuredId(first.getInsuredId())
+                .persona(first.getPersona())
+                .countryCode(first.getCountryCode())
+                .city(first.getCity())
+                .month(notBlank(first.getMonth()) ? first.getMonth() : DateTimeFormatter.ofPattern("yyyy-MM").format(startTime))
+                .sessionNumber(first.getSessionNumber())
+                .sessionStart(start)
+                .sessionEnd(end)
+                .startHour(startTime.getHour())
+                .endHour(endTime.getHour())
+                .dayOfWeek(startTime.getDayOfWeek().getValue() - 1)
+                .isWeekend((startTime.getDayOfWeek().getValue() - 1) >= 5 ? 1 : 0)
+                .firstAction(safeString(first.getAction()))
+                .lastAction(safeString(last.getAction()))
+                .firstRoute(safeString(first.getRoute()))
+                .lastRoute(safeString(last.getRoute()))
+                .totalEvents(ordered.size())
+                .totalDurationSeconds(durationSeconds)
+                .avgInterActionSeconds(average(interActionSeconds))
+                .minInterActionSeconds(interActionSeconds.stream().mapToDouble(Long::doubleValue).min().orElse(0.0))
+                .maxInterActionSeconds(interActionSeconds.stream().mapToDouble(Long::doubleValue).max().orElse(0.0))
+                .uniqueActions(actionCounts.size())
+                .uniqueRoutes(uniqueRoutes.size())
+                .uniqueIpsUsed(Math.max(1, uniqueIps.size()))
+                .uniqueDevicesUsed(Math.max(1, uniqueDevices.size()))
+                .totalKOs(totalKos)
+                .totalOKs(totalOks)
+                .longestKoStreak(ordered.stream().map(AuditTrailEvent::getLongestKoStreak).filter(Objects::nonNull).max(Integer::compareTo).orElse(0))
+                .hasLogin(hasAnyAction(ordered, LOGIN_ACTIONS))
+                .hasLogout(hasAnyAction(ordered, LOGOUT_ACTIONS))
+                .ipChanged(ordered.stream().map(AuditTrailEvent::getIsIpChanged).filter(Objects::nonNull).max(Integer::compareTo).orElse(0))
+                .deviceChanged(ordered.stream().map(AuditTrailEvent::getIsDeviceChanged).filter(Objects::nonNull).max(Integer::compareTo).orElse(0))
+                .totalDownloadActions(totalDownloads)
+                .maxDownloadsIn2Minutes(maxDownloadsIn2Minutes)
+                .pingPongCount(maxPingPongCount)
+                .riskScoreMax(riskScores.stream().mapToDouble(Double::doubleValue).max().orElse(0.0))
+                .riskScoreAvg(riskScores.isEmpty() ? 0.0 : riskScores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0))
+                .endedAbruptly(hasAnyAction(ordered, LOGOUT_ACTIONS) == 1 ? 0 : 1)
+                .anomalyEventCount(anomalyEventCount)
+                .primaryAnomalyType(primaryAnomalyType)
+                .anomalyTypes(anomalyTypes.stream().distinct().toList())
+                .campaignIds(new ArrayList<>(campaignIds))
+                .actionSequenceSignature(String.join(" > ", actionSequence))
+                .routeSequenceSignature(String.join(" > ", routeSequence))
+                .actionCounts(actionCounts)
+                .build();
     }
 
-    private int resolveSequence(AuditTrailEvent event, int index) {
-        // If sequence metadata is missing, preserve the chronological list position instead.
-        if (event.getSequenceInSession() != null && event.getSequenceInSession() > 0) {
-            return event.getSequenceInSession();
+    public float[] buildTabularFeatures(SessionSummary summary,
+                                        List<String> featureColumns,
+                                        Map<String, Double> numericMedians) {
+        Map<String, Object> values = summaryValueMap(summary);
+        List<String> categoricalFeatures = runtimeArtifactService.getFeatureBundle().getSessionCategoricalFeatures();
+        Map<String, String> categoricalValues = new LinkedHashMap<>();
+        for (String categoricalFeature : categoricalFeatures) {
+            Object value = values.get(categoricalFeature);
+            categoricalValues.put(categoricalFeature, value == null ? "UNKNOWN" : String.valueOf(value));
         }
-        return index + 1;
+
+        float[] vector = new float[featureColumns.size()];
+        for (int i = 0; i < featureColumns.size(); i++) {
+            String column = featureColumns.get(i);
+            if (numericMedians.containsKey(column)) {
+                vector[i] = numericValue(values.get(column), numericMedians.get(column));
+                continue;
+            }
+            vector[i] = categoricalMatch(column, categoricalValues) ? 1.0f : 0.0f;
+        }
+        return vector;
+    }
+
+    public float[] buildClusterFeatures(SessionSummary summary, List<String> clusterFeatures) {
+        Map<String, Object> values = summaryValueMap(summary);
+        float[] vector = new float[clusterFeatures.size()];
+        for (int i = 0; i < clusterFeatures.size(); i++) {
+            vector[i] = numericValue(values.get(clusterFeatures.get(i)), 0.0);
+        }
+        return vector;
+    }
+
+    private boolean categoricalMatch(String column, Map<String, String> categoricalValues) {
+        for (Map.Entry<String, String> entry : categoricalValues.entrySet()) {
+            String prefix = entry.getKey() + "_";
+            if (column.startsWith(prefix)) {
+                return column.substring(prefix.length()).equals(entry.getValue());
+            }
+        }
+        return false;
+    }
+
+    private Map<String, Object> summaryValueMap(SessionSummary summary) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("totalEvents", summary.getTotalEvents());
+        values.put("totalDurationSeconds", summary.getTotalDurationSeconds());
+        values.put("avgInterActionSeconds", summary.getAvgInterActionSeconds());
+        values.put("minInterActionSeconds", summary.getMinInterActionSeconds());
+        values.put("maxInterActionSeconds", summary.getMaxInterActionSeconds());
+        values.put("uniqueActions", summary.getUniqueActions());
+        values.put("uniqueRoutes", summary.getUniqueRoutes());
+        values.put("uniqueIpsUsed", summary.getUniqueIpsUsed());
+        values.put("uniqueDevicesUsed", summary.getUniqueDevicesUsed());
+        values.put("totalKOs", summary.getTotalKOs());
+        values.put("totalOKs", summary.getTotalOKs());
+        values.put("longestKoStreak", summary.getLongestKoStreak());
+        values.put("hasLogin", summary.getHasLogin());
+        values.put("hasLogout", summary.getHasLogout());
+        values.put("ipChanged", summary.getIpChanged());
+        values.put("deviceChanged", summary.getDeviceChanged());
+        values.put("totalDownloadActions", summary.getTotalDownloadActions());
+        values.put("maxDownloadsIn2Minutes", summary.getMaxDownloadsIn2Minutes());
+        values.put("pingPongCount", summary.getPingPongCount());
+        values.put("startHour", summary.getStartHour());
+        values.put("endHour", summary.getEndHour());
+        values.put("dayOfWeek", summary.getDayOfWeek());
+        values.put("isWeekend", summary.getIsWeekend());
+        values.put("persona", safeString(summary.getPersona()));
+        values.put("countryCode", safeString(summary.getCountryCode()));
+        values.put("firstAction", safeString(summary.getFirstAction()));
+        values.put("lastAction", safeString(summary.getLastAction()));
+        values.put("firstRoute", safeString(summary.getFirstRoute()));
+        values.put("lastRoute", safeString(summary.getLastRoute()));
+        return values;
+    }
+
+    private int computeRiskScore(AuditTrailEvent event, long timeDelta, int hasLoggedIn) {
+        int score = 0;
+        if (defaultInt(event.getIsIpChanged()) == 1) {
+            score += 30;
+        }
+        if ("KO".equalsIgnoreCase(event.getStatus())) {
+            score += 10;
+        }
+        if (defaultInt(event.getIsDeviceChanged()) == 1) {
+            score += 25;
+        }
+        int hourOfDay = defaultInt(event.getHourOfDay());
+        if (hourOfDay >= 2 && hourOfDay <= 4) {
+            score += 15;
+        }
+        if (timeDelta > 0 && timeDelta <= properties.getRapidActionSeconds()) {
+            score += 15;
+        }
+        if (defaultInt(event.getCumulativeKOs()) >= 3) {
+            score += 15;
+        }
+        if (defaultInt(event.getDownloadsLast2Minutes()) >= 10) {
+            score += 20;
+        }
+        if (defaultInt(event.getPingPongCount()) >= 2) {
+            score += 15;
+        }
+        if (Set.of("geo_jump", "data_exfiltration", "impossible_device_switch",
+                "distributed_brute_force", "zombie_session").contains(safeString(event.getAnomalyType()))) {
+            score += 10;
+        }
+        if ("skip_login".equalsIgnoreCase(safeString(event.getAnomalyType())) && hasLoggedIn == 0) {
+            score += 15;
+        }
+        return Math.min(100, score);
+    }
+
+    private boolean isDownloadAction(String action) {
+        if (!notBlank(action)) {
+            return false;
+        }
+        String lowered = action.toLowerCase(Locale.ROOT);
+        for (String word : DOWNLOAD_WORDS) {
+            if (lowered.contains(word)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Comparator<AuditTrailEvent> eventComparator() {
-        // Order events primarily by explicit session sequence, then by timestamp as a fallback.
         return Comparator
                 .comparing(AuditTrailEvent::getSequenceInSession, Comparator.nullsLast(Integer::compareTo))
-                .thenComparing(AuditTrailEvent::getCreatedAt, Comparator.nullsLast(Instant::compareTo));
+                .thenComparing(AuditTrailEvent::getCreatedAt, Comparator.nullsLast(Instant::compareTo))
+                .thenComparing(AuditTrailEvent::getId, Comparator.nullsLast(String::compareTo));
+    }
+
+    private int isChanged(String current, String first) {
+        if (!notBlank(current) || !notBlank(first)) {
+            return 0;
+        }
+        return current.equals(first) ? 0 : 1;
+    }
+
+    private int hasAnyAction(List<AuditTrailEvent> events, Set<String> actions) {
+        return events.stream().map(AuditTrailEvent::getAction).map(this::safeString).anyMatch(actions::contains) ? 1 : 0;
+    }
+
+    private double average(List<Long> values) {
+        return values.isEmpty() ? 0.0 : values.stream().mapToLong(Long::longValue).average().orElse(0.0);
+    }
+
+    private float numericValue(Object value, double fallback) {
+        if (value == null) {
+            return (float) fallback;
+        }
+        if (value instanceof Number number) {
+            return number.floatValue();
+        }
+        try {
+            return Float.parseFloat(String.valueOf(value));
+        } catch (NumberFormatException ex) {
+            return (float) fallback;
+        }
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String safeString(String value) {
+        return value == null ? "" : value;
+    }
+
+    private boolean same(String left, String right) {
+        return Objects.equals(safeString(left), safeString(right));
+    }
+
+    private int defaultInt(Integer value) {
+        return value == null ? 0 : value;
     }
 }

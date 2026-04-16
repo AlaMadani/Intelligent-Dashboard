@@ -14,12 +14,14 @@ import org.springframework.stereotype.Component;
 public class LiveStatsScheduler {
 
     private final StatisticsService statisticsService;
+    private final DashboardSnapshotService dashboardSnapshotService;
 
     @Scheduled(fixedRateString = "${app.scheduling.live-stats-fixed-rate-ms}")
     public void refresh() {
         try {
             // Delegate the actual aggregation logic to the statistics service.
             statisticsService.refreshLiveStatsSnapshot();
+            dashboardSnapshotService.refreshAll();
         } catch (Exception e) {
             log.error("Failed to refresh live stats snapshot", e);
         }

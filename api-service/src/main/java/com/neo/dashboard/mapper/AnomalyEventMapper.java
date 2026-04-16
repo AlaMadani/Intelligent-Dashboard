@@ -12,8 +12,12 @@ import java.time.Instant;
 /**
  * Maps anomaly domain objects used by list/detail endpoints and streams.
  */
-@Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
+@Mapper(componentModel = MappingConstants.ComponentModel.SPRING, uses = JsonParsingSupport.class)
 public interface AnomalyEventMapper extends EntityMapper<AnomalyEventDto, AnomalyEvent> {
+
+    @Override
+    @Mapping(target = "nextActions", source = "nextActionsJson", qualifiedByName = "parseNextActionsJson")
+    AnomalyEventDto toDto(AnomalyEvent entity);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "eventJson", ignore = true)
@@ -24,4 +28,3 @@ public interface AnomalyEventMapper extends EntityMapper<AnomalyEventDto, Anomal
         return detectedAt == null ? Instant.now() : detectedAt;
     }
 }
-

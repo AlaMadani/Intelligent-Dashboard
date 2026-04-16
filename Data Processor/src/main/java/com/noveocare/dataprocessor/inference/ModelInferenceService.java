@@ -1,197 +1,593 @@
 package com.noveocare.dataprocessor.inference;
 
 import ai.onnxruntime.OnnxTensor;
+import ai.onnxruntime.OnnxValue;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
-import com.noveocare.dataprocessor.ai.FeatureConfigLoader;
-import com.noveocare.dataprocessor.ai.LabelMapService;
-import com.noveocare.dataprocessor.config.AiResourceProperties;
+import com.noveocare.dataprocessor.ai.DeploymentManifest;
+import com.noveocare.dataprocessor.ai.FeatureEngineeringService;
+import com.noveocare.dataprocessor.ai.RuntimeArtifactService;
 import com.noveocare.dataprocessor.dto.AnomalyTypeResult;
+import com.noveocare.dataprocessor.dto.AuditTrailEvent;
+import com.noveocare.dataprocessor.dto.FeatureContribution;
+import com.noveocare.dataprocessor.dto.NextActionScore;
+import com.noveocare.dataprocessor.dto.PathDeviationResult;
+import com.noveocare.dataprocessor.dto.SessionInsight;
+import com.noveocare.dataprocessor.dto.SessionSummary;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Wraps ONNX Runtime sessions for anomaly scoring, anomaly-type
- * classification, and next-action ranking.
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ModelInferenceService {
 
-    private final AiResourceProperties properties;
-    private final ResourceLoader resourceLoader;
-    private final FeatureConfigLoader featureConfigLoader;
-    private final LabelMapService labelMapService;
+    private final RuntimeArtifactService runtimeArtifactService;
+    private final FeatureEngineeringService featureEngineeringService;
+    private final TransitionMatrixService transitionMatrixService;
 
     private OrtEnvironment environment;
-    private OrtSession aeSession;
-    private OrtSession anomalyTypeSession;
-    private OrtSession nextActionSession;
-
-    private String aeInputName;
-    private String typeInputName;
-    private String nextInputName;
+    private LoadedSession binaryDetector;
+    private LoadedSession anomalyType;
+    private LoadedSession churn;
+    private LoadedSession clustering;
 
     @PostConstruct
-    public void init() throws IOException, OrtException {
-        // Load the shared ONNX environment once and keep one session per model.
+    public void init() throws OrtException {
         environment = OrtEnvironment.getEnvironment();
-        aeSession = createSession(properties.getModels().getAnomalyAutoencoder());
-        anomalyTypeSession = createSession(properties.getModels().getAnomalyTypeClassifier());
-        nextActionSession = createSession(properties.getModels().getNextActionGru());
+        binaryDetector = loadSession(runtimeArtifactService.resolveBinaryArtifact());
+        anomalyType = loadSession(runtimeArtifactService.getDeploymentManifest().getAnomalyType().getModel());
+        churn = loadSession(runtimeArtifactService.getDeploymentManifest().getChurn().getModel());
+        clustering = loadSession(runtimeArtifactService.getDeploymentManifest().getClustering().getModel());
 
-        aeInputName = aeSession.getInputNames().iterator().next();
-        typeInputName = anomalyTypeSession.getInputNames().iterator().next();
-        nextInputName = nextActionSession.getInputNames().iterator().next();
-        log.info("ONNX sessions loaded (AE input={}, Type input={}, Next input={})",
-                aeInputName, typeInputName, nextInputName);
+        log.info("Manifest runtime initialized binary={}, type={}, churn={}, clustering={}",
+                binaryDetector.artifactName(),
+                anomalyType.artifactName(),
+                churn.artifactName(),
+                clustering.artifactName());
     }
 
-    public double scoreAnomaly(float[][] matrix) throws OrtException {
-        // The autoencoder receives a batch of exactly one padded sequence.
-        float[][][] input = wrap(matrix);
-        try (OnnxTensor tensor = OnnxTensor.createTensor(environment, input)) {
-            try (OrtSession.Result result = aeSession.run(Map.of(aeInputName, tensor))) {
-                // The anomaly score is the worst per-step reconstruction error in the sequence.
-                Object value = result.get(0).getValue();
-                float[][][] output = (float[][][]) value;
-                double score = maxStepMse(input[0], output[0]);
-                log.info("AE inference complete maxStepMse={}", score);
-                return score;
+    public SessionInsight infer(SessionSummary summary, List<AuditTrailEvent> enrichedEvents, List<String> triggeredRules) {
+        List<String> warnings = new ArrayList<>();
+        BinaryDetectionResult binaryResult = detectBinaryAnomaly(summary, warnings);
+        PathDeviationResult pathDeviation = transitionMatrixService.evaluatePathDeviation(enrichedEvents);
+        boolean overallAnomaly = binaryResult.anomalyFlag() || pathDeviation.isDeviated() || !triggeredRules.isEmpty();
+
+        AnomalyTypeResult anomalyTypeResult = overallAnomaly
+                ? classifyAnomaly(summary, warnings, triggeredRules, enrichedEvents)
+                : AnomalyTypeResult.builder().type("normal").confidence(1.0).build();
+        double churnProbability = predictChurn(summary, warnings);
+        Integer personaCluster = predictCluster(summary, warnings);
+        List<NextActionScore> nextActions = transitionMatrixService.predictNextActions(summary.getLastAction(), 3);
+        double ensembleRiskScore = computeEnsembleRisk(summary, binaryResult.anomalyProbability(), churnProbability);
+
+        List<FeatureContribution> topFeatures = overallAnomaly
+                ? buildFeatureContributions(summary, anomalyTypeResult.getType())
+                : List.of();
+        String explainabilityText = overallAnomaly
+                ? buildExplainabilityText(summary, anomalyTypeResult.getType(), topFeatures, triggeredRules)
+                : null;
+
+        return SessionInsight.builder()
+                .insuredId(summary.getInsuredId())
+                .sessionId(summary.getSessionId())
+                .computedAt(Instant.now())
+                .binaryAnomaly(binaryResult.anomalyFlag())
+                .anomaly(overallAnomaly)
+                .anomalyScore(binaryResult.score())
+                .anomalyProbability(binaryResult.anomalyProbability())
+                .binaryDetectorArtifact(binaryResult.artifact())
+                .anomalyType(anomalyTypeResult.getType())
+                .anomalyTypeConfidence(anomalyTypeResult.getConfidence())
+                .churnProbability(churnProbability)
+                .personaCluster(personaCluster)
+                .ensembleRiskScore(ensembleRiskScore)
+                .riskLevel(resolveRiskLevel(ensembleRiskScore))
+                .pathDeviation(pathDeviation)
+                .nextActions(nextActions)
+                .triggeredRules(triggeredRules)
+                .warnings(warnings)
+                .topContributingFeatures(topFeatures)
+                .explainabilityText(explainabilityText)
+                .build();
+    }
+
+    public SessionInsight inferLightweight(SessionSummary summary,
+                                           List<AuditTrailEvent> enrichedEvents,
+                                           List<String> triggeredRules,
+                                           String reason) {
+        List<String> warnings = new ArrayList<>();
+        warnings.add(reason == null || reason.isBlank() ? "heavy_inference_disabled" : reason);
+        PathDeviationResult pathDeviation = transitionMatrixService.evaluatePathDeviation(enrichedEvents);
+        boolean heuristicAnomaly = defaultInt(summary.getIpChanged()) == 1
+                || defaultInt(summary.getDeviceChanged()) == 1
+                || defaultInt(summary.getTotalKOs()) >= 3
+                || defaultInt(summary.getMaxDownloadsIn2Minutes()) >= 10
+                || defaultInt(summary.getPingPongCount()) >= 2;
+        boolean anomaly = heuristicAnomaly || pathDeviation.isDeviated() || !triggeredRules.isEmpty();
+        double riskScore = computeEnsembleRisk(summary, heuristicAnomaly ? 1.0 : 0.0, 0.0);
+        String anomalyType = heuristicType(summary, triggeredRules, enrichedEvents).getType();
+
+        List<FeatureContribution> topFeatures = anomaly
+                ? buildFeatureContributions(summary, anomalyType)
+                : List.of();
+        String explainabilityText = anomaly
+                ? buildExplainabilityText(summary, anomalyType, topFeatures, triggeredRules)
+                : null;
+
+        return SessionInsight.builder()
+                .insuredId(summary.getInsuredId())
+                .sessionId(summary.getSessionId())
+                .computedAt(Instant.now())
+                .binaryAnomaly(heuristicAnomaly)
+                .anomaly(anomaly)
+                .anomalyScore(riskScore)
+                .anomalyProbability(heuristicAnomaly ? 1.0 : 0.0)
+                .binaryDetectorArtifact("load_shedding_fallback")
+                .anomalyType(anomalyType)
+                .anomalyTypeConfidence(0.5)
+                .churnProbability(0.0)
+                .personaCluster(null)
+                .ensembleRiskScore(riskScore)
+                .riskLevel(resolveRiskLevel(riskScore))
+                .pathDeviation(pathDeviation)
+                .nextActions(transitionMatrixService.predictNextActions(summary.getLastAction(), 3))
+                .triggeredRules(triggeredRules)
+                .warnings(warnings)
+                .topContributingFeatures(topFeatures)
+                .explainabilityText(explainabilityText)
+                .build();
+    }
+
+    private BinaryDetectionResult detectBinaryAnomaly(SessionSummary summary, List<String> warnings) {
+        if (binaryDetector.available()) {
+            float[] vector = featureEngineeringService.buildTabularFeatures(
+                    summary,
+                    runtimeArtifactService.getBinaryFeatureColumns(),
+                    runtimeArtifactService.getSessionNumericMedians());
+            try {
+                ResultBundle bundle = runSingle(binaryDetector, vector);
+                long label = bundle.longOutput("label", 1L);
+                double score = bundle.doubleOutput("scores", 0.0);
+                boolean anomalyFlag;
+                double anomalyProbability;
+
+                if (binaryDetector.artifactName() != null && binaryDetector.artifactName().contains("iso")) {
+                    anomalyFlag = label < 0;
+                    anomalyProbability = anomalyFlag ? 1.0 : 0.0;
+                } else {
+                    anomalyProbability = bundle.probabilityForClass(1L);
+                    anomalyFlag = label == 1L || anomalyProbability >= 0.5;
+                    score = anomalyProbability;
+                }
+                return new BinaryDetectionResult(anomalyFlag, score, anomalyProbability, binaryDetector.artifactName());
+            } catch (Exception ex) {
+                warnings.add("binary_detection_runtime_failed");
+                log.warn("Binary detection failed for session {}", summary.getSessionId(), ex);
             }
+        } else {
+            warnings.add("binary_detection_artifact_unavailable");
         }
+
+        boolean heuristicAnomaly = defaultInt(summary.getIpChanged()) == 1
+                || defaultInt(summary.getDeviceChanged()) == 1
+                || defaultInt(summary.getTotalKOs()) >= 3
+                || defaultInt(summary.getMaxDownloadsIn2Minutes()) >= 10
+                || defaultInt(summary.getPingPongCount()) >= 2;
+        return new BinaryDetectionResult(
+                heuristicAnomaly,
+                heuristicAnomaly ? summary.getRiskScoreMax() : 0.0,
+                heuristicAnomaly ? 1.0 : 0.0,
+                "heuristic_fallback");
     }
 
-    public AnomalyTypeResult classifyType(float[][] matrix) throws OrtException {
-        // The classifier outputs one probability/logit vector for the whole session.
-        float[][][] input = wrap(matrix);
-        try (OnnxTensor tensor = OnnxTensor.createTensor(environment, input)) {
-            try (OrtSession.Result result = anomalyTypeSession.run(Map.of(typeInputName, tensor))) {
-                float[] scores = extractVector(result.get(0).getValue());
-                int bestIndex = argMax(scores);
-                double confidence = scores[bestIndex];
-                AnomalyTypeResult resultDto = AnomalyTypeResult.builder()
-                        .type(labelMapService.anomalyTypeLabel(bestIndex))
+    private AnomalyTypeResult classifyAnomaly(SessionSummary summary,
+                                              List<String> warnings,
+                                              List<String> triggeredRules,
+                                              List<AuditTrailEvent> enrichedEvents) {
+        if (anomalyType.available()) {
+            float[] vector = featureEngineeringService.buildTabularFeatures(
+                    summary,
+                    runtimeArtifactService.getTypeFeatureColumns(),
+                    runtimeArtifactService.getSessionNumericMedians());
+            try {
+                ResultBundle bundle = runSingle(anomalyType, vector);
+                long label = bundle.longOutput("output_label", 0L);
+                double confidence = bundle.probabilityForClass(label);
+                String type = runtimeArtifactService.getAnomalyTypeLabels()
+                        .getOrDefault((int) label, "unknown");
+                return AnomalyTypeResult.builder()
+                        .type(type)
                         .confidence(confidence)
                         .build();
-                log.info("Type inference complete type={} confidence={}",
-                        resultDto.getType(), resultDto.getConfidence());
-                return resultDto;
+            } catch (Exception ex) {
+                warnings.add("anomaly_type_runtime_failed");
+                log.warn("Anomaly type classification failed for session {}", summary.getSessionId(), ex);
             }
+        } else {
+            warnings.add("anomaly_type_artifact_unavailable");
+        }
+        return heuristicType(summary, triggeredRules, enrichedEvents);
+    }
+
+    private double predictChurn(SessionSummary summary, List<String> warnings) {
+        if (churn.available()) {
+            float[] vector = featureEngineeringService.buildTabularFeatures(
+                    summary,
+                    runtimeArtifactService.getChurnFeatureColumns(),
+                    runtimeArtifactService.getChurnNumericMedians());
+            try {
+                ResultBundle bundle = runSingle(churn, vector);
+                return bundle.probabilityForClass(1L);
+            } catch (Exception ex) {
+                warnings.add("churn_runtime_failed");
+                log.warn("Churn prediction failed for session {}", summary.getSessionId(), ex);
+            }
+        } else {
+            warnings.add("churn_artifact_unavailable");
+        }
+        return defaultInt(summary.getEndedAbruptly()) == 1 ? 1.0 : 0.0;
+    }
+
+    private Integer predictCluster(SessionSummary summary, List<String> warnings) {
+        if (clustering.available()) {
+            float[] vector = featureEngineeringService.buildClusterFeatures(
+                    summary,
+                    runtimeArtifactService.getDeploymentManifest().getClustering().getClusterFeatures());
+            try {
+                ResultBundle bundle = runSingle(clustering, vector);
+                return (int) bundle.longOutput("label", 0L);
+            } catch (Exception ex) {
+                warnings.add("clustering_runtime_failed");
+                log.warn("Persona clustering failed for session {}", summary.getSessionId(), ex);
+            }
+        } else {
+            warnings.add("clustering_artifact_unavailable");
+        }
+        return null;
+    }
+
+    private ResultBundle runSingle(LoadedSession loadedSession, float[] vector) throws OrtException {
+        try (OnnxTensor tensor = OnnxTensor.createTensor(environment, new float[][]{vector});
+             OrtSession.Result result = loadedSession.session().run(Map.of(loadedSession.inputName(), tensor))) {
+            return ResultBundle.from(result);
         }
     }
 
-    public List<String> predictNextActions(float[][] matrix, int topK) throws OrtException {
-        // The ranking model uses the same input tensor shape as the other session models.
-        float[][][] input = wrap(matrix);
-        try (OnnxTensor tensor = OnnxTensor.createTensor(environment, input)) {
-            try (OrtSession.Result result = nextActionSession.run(Map.of(nextInputName, tensor))) {
-                float[] scores = extractVector(result.get(0).getValue());
-                List<Integer> indices = topKIndices(scores, topK);
-                List<String> labels = new ArrayList<>();
-                for (int idx : indices) {
-                    labels.add(labelMapService.nextActionLabel(idx));
-                }
-                log.info("Next-action inference complete topK={} labels={}", topK, labels);
-                return labels;
-            }
+    private LoadedSession loadSession(String artifactName) throws OrtException {
+        if (artifactName == null || artifactName.isBlank()) {
+            return LoadedSession.unavailable(artifactName);
         }
-    }
-
-    private OrtSession createSession(String fileName) throws IOException, OrtException {
-        // Read model bytes from Spring resources so the same code works from JARs and IDE runs.
-        String path = properties.getBasePath() + fileName;
-        Resource resource = resourceLoader.getResource(path);
-        try (InputStream inputStream = resource.getInputStream()) {
+        if (!artifactName.endsWith(".onnx")) {
+            log.warn("Artifact {} is not ONNX; Java runtime will not load it directly.", artifactName);
+            return LoadedSession.unavailable(artifactName);
+        }
+        if (!runtimeArtifactService.resourceExists(artifactName)) {
+            log.warn("Artifact {} does not exist under {}", artifactName, runtimeArtifactService.resource(artifactName));
+            return LoadedSession.unavailable(artifactName);
+        }
+        try (InputStream inputStream = runtimeArtifactService.resource(artifactName).getInputStream()) {
             byte[] bytes = inputStream.readAllBytes();
-            return environment.createSession(bytes, new OrtSession.SessionOptions());
+            OrtSession session = environment.createSession(bytes, new OrtSession.SessionOptions());
+            String inputName = session.getInputNames().iterator().next();
+            return new LoadedSession(artifactName, session, inputName, true);
+        } catch (IOException ex) {
+            log.warn("Failed to read artifact {}", artifactName, ex);
+            return LoadedSession.unavailable(artifactName);
         }
     }
 
-    private float[][][] wrap(float[][] matrix) {
-        // Pad or truncate the incoming matrix to the exact sequence shape expected by the models.
-        int seqLen = featureConfigLoader.getFeatureConfig().getSeqLen();
-        int nFeatures = featureConfigLoader.getFeatureConfig().getNFeatures();
-        float[][][] input = new float[1][seqLen][nFeatures];
-        for (int i = 0; i < Math.min(seqLen, matrix.length); i++) {
-            System.arraycopy(matrix[i], 0, input[0][i], 0, Math.min(nFeatures, matrix[i].length));
+    private AnomalyTypeResult heuristicType(SessionSummary summary,
+                                            List<String> triggeredRules,
+                                            List<AuditTrailEvent> enrichedEvents) {
+        if (defaultInt(summary.getDeviceChanged()) == 1) {
+            return AnomalyTypeResult.builder().type("impossible_device_switch").confidence(0.8).build();
         }
-        return input;
+        if (defaultInt(summary.getMaxDownloadsIn2Minutes()) >= 10) {
+            return AnomalyTypeResult.builder().type("data_exfiltration").confidence(0.8).build();
+        }
+        if (defaultInt(summary.getPingPongCount()) >= 2) {
+            return AnomalyTypeResult.builder().type("ping_pong_loop").confidence(0.8).build();
+        }
+        if (defaultInt(summary.getTotalKOs()) >= 3) {
+            return AnomalyTypeResult.builder().type("repeated_fail").confidence(0.75).build();
+        }
+        if (defaultInt(summary.getIpChanged()) == 1) {
+            return AnomalyTypeResult.builder().type("geo_jump").confidence(0.7).build();
+        }
+        if (transitionMatrixService.isImpossibleTransition(enrichedEvents)) {
+            return AnomalyTypeResult.builder().type("impossible_seq").confidence(0.7).build();
+        }
+        if (triggeredRules.contains("unusual_hour")) {
+            return AnomalyTypeResult.builder().type("unusual_hour").confidence(0.7).build();
+        }
+        if (triggeredRules.contains("skip_login")) {
+            return AnomalyTypeResult.builder().type("skip_login").confidence(0.7).build();
+        }
+        if (defaultInt(summary.getEndedAbruptly()) == 1
+                && defaultInt(summary.getTotalDurationSeconds() != null ? summary.getTotalDurationSeconds().intValue() : 0) > 1_200) {
+            return AnomalyTypeResult.builder().type("zombie_session").confidence(0.65).build();
+        }
+        return AnomalyTypeResult.builder().type("unknown").confidence(0.5).build();
     }
 
-    private double maxStepMse(float[][] input, float[][] output) {
-        // Use the maximum step error so short local anomalies are not averaged away.
-        double max = 0.0;
-        for (int t = 0; t < input.length; t++) {
-            double sum = 0.0;
-            for (int f = 0; f < input[t].length; f++) {
-                double diff = input[t][f] - output[t][f];
-                sum += diff * diff;
+    private List<FeatureContribution> buildFeatureContributions(SessionSummary summary, String anomalyType) {
+        Map<String, Double> importance = runtimeArtifactService.getAnomalyTypeFeatureImportance();
+        if (importance.isEmpty()) {
+            importance = runtimeArtifactService.getBinaryFeatureImportance();
+        }
+        if (importance.isEmpty()) {
+            return buildHeuristicContributions(summary, anomalyType);
+        }
+
+        Map<String, Object> summaryValues = buildSummaryValueMap(summary);
+        List<FeatureContribution> contributions = new ArrayList<>();
+
+        for (Map.Entry<String, Double> entry : importance.entrySet()) {
+            String feature = entry.getKey();
+            Double imp = entry.getValue();
+            Object value = summaryValues.get(feature);
+            if (value != null && imp != null && imp > 0.01) {
+                contributions.add(FeatureContribution.builder()
+                        .feature(feature)
+                        .importance(imp)
+                        .actualValue(value)
+                        .description(describeFeature(feature, value))
+                        .build());
             }
-            double mse = input[t].length == 0 ? 0.0 : sum / input[t].length;
-            if (mse > max) {
-                max = mse;
-            }
         }
-        return max;
+
+        return contributions.stream()
+                .sorted(Comparator.comparing(FeatureContribution::getImportance).reversed())
+                .limit(5)
+                .toList();
     }
 
-    private float[] extractVector(Object output) {
-        // Some exported models return [1, N] and others return [N]; normalize both forms.
-        if (output instanceof float[][] matrix) {
-            return matrix[0];
+    private List<FeatureContribution> buildHeuristicContributions(SessionSummary summary, String anomalyType) {
+        List<FeatureContribution> contributions = new ArrayList<>();
+        if (defaultInt(summary.getTotalKOs()) >= 3) {
+            contributions.add(FeatureContribution.builder()
+                    .feature("totalKOs")
+                    .importance(0.33)
+                    .actualValue(summary.getTotalKOs())
+                    .description("High error count: " + summary.getTotalKOs() + " failures")
+                    .build());
         }
-        return (float[]) output;
+        if (defaultInt(summary.getIpChanged()) == 1) {
+            contributions.add(FeatureContribution.builder()
+                    .feature("ipChanged")
+                    .importance(0.30)
+                    .actualValue(1)
+                    .description("IP address changed during session")
+                    .build());
+        }
+        if (defaultInt(summary.getDeviceChanged()) == 1) {
+            contributions.add(FeatureContribution.builder()
+                    .feature("deviceChanged")
+                    .importance(0.25)
+                    .actualValue(1)
+                    .description("Device changed during session")
+                    .build());
+        }
+        if (defaultInt(summary.getMaxDownloadsIn2Minutes()) >= 10) {
+            contributions.add(FeatureContribution.builder()
+                    .feature("maxDownloadsIn2Minutes")
+                    .importance(0.20)
+                    .actualValue(summary.getMaxDownloadsIn2Minutes())
+                    .description("Excessive downloads: " + summary.getMaxDownloadsIn2Minutes() + " in 2 minutes")
+                    .build());
+        }
+        if (defaultInt(summary.getPingPongCount()) >= 2) {
+            contributions.add(FeatureContribution.builder()
+                    .feature("pingPongCount")
+                    .importance(0.15)
+                    .actualValue(summary.getPingPongCount())
+                    .description("Navigation loop detected: " + summary.getPingPongCount() + " ping-pong patterns")
+                    .build());
+        }
+        return contributions;
     }
 
-    private int argMax(float[] values) {
-        int best = 0;
-        for (int i = 1; i < values.length; i++) {
-            if (values[i] > values[best]) {
-                best = i;
-            }
-        }
-        return best;
+    private Map<String, Object> buildSummaryValueMap(SessionSummary summary) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("totalEvents", summary.getTotalEvents());
+        values.put("totalDurationSeconds", summary.getTotalDurationSeconds());
+        values.put("avgInterActionSeconds", summary.getAvgInterActionSeconds());
+        values.put("minInterActionSeconds", summary.getMinInterActionSeconds());
+        values.put("maxInterActionSeconds", summary.getMaxInterActionSeconds());
+        values.put("uniqueActions", summary.getUniqueActions());
+        values.put("uniqueRoutes", summary.getUniqueRoutes());
+        values.put("uniqueIpsUsed", summary.getUniqueIpsUsed());
+        values.put("uniqueDevicesUsed", summary.getUniqueDevicesUsed());
+        values.put("totalKOs", summary.getTotalKOs());
+        values.put("totalOKs", summary.getTotalOKs());
+        values.put("longestKoStreak", summary.getLongestKoStreak());
+        values.put("hasLogin", summary.getHasLogin());
+        values.put("hasLogout", summary.getHasLogout());
+        values.put("ipChanged", summary.getIpChanged());
+        values.put("deviceChanged", summary.getDeviceChanged());
+        values.put("totalDownloadActions", summary.getTotalDownloadActions());
+        values.put("maxDownloadsIn2Minutes", summary.getMaxDownloadsIn2Minutes());
+        values.put("pingPongCount", summary.getPingPongCount());
+        values.put("startHour", summary.getStartHour());
+        values.put("endHour", summary.getEndHour());
+        values.put("dayOfWeek", summary.getDayOfWeek());
+        values.put("isWeekend", summary.getIsWeekend());
+        return values;
     }
 
-    private List<Integer> topKIndices(float[] scores, int topK) {
-        // Sort score indices descending and keep only the requested head of the ranking.
-        List<Integer> indices = new ArrayList<>();
-        for (int i = 0; i < scores.length; i++) {
-            indices.add(i);
+    private String describeFeature(String feature, Object value) {
+        return switch (feature) {
+            case "totalKOs" -> "Error count: " + value;
+            case "longestKoStreak" -> "Consecutive failures: " + value;
+            case "ipChanged" -> Integer.valueOf(1).equals(value) ? "IP changed during session" : "IP stable";
+            case "deviceChanged" -> Integer.valueOf(1).equals(value) ? "Device changed during session" : "Device stable";
+            case "uniqueIpsUsed" -> "Unique IPs: " + value;
+            case "uniqueDevicesUsed" -> "Unique devices: " + value;
+            case "maxDownloadsIn2Minutes" -> "Downloads in 2min window: " + value;
+            case "pingPongCount" -> "Navigation loops: " + value;
+            case "totalDurationSeconds" -> "Session duration: " + value + "s";
+            case "avgInterActionSeconds" -> "Avg time between actions: " + value + "s";
+            case "totalEvents" -> "Total events: " + value;
+            case "hasLogin" -> Integer.valueOf(1).equals(value) ? "User logged in" : "No login detected";
+            case "hasLogout" -> Integer.valueOf(1).equals(value) ? "User logged out" : "No logout (abrupt end)";
+            case "startHour", "endHour" -> "Hour: " + value;
+            default -> feature + " = " + value;
+        };
+    }
+
+    private String buildExplainabilityText(SessionSummary summary, String anomalyType,
+                                           List<FeatureContribution> topFeatures, List<String> triggeredRules) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Flagged as ").append(anomalyType);
+
+        if (!topFeatures.isEmpty()) {
+            sb.append(" because ");
+            List<String> reasons = topFeatures.stream()
+                    .limit(3)
+                    .map(fc -> fc.getFeature() + " = " + fc.getActualValue()
+                            + " (importance: " + String.format("%.2f", fc.getImportance()) + ")")
+                    .toList();
+            sb.append(String.join(", ", reasons));
         }
-        indices.sort(Comparator.comparingDouble((Integer idx) -> scores[idx]).reversed());
-        return indices.subList(0, Math.min(topK, indices.size()));
+
+        if (!triggeredRules.isEmpty()) {
+            sb.append(". Rules triggered: ").append(String.join(", ", triggeredRules));
+        }
+
+        return sb.toString();
+    }
+
+    private double computeEnsembleRisk(SessionSummary summary, double anomalyProbability, double churnProbability) {
+        return clamp(
+                30.0 * defaultInt(summary.getIpChanged())
+                        + 25.0 * defaultInt(summary.getDeviceChanged())
+                        + 15.0 * (defaultInt(summary.getTotalKOs()) >= 3 ? 1.0 : 0.0)
+                        + 15.0 * (defaultInt(summary.getMaxDownloadsIn2Minutes()) >= 10 ? 1.0 : 0.0)
+                        + 15.0 * (defaultInt(summary.getPingPongCount()) >= 2 ? 1.0 : 0.0)
+                        + 40.0 * anomalyProbability
+                        + 15.0 * churnProbability,
+                0.0,
+                100.0);
+    }
+
+    private String resolveRiskLevel(double riskScore) {
+        if (riskScore >= 80.0) {
+            return "HIGH";
+        }
+        if (riskScore >= 50.0) {
+            return "MEDIUM";
+        }
+        return "LOW";
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private int defaultInt(Integer value) {
+        return value == null ? 0 : value;
     }
 
     @PreDestroy
     public void close() throws OrtException {
-        // Release native ONNX resources explicitly during shutdown.
-        if (aeSession != null) {
-            aeSession.close();
-        }
-        if (anomalyTypeSession != null) {
-            anomalyTypeSession.close();
-        }
-        if (nextActionSession != null) {
-            nextActionSession.close();
-        }
+        closeSession(binaryDetector);
+        closeSession(anomalyType);
+        closeSession(churn);
+        closeSession(clustering);
         if (environment != null) {
             environment.close();
+        }
+    }
+
+    private void closeSession(LoadedSession loadedSession) throws OrtException {
+        if (loadedSession != null && loadedSession.session() != null) {
+            loadedSession.session().close();
+        }
+    }
+
+    private record LoadedSession(String artifactName, OrtSession session, String inputName, boolean available) {
+        private static LoadedSession unavailable(String artifactName) {
+            return new LoadedSession(artifactName, null, null, false);
+        }
+    }
+
+    private record BinaryDetectionResult(boolean anomalyFlag, double score, double anomalyProbability, String artifact) {
+    }
+
+    private record ResultBundle(Map<String, Object> outputs) {
+        private static ResultBundle from(OrtSession.Result result) throws OrtException {
+            Map<String, Object> outputs = new LinkedHashMap<>();
+            for (Map.Entry<String, ? extends OnnxValue> entry : result) {
+                outputs.put(entry.getKey(), entry.getValue().getValue());
+            }
+            return new ResultBundle(outputs);
+        }
+
+        private long longOutput(String name, long fallback) {
+            Object value = outputs.get(name);
+            if (value instanceof long[] array && array.length > 0) {
+                return array[0];
+            }
+            if (value instanceof long[][] array && array.length > 0 && array[0].length > 0) {
+                return array[0][0];
+            }
+            if (value instanceof int[] array && array.length > 0) {
+                return array[0];
+            }
+            if (value instanceof int[][] array && array.length > 0 && array[0].length > 0) {
+                return array[0][0];
+            }
+            return fallback;
+        }
+
+        private double doubleOutput(String name, double fallback) {
+            Object value = outputs.get(name);
+            if (value instanceof float[] array && array.length > 0) {
+                return array[0];
+            }
+            if (value instanceof float[][] array && array.length > 0 && array[0].length > 0) {
+                return array[0][0];
+            }
+            if (value instanceof double[] array && array.length > 0) {
+                return array[0];
+            }
+            if (value instanceof double[][] array && array.length > 0 && array[0].length > 0) {
+                return array[0][0];
+            }
+            return fallback;
+        }
+
+        @SuppressWarnings("unchecked")
+        private double probabilityForClass(long label) {
+            Object value = outputs.get("output_probability");
+            if (value instanceof List<?> sequence && !sequence.isEmpty() && sequence.get(0) instanceof Map<?, ?> probabilityMap) {
+                Object probability = probabilityMap.get(label);
+                if (probability == null) {
+                    probability = probabilityMap.get((int) label);
+                }
+                if (probability instanceof Number number) {
+                    return number.doubleValue();
+                }
+            }
+            value = outputs.get("scores");
+            if (value instanceof float[][] matrix && matrix.length > 0 && matrix[0].length > (int) label) {
+                return matrix[0][(int) label];
+            }
+            return 0.0;
         }
     }
 }

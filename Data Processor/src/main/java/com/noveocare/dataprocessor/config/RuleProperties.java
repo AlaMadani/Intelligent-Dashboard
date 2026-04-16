@@ -22,10 +22,10 @@ public class RuleProperties {
     private GeoJump geoJump = new GeoJump();
     private SessionTimeout sessionTimeout = new SessionTimeout();
     private ImpossibleSeq impossibleSeq = new ImpossibleSeq();
+    private PathDeviation pathDeviation = new PathDeviation();
 
-    // Session-close behavior and ML scoring cadence.
+    // Session-close behavior.
     private List<String> sessionEndActions = new ArrayList<>();
-    private int tier2EveryEvents = 5;
 
     @Data
     public static class RapidFire {
@@ -50,6 +50,11 @@ public class RuleProperties {
     public static class ImpossibleSeq {
         // Minimum learned transition probability below which a step is considered implausible.
         private double minProbability = 0.005;
+    }
+
+    @Data
+    public static class PathDeviation {
+        private double minProbability = 0.02;
     }
 
     @Data

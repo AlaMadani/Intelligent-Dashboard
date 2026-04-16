@@ -10,15 +10,15 @@ import org.hibernate.annotations.Immutable;
 import java.time.Instant;
 
 /**
- * Read-only mapping of the `session_analysis` table, which stores the output of
- * session-level behavioral analysis.
+ * Read-only mapping of {@code session_analysis} as produced by the Data Processor
+ * observability pipeline (tabular ML scores, Markov path context, session aggregates).
  */
 @Entity
 @Table(name = "session_analysis")
 @Data
 @Immutable
 public class SessionAnalysis {
-    /* Primary key plus user/session identifiers. */
+
     @Id
     private Long id;
 
@@ -28,37 +28,131 @@ public class SessionAnalysis {
     @Column(name = "session_id")
     private String sessionId;
 
-    /* Session timing and aggregate activity metrics. */
+    @Column(name = "persona")
+    private String persona;
+
+    @Column(name = "country_code")
+    private String countryCode;
+
+    @Column(name = "city")
+    private String city;
+
+    @Column(name = "month")
+    private String month;
+
+    @Column(name = "session_number")
+    private Integer sessionNumber;
+
     @Column(name = "start_time")
     private Instant startTime;
 
     @Column(name = "end_time")
     private Instant endTime;
 
+    @Column(name = "first_action", columnDefinition = "NVARCHAR(512)")
+    private String firstAction;
+
+    @Column(name = "last_action", columnDefinition = "NVARCHAR(512)")
+    private String lastAction;
+
+    @Column(name = "first_route")
+    private String firstRoute;
+
+    @Column(name = "last_route")
+    private String lastRoute;
+
     @Column(name = "session_length")
-    private Integer sessionLength;
+    private Integer totalEvents;
 
     @Column(name = "session_duration_seconds")
     private Long sessionDurationSeconds;
 
     @Column(name = "unique_action_count")
-    private Integer uniqueActionCount;
+    private Integer uniqueActions;
+
+    @Column(name = "unique_routes")
+    private Integer uniqueRoutes;
+
+    @Column(name = "unique_ips_used")
+    private Integer uniqueIpsUsed;
+
+    @Column(name = "unique_devices_used")
+    private Integer uniqueDevicesUsed;
+
+    @Column(name = "total_kos")
+    private Integer totalKOs;
+
+    @Column(name = "total_oks")
+    private Integer totalOKs;
+
+    @Column(name = "longest_ko_streak")
+    private Integer longestKoStreak;
 
     @Column(name = "ko_rate")
     private Double koRate;
 
     @Column(name = "mean_delta_seconds")
-    private Double meanDeltaSeconds;
+    private Double avgInterActionSeconds;
+
+    @Column(name = "min_inter_action_seconds")
+    private Double minInterActionSeconds;
+
+    @Column(name = "max_inter_action_seconds")
+    private Double maxInterActionSeconds;
 
     @Column(name = "action_diversity")
     private Double actionDiversity;
 
-    /* Serialized model features and anomaly classification outputs. */
+    @Column(name = "has_login")
+    private Boolean hasLogin;
+
+    @Column(name = "has_logout")
+    private Boolean hasLogout;
+
+    @Column(name = "ip_changed")
+    private Boolean ipChanged;
+
+    @Column(name = "device_changed")
+    private Boolean deviceChanged;
+
+    @Column(name = "total_download_actions")
+    private Integer totalDownloadActions;
+
+    @Column(name = "max_downloads_in_2_minutes")
+    private Integer maxDownloadsIn2Minutes;
+
+    @Column(name = "ping_pong_count")
+    private Integer pingPongCount;
+
+    @Column(name = "risk_score_max")
+    private Double riskScoreMax;
+
+    @Column(name = "risk_score_avg")
+    private Double riskScoreAvg;
+
+    @Column(name = "ended_abruptly")
+    private Boolean endedAbruptly;
+
+    @Column(name = "anomaly_event_count")
+    private Integer anomalyEventCount;
+
+    @Column(name = "anomaly_types_json", columnDefinition = "NVARCHAR(MAX)")
+    private String anomalyTypesJson;
+
+    @Column(name = "campaign_ids_json", columnDefinition = "NVARCHAR(MAX)")
+    private String campaignIdsJson;
+
+    @Column(name = "action_sequence_signature", columnDefinition = "NVARCHAR(MAX)")
+    private String actionSequenceSignature;
+
+    @Column(name = "route_sequence_signature", columnDefinition = "NVARCHAR(MAX)")
+    private String routeSequenceSignature;
+
     @Column(name = "action_counts_json", columnDefinition = "NVARCHAR(MAX)")
     private String actionCountsJson;
 
-    @Column(name = "ae_score")
-    private Double aeScore;
+    @Column(name = "iso_score")
+    private Double isoScore;
 
     @Column(name = "is_anomaly")
     private Boolean isAnomaly;
@@ -69,10 +163,36 @@ public class SessionAnalysis {
     @Column(name = "type_confidence")
     private Double typeConfidence;
 
+    @Column(name = "anomaly_probability")
+    private Double anomalyProbability;
+
+    @Column(name = "churn_probability")
+    private Double churnProbability;
+
+    @Column(name = "ensemble_risk_score")
+    private Double ensembleRiskScore;
+
+    @Column(name = "persona_cluster")
+    private Integer personaCluster;
+
+    @Column(name = "binary_detector_artifact")
+    private String binaryDetectorArtifact;
+
+    @Column(name = "path_deviation")
+    private Boolean pathDeviation;
+
+    @Column(name = "transition_probability")
+    private Double transitionProbability;
+
+    @Column(name = "transition_from_action", columnDefinition = "NVARCHAR(512)")
+    private String transitionFromAction;
+
+    @Column(name = "transition_to_action", columnDefinition = "NVARCHAR(512)")
+    private String transitionToAction;
+
     @Column(name = "top3_next_actions", columnDefinition = "NVARCHAR(MAX)")
     private String top3NextActions;
 
-    /* Rule-engine results plus row creation time. */
     @Column(name = "rule_triggered")
     private Boolean ruleTriggered;
 
@@ -81,4 +201,7 @@ public class SessionAnalysis {
 
     @Column(name = "created_at")
     private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 }

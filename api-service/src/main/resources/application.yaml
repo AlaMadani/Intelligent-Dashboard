@@ -7,8 +7,14 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true}
     username: ${SPRING_DATASOURCE_USERNAME:app_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    password: ${SPRING_DATASOURCE_PASSWORD:securePass123!}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:5}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${SPRING_DATASOURCE_HIKARI_MAX_LIFETIME:1800000}
 
   # JPA only reads existing tables; schema generation stays disabled.
   jpa:
@@ -26,15 +32,12 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-
-  # Kafka feeds live anomaly alerts into the SSE bridge.
-  kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:api-service-anomaly-stream}
-      auto-offset-reset: ${SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET:latest}
-      key-deserializer: ${SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER:org.apache.kafka.common.serialization.StringDeserializer}
-      value-deserializer: ${SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER:org.apache.kafka.common.serialization.StringDeserializer}
+      lettuce:
+        pool:
+          max-active: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_ACTIVE:16}
+          max-idle: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_IDLE:8}
+          min-idle: ${SPRING_DATA_REDIS_LETTUCE_POOL_MIN_IDLE:2}
+          max-wait: ${SPRING_DATA_REDIS_LETTUCE_POOL_MAX_WAIT:5s}
 
   # Gemini is optional; the service falls back to local heuristics when the key is absent.
   ai:
@@ -47,6 +50,8 @@ spring:
             model: ${GEMINI_MODEL:gemini-2.5-flash}
 
 app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:9000,http://localhost:9008 }
   # Local topic names consumed by the stream bridge.
   kafka:
     topics:

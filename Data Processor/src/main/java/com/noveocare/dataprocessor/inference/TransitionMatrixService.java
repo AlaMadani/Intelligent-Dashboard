@@ -1,87 +1,111 @@
 package com.noveocare.dataprocessor.inference;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.noveocare.dataprocessor.config.AiResourceProperties;
+import com.noveocare.dataprocessor.ai.MarkovTransition;
+import com.noveocare.dataprocessor.ai.RuntimeArtifactService;
 import com.noveocare.dataprocessor.config.RuleProperties;
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
-import jakarta.annotation.PostConstruct;
+import com.noveocare.dataprocessor.dto.NextActionScore;
+import com.noveocare.dataprocessor.dto.PathDeviationResult;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Loads a learned action-to-action transition matrix and flags very unlikely
- * transitions as impossible or suspicious sequence steps.
- */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class TransitionMatrixService {
 
-    private final AiResourceProperties aiResourceProperties;
-    private final ResourceLoader resourceLoader;
-    private final ObjectMapper objectMapper;
+    private final RuntimeArtifactService runtimeArtifactService;
     private final RuleProperties ruleProperties;
 
-    private Map<String, Map<String, Double>> transitionMatrix = new HashMap<>();
-
-    @PostConstruct
-    public void loadMatrix() {
-        try {
-            // Load the matrix from resources if it exists; the detector remains optional at runtime.
-            String path = aiResourceProperties.getBasePath() + "transition_matrix.json";
-            Resource resource = resourceLoader.getResource(path);
-            if (resource.exists()) {
-                try (InputStream is = resource.getInputStream()) {
-                    transitionMatrix = objectMapper.readValue(is, new TypeReference<Map<String, Map<String, Double>>>() {});
-                    log.info("Loaded transition matrix with {} states", transitionMatrix.size());
-                }
-            } else {
-                log.warn("transition_matrix.json not found at {}. Impossible sequence detection will be gracefully disabled.", path);
-            }
-        } catch (Exception e) {
-            log.error("Failed to load transition matrix", e);
+    public List<NextActionScore> predictNextActions(String currentAction, int limit) {
+        if (currentAction == null || currentAction.isBlank()) {
+            return List.of();
         }
+        List<MarkovTransition> transitions = runtimeArtifactService.getMarkovLookup().get(currentAction);
+        if (transitions == null || transitions.isEmpty()) {
+            return List.of();
+        }
+        return transitions.stream()
+                .sorted(Comparator.comparing(MarkovTransition::getProbability, Comparator.nullsLast(Double::compareTo)).reversed())
+                .limit(Math.max(1, limit))
+                .map(transition -> NextActionScore.builder()
+                        .action(transition.getToAction())
+                        .probability(transition.getProbability() == null ? 0.0 : transition.getProbability())
+                        .build())
+                .toList();
+    }
+
+    public PathDeviationResult evaluatePathDeviation(List<AuditTrailEvent> sessionEvents) {
+        if (sessionEvents == null || sessionEvents.size() < 2) {
+            return PathDeviationResult.builder().deviated(false).build();
+        }
+        AuditTrailEvent previous = sessionEvents.get(sessionEvents.size() - 2);
+        AuditTrailEvent current = sessionEvents.get(sessionEvents.size() - 1);
+        String fromAction = previous.getAction();
+        String toAction = current.getAction();
+        double probability = transitionProbability(fromAction, toAction);
+        return PathDeviationResult.builder()
+                .deviated(probability < ruleProperties.getPathDeviation().getMinProbability())
+                .fromAction(fromAction)
+                .toAction(toAction)
+                .transitionProbability(probability)
+                .build();
+    }
+
+    public double transitionProbability(String fromAction, String toAction) {
+        if (fromAction == null || fromAction.isBlank() || toAction == null || toAction.isBlank()) {
+            return 0.0;
+        }
+        Map<String, List<MarkovTransition>> lookup = runtimeArtifactService.getMarkovLookup();
+        List<MarkovTransition> transitions = lookup.get(fromAction);
+        if (transitions == null || transitions.isEmpty()) {
+            return 0.0;
+        }
+        return transitions.stream()
+                .filter(transition -> toAction.equals(transition.getToAction()))
+                .map(MarkovTransition::getProbability)
+                .filter(value -> value != null)
+                .findFirst()
+                .orElse(0.0);
     }
 
     public boolean isImpossibleTransition(List<AuditTrailEvent> sessionEvents) {
-        // Without at least one transition or a loaded matrix, this heuristic cannot evaluate anything.
-        if (sessionEvents.size() < 2 || transitionMatrix.isEmpty()) {
+        if (sessionEvents == null || sessionEvents.size() < 2) {
             return false;
         }
-
-        for (int i = 1; i < sessionEvents.size(); i++) {
-            AuditTrailEvent previousEvent = sessionEvents.get(i - 1);
-            AuditTrailEvent currentEvent = sessionEvents.get(i);
-
-            // Compare the current action pair against the learned next-action probabilities.
-            String prevAction = previousEvent.getAction();
-            String currAction = currentEvent.getAction();
-
-            if (prevAction == null || currAction == null) {
-                continue;
-            }
-
-            Map<String, Double> nextProbs = transitionMatrix.get(prevAction);
-            if (nextProbs == null) {
-                // Unknown source actions are ignored because the matrix has no reliable baseline for them.
-                continue;
-            }
-
-            Double prob = nextProbs.getOrDefault(currAction, 0.0);
-            // Flag the step when its learned probability falls below the configured impossibility floor.
-            if (prob < ruleProperties.getImpossibleSeq().getMinProbability()) {
+        for (int index = 1; index < sessionEvents.size(); index++) {
+            AuditTrailEvent previous = sessionEvents.get(index - 1);
+            AuditTrailEvent current = sessionEvents.get(index);
+            if (transitionProbability(previous.getAction(), current.getAction())
+                    < ruleProperties.getImpossibleSeq().getMinProbability()) {
                 return true;
             }
         }
         return false;
+    }
+
+    public List<PathDeviationResult> rareTransitions(List<AuditTrailEvent> sessionEvents) {
+        if (sessionEvents == null || sessionEvents.size() < 2) {
+            return List.of();
+        }
+        List<PathDeviationResult> deviations = new ArrayList<>();
+        for (int index = 1; index < sessionEvents.size(); index++) {
+            AuditTrailEvent previous = sessionEvents.get(index - 1);
+            AuditTrailEvent current = sessionEvents.get(index);
+            double probability = transitionProbability(previous.getAction(), current.getAction());
+            if (probability < ruleProperties.getPathDeviation().getMinProbability()) {
+                deviations.add(PathDeviationResult.builder()
+                        .deviated(true)
+                        .fromAction(previous.getAction())
+                        .toAction(current.getAction())
+                        .transitionProbability(probability)
+                        .build());
+            }
+        }
+        return deviations;
     }
 }
