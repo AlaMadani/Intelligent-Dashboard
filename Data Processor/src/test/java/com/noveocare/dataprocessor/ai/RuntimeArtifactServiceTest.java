@@ -31,5 +31,7 @@ class RuntimeArtifactServiceTest {
         assertFalse(service.getMarkovLookup().isEmpty());
         assertTrue(service.getForecastSeries().containsKey("total_events"));
         assertFalse(service.getDashboardExports().get("top_risky_sessions.csv").isEmpty());
+        assertFalse(service.getDashboardExports().get("path_deviations.csv").isEmpty());
+        assertTrue(service.getBinaryFeatureColumns().stream().anyMatch(column -> column.contains("Déconnexion")));
     }
 }

@@ -39,8 +39,11 @@ public class StatsService {
     private final ActionStatsDailyRepository actionStatsDailyRepository;
     private final ActionStatsDailyMapper actionStatsDailyMapper;
 
-    /* Read the latest live snapshot from Redis and return an empty payload if nothing is cached. */
-    @Transactional(readOnly = true)
+    /*
+     * Read the latest live snapshot from Redis and return an empty payload if
+     * nothing is cached.  No @Transactional here: the method only touches Redis,
+     * so acquiring a JDBC connection from HikariCP would be wasteful.
+     */
     public StatsResponseDto getLiveStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
         for (String key : dateKeys("stats:live:", resolvedDate)) {
@@ -59,8 +62,12 @@ public class StatsService {
         return buildMissing(resolvedDate);
     }
 
-    /* Read trend stats from Redis and fall back to SQL aggregates when Redis is empty. */
-    @Transactional(readOnly = true)
+    /*
+     * Read trend stats from Redis and fall back to SQL aggregates when Redis is
+     * empty.  The Redis path avoids opening a transaction; the SQL fallback is
+     * isolated in its own @Transactional method so a JDBC connection is only
+     * acquired when truly needed.
+     */
     public StatsResponseDto getTrendStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
         StatsResponseDto forecastSnapshot = getForecastSnapshot(resolvedDate);
@@ -102,8 +109,10 @@ public class StatsService {
         return null;
     }
 
-    /* Convert SQL rows into the generic JSON payload expected by the API. */
-    private StatsResponseDto buildFromSql(LocalDate date, String source) {
+    /* Convert SQL rows into the generic JSON payload expected by the API.
+     * This is the only path that actually needs a database connection. */
+    @Transactional(readOnly = true)
+    StatsResponseDto buildFromSql(LocalDate date, String source) {
         List<ActionStatsDailyDto> dtos = actionStatsDailyRepository.findByStatDate(date).stream()
                 .map(actionStatsDailyMapper::toDto)
                 .collect(Collectors.toList());

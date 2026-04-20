@@ -70,6 +70,8 @@ public class SessionAnalysisDto {
     private List<String> anomalyTypes;
     private List<String> campaignIds;
 
+    private List<String> actionSequence;
+    private List<String> routeSequence;
     private String actionSequenceSignature;
     private String routeSequenceSignature;
 
@@ -85,6 +87,12 @@ public class SessionAnalysisDto {
     private Double ensembleRiskScore;
     private Integer personaCluster;
     private String binaryDetectorArtifact;
+    private List<FeatureContributionDto> topContributingFeatures;
+    private String explainabilityText;
+    private List<String> warnings;
+    private List<String> triggeredRules;
+    private List<String> contextTags;
+    private List<PathDeviationDto> rareTransitions;
 
     private Boolean pathDeviation;
     private Double transitionProbability;

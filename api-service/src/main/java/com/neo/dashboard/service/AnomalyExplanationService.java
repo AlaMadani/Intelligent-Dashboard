@@ -2,6 +2,7 @@ package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.AnomalyAlertDto;
 import com.neo.dashboard.dto.AnomalyExplanationDto;
+import com.neo.dashboard.dto.FeatureContributionDto;
 import com.neo.dashboard.dto.NextActionPredictionDto;
 import com.neo.dashboard.dto.SessionAnalysisDto;
 import com.neo.dashboard.dto.StatsResponseDto;
@@ -71,6 +72,7 @@ public class AnomalyExplanationService {
     private final RiskProfileService riskProfileService;
     private final NextActionPredictionService nextActionPredictionService;
     private final ActiveAnomalyService activeAnomalyService;
+    private final SessionInsightReadService sessionInsightReadService;
     private final StatsService statsService;
 
     @Value("${spring.ai.google.genai.api-key:}")
@@ -90,6 +92,7 @@ public class AnomalyExplanationService {
                                      RiskProfileService riskProfileService,
                                      NextActionPredictionService nextActionPredictionService,
                                      ActiveAnomalyService activeAnomalyService,
+                                     SessionInsightReadService sessionInsightReadService,
                                      StatsService statsService) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
@@ -99,6 +102,7 @@ public class AnomalyExplanationService {
         this.riskProfileService = riskProfileService;
         this.nextActionPredictionService = nextActionPredictionService;
         this.activeAnomalyService = activeAnomalyService;
+        this.sessionInsightReadService = sessionInsightReadService;
         this.statsService = statsService;
         this.webClient = WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector())
@@ -110,18 +114,13 @@ public class AnomalyExplanationService {
         return CompletableFuture.completedFuture(explain(anomalyEventId, refresh));
     }
 
-    /* Return a cached explanation when possible, otherwise rebuild it from contextual data. */
-    @Transactional(readOnly = true)
+    /*
+     * Return a cached explanation when possible, otherwise rebuild it from
+     * contextual data.  No blanket @Transactional here: the method fans out to
+     * multiple services that each manage their own transaction scope, and the
+     * Redis-only paths should never acquire a JDBC connection.
+     */
     public Optional<AnomalyExplanationDto> explain(Long anomalyEventId, boolean refresh) {
-        if (!refresh) {
-            // Reuse a complete cached explanation to avoid an expensive AI call.
-            AnomalyExplanationDto cached = getCached(anomalyEventId);
-            if (cached != null) {
-                cached.setCached(true);
-                return Optional.of(cached);
-            }
-        }
-
         Optional<AnomalyEvent> anomalyOpt = anomalyEventRepository.findById(anomalyEventId);
         if (anomalyOpt.isEmpty()) {
             return Optional.empty();
@@ -134,18 +133,36 @@ public class AnomalyExplanationService {
                 .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(anomaly.getInsuredId(), anomaly.getSessionId())
                 .map(sessionAnalysisMapper::toDto)
                 .orElse(null);
+        JsonNode liveSessionInsight = sessionInsightReadService
+                .getInsight(anomaly.getInsuredId(), anomaly.getSessionId())
+                .orElse(null);
         UserRiskProfileDto risk = riskProfileService.getRiskProfile(anomaly.getInsuredId()).orElse(null);
         NextActionPredictionDto nextActions = nextActionPredictionService.getPrediction(anomaly.getInsuredId()).orElse(null);
         AnomalyAlertDto activeAnomaly = activeAnomalyService.getActiveAnomaly(anomaly.getInsuredId()).orElse(null);
         StatsResponseDto liveStats = statsService.getLiveStats(LocalDate.now());
         StatsResponseDto trendStats = statsService.getTrendStats(LocalDate.now());
 
+        if (!refresh) {
+            AnomalyExplanationDto precomputed = resolvePrecomputedExplanation(anomalyEventId, anomaly, session, liveSessionInsight);
+            if (precomputed != null) {
+                cache(precomputed);
+                return Optional.of(precomputed);
+            }
+
+            // Reuse a complete cached explanation only after checking the durable SQL explainability first.
+            AnomalyExplanationDto cached = getCached(anomalyEventId);
+            if (cached != null) {
+                cached.setCached(true);
+                return Optional.of(cached);
+            }
+        }
+
         // Ask Gemini first, then fall back to a deterministic local explanation when AI is unavailable.
-        String prompt = buildPrompt(anomaly, session, risk, nextActions, activeAnomaly, liveStats, trendStats);
+        String prompt = buildPrompt(anomaly, session, liveSessionInsight, risk, nextActions, activeAnomaly, liveStats, trendStats);
         String aiText = generateWithGemini(anomalyEventId, prompt);
         String source = aiText == null || aiText.isBlank() ? "heuristic" : "gemini";
         String explanation = (aiText == null || aiText.isBlank())
-                ? buildFallbackExplanation(anomaly, session, risk, nextActions, activeAnomaly)
+                ? buildFallbackExplanation(anomaly, session, liveSessionInsight, risk, nextActions, activeAnomaly)
                 : aiText.trim();
 
         AnomalyExplanationDto dto = new AnomalyExplanationDto(
@@ -249,11 +266,13 @@ public class AnomalyExplanationService {
     /* Assemble the compact operational prompt sent to Gemini. */
     private String buildPrompt(AnomalyEvent anomaly,
                                SessionAnalysisDto session,
+                               JsonNode liveSessionInsight,
                                UserRiskProfileDto risk,
                                NextActionPredictionDto nextActions,
                                AnomalyAlertDto activeAnomaly,
                                StatsResponseDto liveStats,
                                StatsResponseDto trendStats) {
+        JsonNode eventContext = parseEventContext(anomaly);
         StringBuilder prompt = new StringBuilder();
         prompt.append("You are an insurance fraud and behavioral anomaly analyst.\n")
                 .append("Write a short operational explanation for the anomaly below.\n")
@@ -276,7 +295,7 @@ public class AnomalyExplanationService {
                 .append("- Triggered rules: ").append(orUnknown(anomaly.getRuleType())).append('\n')
                 .append("- Event time: ").append(orUnknown(anomaly.getEventTime())).append('\n')
                 .append("- Detected at: ").append(orUnknown(anomaly.getDetectedAt())).append('\n')
-                .append("- Raw payload summary: ").append(sanitizeJson(anomaly.getEventJson())).append("\n\n");
+                .append("- Alert context: ").append(sanitizeJson(eventContext)).append("\n\n");
 
         prompt.append("Session summary:\n")
                 .append("- Available: ").append(session != null).append('\n');
@@ -292,7 +311,27 @@ public class AnomalyExplanationService {
                     .append("- Session anomaly flag: ").append(orUnknown(session.getIsAnomaly())).append('\n')
                     .append("- Session anomaly type: ").append(orUnknown(session.getAnomalyType())).append('\n')
                     .append("- Rule type: ").append(orUnknown(session.getRuleType())).append('\n')
-                    .append("- Top next actions: ").append(session.getTop3NextActions()).append('\n');
+                    .append("- Top next actions: ").append(session.getTop3NextActions()).append('\n')
+                    .append("- Context tags: ").append(orUnknown(session.getContextTags())).append('\n')
+                    .append("- Triggered rules: ").append(orUnknown(session.getTriggeredRules())).append('\n')
+                    .append("- Warnings: ").append(orUnknown(session.getWarnings())).append('\n')
+                    .append("- Rare transitions: ").append(orUnknown(session.getRareTransitions())).append('\n')
+                    .append("- Action sequence: ").append(orUnknown(session.getActionSequence())).append('\n')
+                    .append("- Route sequence: ").append(orUnknown(session.getRouteSequence())).append('\n')
+                    .append("- Top contributing features: ").append(orUnknown(summarizeFeatures(session.getTopContributingFeatures()))).append('\n');
+        }
+
+        prompt.append("\nLive session insight:\n")
+                .append("- Available: ").append(liveSessionInsight != null).append('\n');
+        if (liveSessionInsight != null) {
+            prompt.append("- Risk level: ").append(orUnknown(textAt(liveSessionInsight, "riskLevel"))).append('\n')
+                    .append("- Context tags: ").append(sanitizeJson(liveSessionInsight.path("contextTags"))).append('\n')
+                    .append("- Triggered rules: ").append(sanitizeJson(liveSessionInsight.path("triggeredRules"))).append('\n')
+                    .append("- Warnings: ").append(sanitizeJson(liveSessionInsight.path("warnings"))).append('\n')
+                    .append("- Rare transitions: ").append(sanitizeJson(liveSessionInsight.path("rareTransitions"))).append('\n')
+                    .append("- Action sequence: ").append(sanitizeJson(liveSessionInsight.path("actionSequence"))).append('\n')
+                    .append("- Route sequence: ").append(sanitizeJson(liveSessionInsight.path("routeSequence"))).append('\n')
+                    .append("- Top contributing features: ").append(sanitizeJson(liveSessionInsight.path("topContributingFeatures"))).append('\n');
         }
 
         prompt.append("\nRisk summary:\n")
@@ -323,10 +362,12 @@ public class AnomalyExplanationService {
     /* Build a deterministic explanation when AI is disabled or the response is unusable. */
     private String buildFallbackExplanation(AnomalyEvent anomaly,
                                              SessionAnalysisDto session,
+                                             JsonNode liveSessionInsight,
                                              UserRiskProfileDto risk,
                                              NextActionPredictionDto nextActions,
                                              AnomalyAlertDto activeAnomaly) {
         List<String> evidence = new ArrayList<>();
+        JsonNode eventContext = parseEventContext(anomaly);
         if (anomaly.getAnomalyTier() != null) {
             evidence.add("detected as " + anomaly.getAnomalyTier());
         }
@@ -351,11 +392,23 @@ public class AnomalyExplanationService {
         if (session != null && Boolean.TRUE.equals(session.getIsAnomaly())) {
             evidence.add("session summary is already marked anomalous");
         }
+        if (session != null && session.getTopContributingFeatures() != null && !session.getTopContributingFeatures().isEmpty()) {
+            evidence.add("top contributing features include " + summarizeFeatures(session.getTopContributingFeatures()));
+        }
+        if (session != null && session.getContextTags() != null && !session.getContextTags().isEmpty()) {
+            evidence.add("session context tags are " + session.getContextTags());
+        }
         if (risk != null && risk.getRiskTier() != null) {
             evidence.add("insured risk tier is `" + risk.getRiskTier() + "`");
         }
         if (activeAnomaly != null) {
             evidence.add("the insured currently has an active anomaly marker");
+        }
+        if (liveSessionInsight != null && !liveSessionInsight.path("contextTags").isMissingNode()) {
+            evidence.add("live session context shows " + sanitizeJson(liveSessionInsight.path("contextTags")));
+        }
+        if (eventContext != null && !eventContext.isMissingNode() && !eventContext.isEmpty()) {
+            evidence.add("alert context includes " + sanitizeJson(eventContext));
         }
 
         StringBuilder builder = new StringBuilder();
@@ -378,7 +431,7 @@ public class AnomalyExplanationService {
         builder.append("\n## Operational impact\n")
                 .append("If legitimate, this may indicate a temporary behavior shift. If malicious, it may represent account misuse or abnormal navigation that deserves a manual review.\n\n")
                 .append("## Recommended action\n")
-                .append("- Validate the raw event payload and session timeline.\n")
+                .append("- Validate the compact alert context and session timeline.\n")
                 .append("- Cross-check the insured's recent anomaly history and current risk tier.\n");
         if (nextActions != null && nextActions.getTop3Actions() != null && !nextActions.getTop3Actions().isEmpty()) {
             builder.append("- Compare the observed session outcome with predicted next actions: ")
@@ -387,6 +440,48 @@ public class AnomalyExplanationService {
         }
         builder.append("- Escalate if the activity affects sensitive flows or if additional alerts arrive for the same insured.\n");
         return builder.toString();
+    }
+
+    private AnomalyExplanationDto resolvePrecomputedExplanation(Long anomalyEventId,
+                                                               AnomalyEvent anomaly,
+                                                               SessionAnalysisDto session,
+                                                               JsonNode liveSessionInsight) {
+        if (session != null && hasText(session.getExplainabilityText())) {
+            return new AnomalyExplanationDto(
+                    anomalyEventId,
+                    "session-analysis",
+                    "data-processor",
+                    Instant.now(),
+                    false,
+                    session.getExplainabilityText().trim()
+            );
+        }
+
+        String liveInsightText = textAt(liveSessionInsight, "explainabilityText");
+        if (hasText(liveInsightText)) {
+            return new AnomalyExplanationDto(
+                    anomalyEventId,
+                    "session-insight",
+                    "data-processor",
+                    Instant.now(),
+                    false,
+                    liveInsightText.trim()
+            );
+        }
+
+        String eventContextText = textAt(parseEventContext(anomaly), "explainabilityText");
+        if (hasText(eventContextText)) {
+            return new AnomalyExplanationDto(
+                    anomalyEventId,
+                    "anomaly-context",
+                    "data-processor",
+                    Instant.now(),
+                    false,
+                    eventContextText.trim()
+            );
+        }
+
+        return null;
     }
 
     /* Trim large payloads before embedding them in prompts or logs. */
@@ -412,6 +507,42 @@ public class AnomalyExplanationService {
     /* Convert null values to a readable placeholder for prompt construction. */
     private String orUnknown(Object value) {
         return value == null ? "n/a" : String.valueOf(value);
+    }
+
+    private JsonNode parseEventContext(AnomalyEvent anomaly) {
+        if (anomaly == null || anomaly.getEventJson() == null || anomaly.getEventJson().isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(anomaly.getEventJson());
+        } catch (Exception e) {
+            log.warn("Failed to parse compact anomaly context for event {}", anomaly.getId(), e);
+            return null;
+        }
+    }
+
+    private String textAt(JsonNode node, String fieldName) {
+        if (node == null || fieldName == null || fieldName.isBlank()) {
+            return null;
+        }
+        String value = node.path(fieldName).asText(null);
+        return hasText(value) ? value : null;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String summarizeFeatures(List<FeatureContributionDto> contributions) {
+        if (contributions == null || contributions.isEmpty()) {
+            return null;
+        }
+        return contributions.stream()
+                .filter(item -> item != null && hasText(item.getFeature()))
+                .limit(3)
+                .map(item -> item.getFeature() + "=" + orUnknown(item.getActualValue()))
+                .reduce((left, right) -> left + ", " + right)
+                .orElse(null);
     }
 
     /* Extract plain text chunks from Gemini's nested candidate payload. */

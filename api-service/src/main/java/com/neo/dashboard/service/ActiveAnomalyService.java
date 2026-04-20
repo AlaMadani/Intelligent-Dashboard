@@ -2,6 +2,7 @@ package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.AnomalyAlertDto;
 import com.neo.dashboard.mapper.AnomalyAlertMapper;
+import com.neo.dashboard.redis.CacheKeys;
 import com.neo.dashboard.repository.AnomalyEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,10 +28,14 @@ public class ActiveAnomalyService {
     private final AnomalyEventRepository anomalyEventRepository;
     private final AnomalyAlertMapper anomalyAlertMapper;
 
-    /* Return the current anomaly marker, ignoring empty or "UNKNOWN" placeholders. */
-    @Transactional(readOnly = true)
+    /*
+     * Return the current anomaly marker, ignoring empty or "UNKNOWN" placeholders.
+     * Redis is checked first without opening a JDBC transaction.  The SQL
+     * fallback is isolated so a database connection is only acquired when the
+     * cache is cold.
+     */
     public Optional<AnomalyAlertDto> getActiveAnomaly(String insuredId) {
-        String key = "anomaly:active:" + insuredId;
+        String key = CacheKeys.activeAnomalyKey(insuredId);
         String cached = redisTemplate.opsForValue().get(key);
         if (cached != null && !cached.isBlank()) {
             try {
@@ -46,6 +51,11 @@ public class ActiveAnomalyService {
         }
 
         // Fall back to the freshest persisted anomaly event when the cache is cold or invalid.
+        return findActiveAnomalyFromDb(insuredId);
+    }
+
+    @Transactional(readOnly = true)
+    Optional<AnomalyAlertDto> findActiveAnomalyFromDb(String insuredId) {
         return anomalyEventRepository.findTopByInsuredIdOrderByDetectedAtDesc(insuredId)
                 .map(anomalyAlertMapper::toDto)
                 .filter(alert -> !isUnknown(alert));

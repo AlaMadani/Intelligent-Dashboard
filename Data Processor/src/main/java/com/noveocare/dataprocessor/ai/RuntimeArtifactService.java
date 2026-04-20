@@ -80,17 +80,17 @@ public class RuntimeArtifactService {
         deploymentManifest = readJson(properties.getManifest(), DeploymentManifest.class);
         featureBundle = readJson(properties.getFeatureBundle(), FeatureBundle.class);
 
-        binaryFeatureColumns = readJsonArray(deploymentManifest.getBinaryDetection().getFeatureColumns());
-        typeFeatureColumns = readJsonArray(deploymentManifest.getAnomalyType().getFeatureColumns());
-        churnFeatureColumns = readJsonArray(deploymentManifest.getChurn().getFeatureColumns());
+        binaryFeatureColumns = normalizeStrings(readJsonArray(deploymentManifest.getBinaryDetection().getFeatureColumns()));
+        typeFeatureColumns = normalizeStrings(readJsonArray(deploymentManifest.getAnomalyType().getFeatureColumns()));
+        churnFeatureColumns = normalizeStrings(readJsonArray(deploymentManifest.getChurn().getFeatureColumns()));
         sessionNumericMedians = readJsonMapDouble(deploymentManifest.getBinaryDetection().getNumericMedians());
         churnNumericMedians = readJsonMapDouble(deploymentManifest.getChurn().getNumericMedians());
-        anomalyTypeLabels = readJsonMapIntegerString(deploymentManifest.getAnomalyType().getLabels());
+        anomalyTypeLabels = normalizeLabelValues(readJsonMapIntegerString(deploymentManifest.getAnomalyType().getLabels()));
         clusterScalerParams = readJson(deploymentManifest.getClustering().getScalerParams(), ClusterScalerParams.class);
-        markovLookup = readJsonMarkovLookup(deploymentManifest.getNextAction().getArtifact());
+        markovLookup = normalizeMarkovLookup(readJsonMarkovLookup(deploymentManifest.getNextAction().getArtifact()));
         forecastSeries = loadForecastSeries();
         forecastModelJson = loadForecastModels();
-        dashboardExports = loadDashboardExports();
+        dashboardExports = normalizeDashboardExports(loadDashboardExports());
         binaryFeatureImportance = loadFeatureImportance("binary_detector_feature_importance.csv");
         anomalyTypeFeatureImportance = loadFeatureImportance("anomaly_type_feature_importance.csv");
 
@@ -213,7 +213,7 @@ public class RuntimeArtifactService {
             List<Map<String, String>> rows = readCsvAsMaps(name);
             Map<String, Double> importance = new LinkedHashMap<>();
             for (Map<String, String> row : rows) {
-                String feature = row.get("feature");
+                String feature = TextNormalization.normalizeLabel(row.get("feature"));
                 String value = row.get("importance");
                 if (feature != null && value != null) {
                     importance.put(feature, parseDouble(value));
@@ -258,7 +258,7 @@ public class RuntimeArtifactService {
                 String[] values = splitCsv(line);
                 Map<String, String> row = new LinkedHashMap<>();
                 for (int i = 0; i < headers.length; i++) {
-                    row.put(headers[i], i < values.length ? values[i] : "");
+                    row.put(headers[i], normalizeCsvValue(i < values.length ? values[i] : ""));
                 }
                 rows.add(row);
             }
@@ -285,5 +285,86 @@ public class RuntimeArtifactService {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private List<String> normalizeStrings(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream().map(TextNormalization::normalizeLabel).toList();
+    }
+
+    private Map<Integer, String> normalizeLabelValues(Map<Integer, String> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<Integer, String> entry : values.entrySet()) {
+            normalized.put(entry.getKey(), TextNormalization.normalizeLabel(entry.getValue()));
+        }
+        return normalized;
+    }
+
+    private Map<String, List<MarkovTransition>> normalizeMarkovLookup(Map<String, List<MarkovTransition>> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<MarkovTransition>> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, List<MarkovTransition>> entry : values.entrySet()) {
+            String fromAction = TextNormalization.normalizeLabel(entry.getKey());
+            List<MarkovTransition> transitions = entry.getValue() == null
+                    ? List.of()
+                    : entry.getValue().stream()
+                    .map(this::normalizeTransition)
+                    .toList();
+            normalized.put(fromAction, transitions);
+        }
+        return normalized;
+    }
+
+    private MarkovTransition normalizeTransition(MarkovTransition transition) {
+        if (transition == null) {
+            return null;
+        }
+        MarkovTransition normalized = new MarkovTransition();
+        normalized.setToAction(TextNormalization.normalizeLabel(transition.getToAction()));
+        normalized.setProbability(transition.getProbability());
+        return normalized;
+    }
+
+    private Map<String, List<Map<String, String>>> normalizeDashboardExports(Map<String, List<Map<String, String>>> exports) {
+        if (exports == null || exports.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<Map<String, String>>> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Map<String, String>>> entry : exports.entrySet()) {
+            List<Map<String, String>> rows = entry.getValue() == null
+                    ? List.of()
+                    : entry.getValue().stream()
+                    .map(this::normalizeRowValues)
+                    .toList();
+            normalized.put(entry.getKey(), rows);
+        }
+        return normalized;
+    }
+
+    private Map<String, String> normalizeRowValues(Map<String, String> row) {
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : row.entrySet()) {
+            normalized.put(entry.getKey(), normalizeCsvValue(entry.getValue()));
+        }
+        return normalized;
+    }
+
+    private String normalizeCsvValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        normalized = normalized.replace("\"\"", "\"");
+        return TextNormalization.normalizeLabel(normalized);
     }
 }

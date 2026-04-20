@@ -21,7 +21,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -30,8 +29,10 @@ import java.util.Set;
 public class FeatureEngineeringService {
 
     private static final Set<String> LOGIN_ACTIONS = Set.of("Connexion", "Connexion SSO", "Connexion en tant que");
-    private static final Set<String> LOGOUT_ACTIONS = Set.of("Déconnexion", "Deconnexion", "DÃ©connexion", "SSO Disconnect");
-    private static final String[] DOWNLOAD_WORDS = {"download", "document", "card", "wallet", "certificate", "refund"};
+    private static final Set<String> LOGOUT_ACTIONS = Set.of("Deconnexion", "SSO Disconnect");
+    private static final String[] DOWNLOAD_WORDS = {
+            "download", "document", "card", "wallet", "certificate", "refund", "telecharg"
+    };
 
     private final FeatureEngineeringProperties properties;
     private final RuntimeArtifactService runtimeArtifactService;
@@ -42,6 +43,7 @@ public class FeatureEngineeringService {
         }
 
         List<AuditTrailEvent> ordered = new ArrayList<>(events);
+        ordered.forEach(this::normalizeEventFields);
         ordered.sort(eventComparator());
 
         Instant sessionStart = ordered.get(0).getCreatedAt();
@@ -137,12 +139,15 @@ public class FeatureEngineeringService {
             return SessionSummary.builder()
                     .anomalyTypes(List.of())
                     .campaignIds(List.of())
+                    .actionSequence(List.of())
+                    .routeSequence(List.of())
                     .actionCounts(Map.of())
                     .primaryAnomalyType("normal")
                     .build();
         }
 
         List<AuditTrailEvent> ordered = new ArrayList<>(sessionEvents);
+        ordered.forEach(this::normalizeEventFields);
         ordered.sort(eventComparator());
 
         AuditTrailEvent first = ordered.get(0);
@@ -156,7 +161,7 @@ public class FeatureEngineeringService {
         List<Long> interActionSeconds = ordered.stream()
                 .skip(1)
                 .map(AuditTrailEvent::getTimeDeltaSinceLastAction)
-                .filter(Objects::nonNull)
+                .filter(java.util.Objects::nonNull)
                 .toList();
 
         Map<String, Long> actionCounts = new LinkedHashMap<>();
@@ -255,11 +260,15 @@ public class FeatureEngineeringService {
                 .uniqueDevicesUsed(Math.max(1, uniqueDevices.size()))
                 .totalKOs(totalKos)
                 .totalOKs(totalOks)
-                .longestKoStreak(ordered.stream().map(AuditTrailEvent::getLongestKoStreak).filter(Objects::nonNull).max(Integer::compareTo).orElse(0))
+                .longestKoStreak(ordered.stream()
+                        .map(AuditTrailEvent::getLongestKoStreak)
+                        .filter(java.util.Objects::nonNull)
+                        .max(Integer::compareTo)
+                        .orElse(0))
                 .hasLogin(hasAnyAction(ordered, LOGIN_ACTIONS))
                 .hasLogout(hasAnyAction(ordered, LOGOUT_ACTIONS))
-                .ipChanged(ordered.stream().map(AuditTrailEvent::getIsIpChanged).filter(Objects::nonNull).max(Integer::compareTo).orElse(0))
-                .deviceChanged(ordered.stream().map(AuditTrailEvent::getIsDeviceChanged).filter(Objects::nonNull).max(Integer::compareTo).orElse(0))
+                .ipChanged(ordered.stream().map(AuditTrailEvent::getIsIpChanged).filter(java.util.Objects::nonNull).max(Integer::compareTo).orElse(0))
+                .deviceChanged(ordered.stream().map(AuditTrailEvent::getIsDeviceChanged).filter(java.util.Objects::nonNull).max(Integer::compareTo).orElse(0))
                 .totalDownloadActions(totalDownloads)
                 .maxDownloadsIn2Minutes(maxDownloadsIn2Minutes)
                 .pingPongCount(maxPingPongCount)
@@ -270,6 +279,8 @@ public class FeatureEngineeringService {
                 .primaryAnomalyType(primaryAnomalyType)
                 .anomalyTypes(anomalyTypes.stream().distinct().toList())
                 .campaignIds(new ArrayList<>(campaignIds))
+                .actionSequence(new ArrayList<>(actionSequence))
+                .routeSequence(new ArrayList<>(routeSequence))
                 .actionSequenceSignature(String.join(" > ", actionSequence))
                 .routeSequenceSignature(String.join(" > ", routeSequence))
                 .actionCounts(actionCounts)
@@ -284,7 +295,7 @@ public class FeatureEngineeringService {
         Map<String, String> categoricalValues = new LinkedHashMap<>();
         for (String categoricalFeature : categoricalFeatures) {
             Object value = values.get(categoricalFeature);
-            categoricalValues.put(categoricalFeature, value == null ? "UNKNOWN" : String.valueOf(value));
+            categoricalValues.put(categoricalFeature, value == null ? "UNKNOWN" : safeString(String.valueOf(value)));
         }
 
         float[] vector = new float[featureColumns.size()];
@@ -393,9 +404,9 @@ public class FeatureEngineeringService {
         if (!notBlank(action)) {
             return false;
         }
-        String lowered = action.toLowerCase(Locale.ROOT);
+        String normalized = TextNormalization.comparisonKey(action);
         for (String word : DOWNLOAD_WORDS) {
-            if (lowered.contains(word)) {
+            if (normalized.contains(word)) {
                 return true;
             }
         }
@@ -417,7 +428,11 @@ public class FeatureEngineeringService {
     }
 
     private int hasAnyAction(List<AuditTrailEvent> events, Set<String> actions) {
-        return events.stream().map(AuditTrailEvent::getAction).map(this::safeString).anyMatch(actions::contains) ? 1 : 0;
+        return events.stream()
+                .map(AuditTrailEvent::getAction)
+                .anyMatch(action -> actions.stream().anyMatch(candidate -> TextNormalization.equalsNormalized(action, candidate)))
+                ? 1
+                : 0;
     }
 
     private double average(List<Long> values) {
@@ -443,14 +458,32 @@ public class FeatureEngineeringService {
     }
 
     private String safeString(String value) {
-        return value == null ? "" : value;
+        return value == null ? "" : TextNormalization.normalizeLabel(value);
     }
 
     private boolean same(String left, String right) {
-        return Objects.equals(safeString(left), safeString(right));
+        return TextNormalization.equalsNormalized(left, right);
     }
 
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private void normalizeEventFields(AuditTrailEvent event) {
+        if (event == null) {
+            return;
+        }
+        event.setAction(TextNormalization.normalizeLabel(event.getAction()));
+        event.setPrevAction(TextNormalization.normalizeLabel(event.getPrevAction()));
+        event.setNextAction(TextNormalization.normalizeLabel(event.getNextAction()));
+        event.setRoute(TextNormalization.normalizeLabel(event.getRoute()));
+        event.setPersona(TextNormalization.normalizeLabel(event.getPersona()));
+        event.setCountryCode(TextNormalization.normalizeLabel(event.getCountryCode()));
+        event.setCity(TextNormalization.normalizeLabel(event.getCity()));
+        event.setMonth(TextNormalization.normalizeLabel(event.getMonth()));
+        event.setType(TextNormalization.normalizeLabel(event.getType()));
+        event.setSubType(TextNormalization.normalizeLabel(event.getSubType()));
+        event.setAnomalyType(TextNormalization.normalizeLabel(event.getAnomalyType()));
+        event.setCampaignId(TextNormalization.normalizeLabel(event.getCampaignId()));
     }
 }

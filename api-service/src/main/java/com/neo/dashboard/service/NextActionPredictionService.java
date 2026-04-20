@@ -2,6 +2,7 @@ package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.NextActionPredictionDto;
 import com.neo.dashboard.mapper.NextActionPredictionMapper;
+import com.neo.dashboard.redis.CacheKeys;
 import com.neo.dashboard.repository.NextActionPredictionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +31,14 @@ public class NextActionPredictionService {
     private final NextActionPredictionRepository repository;
     private final NextActionPredictionMapper nextActionPredictionMapper;
 
-    /* Return the current next-action prediction for one insured id. */
-    @Transactional(readOnly = true)
+    /*
+     * Return the current next-action prediction for one insured id.
+     * Redis is checked first without opening a JDBC transaction.  The SQL
+     * fallback is isolated so a database connection is only acquired when the
+     * cache is cold.
+     */
     public Optional<NextActionPredictionDto> getPrediction(String insuredId) {
-        String key = "next_actions:" + insuredId;
+        String key = CacheKeys.nextActionsKey(insuredId);
         String cached = redisTemplate.opsForValue().get(key);
         if (cached != null && !cached.isBlank()) {
             try {
@@ -52,6 +57,11 @@ public class NextActionPredictionService {
         }
 
         // The SQL snapshot includes metadata such as prediction time and source session.
+        return findPredictionFromDb(insuredId);
+    }
+
+    @Transactional(readOnly = true)
+    Optional<NextActionPredictionDto> findPredictionFromDb(String insuredId) {
         return repository.findByInsuredId(insuredId).map(nextActionPredictionMapper::toDto);
     }
 }

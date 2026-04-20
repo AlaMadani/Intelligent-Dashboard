@@ -24,7 +24,9 @@ public class SessionInsight {
     Double ensembleRiskScore;
     String riskLevel;
     PathDeviationResult pathDeviation;
+    List<PathDeviationResult> rareTransitions;
     List<NextActionScore> nextActions;
+    List<String> contextTags;
     List<String> triggeredRules;
     List<String> warnings;
     List<FeatureContribution> topContributingFeatures;

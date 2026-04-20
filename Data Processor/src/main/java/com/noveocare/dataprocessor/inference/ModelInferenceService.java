@@ -26,9 +26,11 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -64,6 +66,7 @@ public class ModelInferenceService {
         List<String> warnings = new ArrayList<>();
         BinaryDetectionResult binaryResult = detectBinaryAnomaly(summary, warnings);
         PathDeviationResult pathDeviation = transitionMatrixService.evaluatePathDeviation(enrichedEvents);
+        List<PathDeviationResult> rareTransitions = transitionMatrixService.rareTransitions(enrichedEvents);
         boolean overallAnomaly = binaryResult.anomalyFlag() || pathDeviation.isDeviated() || !triggeredRules.isEmpty();
 
         AnomalyTypeResult anomalyTypeResult = overallAnomaly
@@ -73,6 +76,7 @@ public class ModelInferenceService {
         Integer personaCluster = predictCluster(summary, warnings);
         List<NextActionScore> nextActions = transitionMatrixService.predictNextActions(summary.getLastAction(), 3);
         double ensembleRiskScore = computeEnsembleRisk(summary, binaryResult.anomalyProbability(), churnProbability);
+        List<String> contextTags = buildContextTags(summary, triggeredRules, pathDeviation, rareTransitions);
 
         List<FeatureContribution> topFeatures = overallAnomaly
                 ? buildFeatureContributions(summary, anomalyTypeResult.getType())
@@ -97,7 +101,9 @@ public class ModelInferenceService {
                 .ensembleRiskScore(ensembleRiskScore)
                 .riskLevel(resolveRiskLevel(ensembleRiskScore))
                 .pathDeviation(pathDeviation)
+                .rareTransitions(rareTransitions)
                 .nextActions(nextActions)
+                .contextTags(contextTags)
                 .triggeredRules(triggeredRules)
                 .warnings(warnings)
                 .topContributingFeatures(topFeatures)
@@ -112,6 +118,7 @@ public class ModelInferenceService {
         List<String> warnings = new ArrayList<>();
         warnings.add(reason == null || reason.isBlank() ? "heavy_inference_disabled" : reason);
         PathDeviationResult pathDeviation = transitionMatrixService.evaluatePathDeviation(enrichedEvents);
+        List<PathDeviationResult> rareTransitions = transitionMatrixService.rareTransitions(enrichedEvents);
         boolean heuristicAnomaly = defaultInt(summary.getIpChanged()) == 1
                 || defaultInt(summary.getDeviceChanged()) == 1
                 || defaultInt(summary.getTotalKOs()) >= 3
@@ -120,6 +127,7 @@ public class ModelInferenceService {
         boolean anomaly = heuristicAnomaly || pathDeviation.isDeviated() || !triggeredRules.isEmpty();
         double riskScore = computeEnsembleRisk(summary, heuristicAnomaly ? 1.0 : 0.0, 0.0);
         String anomalyType = heuristicType(summary, triggeredRules, enrichedEvents).getType();
+        List<String> contextTags = buildContextTags(summary, triggeredRules, pathDeviation, rareTransitions);
 
         List<FeatureContribution> topFeatures = anomaly
                 ? buildFeatureContributions(summary, anomalyType)
@@ -144,7 +152,9 @@ public class ModelInferenceService {
                 .ensembleRiskScore(riskScore)
                 .riskLevel(resolveRiskLevel(riskScore))
                 .pathDeviation(pathDeviation)
+                .rareTransitions(rareTransitions)
                 .nextActions(transitionMatrixService.predictNextActions(summary.getLastAction(), 3))
+                .contextTags(contextTags)
                 .triggeredRules(triggeredRules)
                 .warnings(warnings)
                 .topContributingFeatures(topFeatures)
@@ -166,7 +176,8 @@ public class ModelInferenceService {
                 double anomalyProbability;
 
                 if (binaryDetector.artifactName() != null && binaryDetector.artifactName().contains("iso")) {
-                    anomalyFlag = label < 0;
+                    Double threshold = runtimeArtifactService.getFeatureBundle().getIsoThreshold();
+                    anomalyFlag = label < 0 || (threshold != null && score >= threshold);
                     anomalyProbability = anomalyFlag ? 1.0 : 0.0;
                 } else {
                     anomalyProbability = bundle.probabilityForClass(1L);
@@ -469,6 +480,47 @@ public class ModelInferenceService {
         }
 
         return sb.toString();
+    }
+
+    private List<String> buildContextTags(SessionSummary summary,
+                                          List<String> triggeredRules,
+                                          PathDeviationResult pathDeviation,
+                                          List<PathDeviationResult> rareTransitions) {
+        Set<String> tags = new LinkedHashSet<>();
+        if (defaultInt(summary.getIpChanged()) == 1) {
+            tags.add("IP Changed");
+        }
+        if (defaultInt(summary.getDeviceChanged()) == 1) {
+            tags.add("Device Changed");
+        }
+        if (defaultInt(summary.getTotalKOs()) >= 3 || defaultInt(summary.getLongestKoStreak()) >= 3) {
+            tags.add("High Error Rate");
+        }
+        if (defaultInt(summary.getMaxDownloadsIn2Minutes()) >= 10) {
+            tags.add("High Download Rate");
+        }
+        if (defaultInt(summary.getPingPongCount()) >= 2) {
+            tags.add("Ping-Pong Loop");
+        }
+        if (pathDeviation != null && pathDeviation.isDeviated()) {
+            tags.add("Path Deviation");
+        }
+        if (rareTransitions != null && !rareTransitions.isEmpty()) {
+            tags.add("Rare Transition");
+        }
+        if (triggeredRules.contains("geo_jump")) {
+            tags.add("Geo-Jump");
+        }
+        if (triggeredRules.contains("skip_login")) {
+            tags.add("Skip Login");
+        }
+        if (triggeredRules.contains("rapid_fire")) {
+            tags.add("Rapid Fire");
+        }
+        if (triggeredRules.contains("session_timeout")) {
+            tags.add("Zombie Session");
+        }
+        return List.copyOf(tags);
     }
 
     private double computeEnsembleRisk(SessionSummary summary, double anomalyProbability, double churnProbability) {

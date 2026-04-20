@@ -138,6 +138,12 @@ public class SessionAnalysis {
     @Column(name = "campaign_ids_json", columnDefinition = "NVARCHAR(MAX)")
     private String campaignIdsJson;
 
+    @Column(name = "action_sequence_json", columnDefinition = "NVARCHAR(MAX)")
+    private String actionSequenceJson;
+
+    @Column(name = "route_sequence_json", columnDefinition = "NVARCHAR(MAX)")
+    private String routeSequenceJson;
+
     @Column(name = "action_sequence_signature", columnDefinition = "NVARCHAR(MAX)")
     private String actionSequenceSignature;
 
@@ -173,6 +179,24 @@ public class SessionAnalysis {
 
     @Column(name = "binary_detector_artifact")
     private String binaryDetectorArtifact;
+
+    @Column(name = "feature_contributions_json", columnDefinition = "NVARCHAR(MAX)")
+    private String featureContributionsJson;
+
+    @Column(name = "explainability_text", columnDefinition = "NVARCHAR(MAX)")
+    private String explainabilityText;
+
+    @Column(name = "warnings_json", columnDefinition = "NVARCHAR(MAX)")
+    private String warningsJson;
+
+    @Column(name = "triggered_rules_json", columnDefinition = "NVARCHAR(MAX)")
+    private String triggeredRulesJson;
+
+    @Column(name = "context_tags_json", columnDefinition = "NVARCHAR(MAX)")
+    private String contextTagsJson;
+
+    @Column(name = "rare_transitions_json", columnDefinition = "NVARCHAR(MAX)")
+    private String rareTransitionsJson;
 
     @Column(name = "path_deviation")
     private Boolean pathDeviation;

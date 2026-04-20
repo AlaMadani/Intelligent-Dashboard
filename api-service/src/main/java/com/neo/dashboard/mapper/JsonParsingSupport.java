@@ -1,5 +1,8 @@
 package com.neo.dashboard.mapper;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.neo.dashboard.dto.FeatureContributionDto;
+import com.neo.dashboard.dto.PathDeviationDto;
 import org.mapstruct.Named;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -98,5 +101,41 @@ public final class JsonParsingSupport {
             return parts;
         }
         return Collections.emptyList();
+    }
+
+    @Named("parseFeatureContributionList")
+    public static List<FeatureContributionDto> parseFeatureContributionList(String json) {
+        if (json == null || json.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            return OM.readValue(json, new TypeReference<List<FeatureContributionDto>>() { });
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    @Named("parsePathDeviationList")
+    public static List<PathDeviationDto> parsePathDeviationList(String json) {
+        if (json == null || json.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            return OM.readValue(json, new TypeReference<List<PathDeviationDto>>() { });
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    @Named("parseJsonNode")
+    public static JsonNode parseJsonNode(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return OM.readTree(json);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

@@ -103,6 +103,28 @@ class FeatureEngineeringServiceTest {
         assertEquals(1.0f, vector[indexOf("persona_self_service")], 0.0001f);
         assertEquals(1.0f, vector[indexOf("countryCode_FR")], 0.0001f);
         assertEquals(1.0f, vector[indexOf("lastRoute_logout")], 0.0001f);
+        assertEquals(List.of("Connexion", "Envoi d'un document", "SSO Disconnect"), summary.getActionSequence());
+        assertEquals(List.of("login", "documents", "logout"), summary.getRouteSequence());
+    }
+
+    @Test
+    void repairsMojibakeBeforeBuildingSummary() {
+        Instant base = Instant.parse("2025-01-01T10:00:00Z");
+        AuditTrailEvent first = event("Connexion", "OK", base, 1, "1.1.1.1", "WEB");
+        first.setPersona("self_service");
+        first.setRoute("login");
+        first.setCountryCode("FR");
+
+        AuditTrailEvent second = event("DÃ©connexion", "OK", base.plusSeconds(60), 2, "1.1.1.1", "WEB");
+        second.setPersona("self_service");
+        second.setRoute("logout");
+        second.setCountryCode("FR");
+
+        SessionSummary summary = featureEngineeringService.buildSessionSummary(
+                featureEngineeringService.enrichSessionEvents(List.of(first, second)));
+
+        assertEquals("Déconnexion", summary.getLastAction());
+        assertEquals(1, summary.getHasLogout());
     }
 
     private int indexOf(String column) {

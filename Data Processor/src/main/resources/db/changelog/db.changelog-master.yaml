@@ -59,3 +59,12 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: ai-contract-alignment-v7
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V7__ai_contract_alignment.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

@@ -13,9 +13,16 @@ import org.mapstruct.MappingConstants;
 public interface SessionAnalysisMapper extends EntityMapper<SessionAnalysisDto, SessionAnalysis> {
 
     @Override
+    @Mapping(target = "actionSequence", source = "actionSequenceJson", qualifiedByName = "parseStringList")
+    @Mapping(target = "routeSequence", source = "routeSequenceJson", qualifiedByName = "parseStringList")
     @Mapping(target = "actionCounts", source = "actionCountsJson", qualifiedByName = "parseActionCounts")
     @Mapping(target = "top3NextActions", source = "top3NextActions", qualifiedByName = "parseTop3Actions")
     @Mapping(target = "anomalyTypes", source = "anomalyTypesJson", qualifiedByName = "parseStringList")
     @Mapping(target = "campaignIds", source = "campaignIdsJson", qualifiedByName = "parseStringList")
+    @Mapping(target = "topContributingFeatures", source = "featureContributionsJson", qualifiedByName = "parseFeatureContributionList")
+    @Mapping(target = "warnings", source = "warningsJson", qualifiedByName = "parseStringList")
+    @Mapping(target = "triggeredRules", source = "triggeredRulesJson", qualifiedByName = "parseStringList")
+    @Mapping(target = "contextTags", source = "contextTagsJson", qualifiedByName = "parseStringList")
+    @Mapping(target = "rareTransitions", source = "rareTransitionsJson", qualifiedByName = "parsePathDeviationList")
     SessionAnalysisDto toDto(SessionAnalysis entity);
 }

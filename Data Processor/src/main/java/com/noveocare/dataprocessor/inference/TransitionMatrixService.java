@@ -2,6 +2,7 @@ package com.noveocare.dataprocessor.inference;
 
 import com.noveocare.dataprocessor.ai.MarkovTransition;
 import com.noveocare.dataprocessor.ai.RuntimeArtifactService;
+import com.noveocare.dataprocessor.ai.TextNormalization;
 import com.noveocare.dataprocessor.config.RuleProperties;
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
 import com.noveocare.dataprocessor.dto.NextActionScore;
@@ -22,10 +23,11 @@ public class TransitionMatrixService {
     private final RuleProperties ruleProperties;
 
     public List<NextActionScore> predictNextActions(String currentAction, int limit) {
-        if (currentAction == null || currentAction.isBlank()) {
+        String normalizedAction = TextNormalization.normalizeLabel(currentAction);
+        if (normalizedAction == null || normalizedAction.isBlank()) {
             return List.of();
         }
-        List<MarkovTransition> transitions = runtimeArtifactService.getMarkovLookup().get(currentAction);
+        List<MarkovTransition> transitions = runtimeArtifactService.getMarkovLookup().get(normalizedAction);
         if (transitions == null || transitions.isEmpty()) {
             return List.of();
         }
@@ -57,16 +59,18 @@ public class TransitionMatrixService {
     }
 
     public double transitionProbability(String fromAction, String toAction) {
-        if (fromAction == null || fromAction.isBlank() || toAction == null || toAction.isBlank()) {
+        String normalizedFrom = TextNormalization.normalizeLabel(fromAction);
+        String normalizedTo = TextNormalization.normalizeLabel(toAction);
+        if (normalizedFrom == null || normalizedFrom.isBlank() || normalizedTo == null || normalizedTo.isBlank()) {
             return 0.0;
         }
         Map<String, List<MarkovTransition>> lookup = runtimeArtifactService.getMarkovLookup();
-        List<MarkovTransition> transitions = lookup.get(fromAction);
+        List<MarkovTransition> transitions = lookup.get(normalizedFrom);
         if (transitions == null || transitions.isEmpty()) {
             return 0.0;
         }
         return transitions.stream()
-                .filter(transition -> toAction.equals(transition.getToAction()))
+                .filter(transition -> normalizedTo.equals(transition.getToAction()))
                 .map(MarkovTransition::getProbability)
                 .filter(value -> value != null)
                 .findFirst()

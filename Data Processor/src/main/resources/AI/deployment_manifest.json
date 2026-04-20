@@ -58,6 +58,7 @@
     "alerts_feed.csv",
     "cluster_mix.csv",
     "dropoff_actions.csv",
+    "path_deviations.csv",
     "path_summary.csv",
     "top_risky_sessions.csv"
   ]

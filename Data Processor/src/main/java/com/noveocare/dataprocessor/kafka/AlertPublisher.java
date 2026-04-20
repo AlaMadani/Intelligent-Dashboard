@@ -43,9 +43,9 @@ public class AlertPublisher {
     private final RedisPubSubProperties redisPubSubProperties;
     private final RiskProperties riskProperties;
 
-    public void publish(AnomalyAlert alert, String rawEventJson) {
+    public void publish(AnomalyAlert alert, String alertContextJson) {
         // Store the alert first so it is not lost if Kafka delivery fails later.
-        persist(alert, rawEventJson);
+        persist(alert, alertContextJson);
         // Keep the latest active anomaly in Redis for fast API/dashboard access.
         cache(alert);
         // Fan the alert out to the anomaly topic for downstream consumers.
@@ -66,9 +66,9 @@ public class AlertPublisher {
         }
     }
 
-    public void persistOnly(AnomalyAlert alert, String rawEventJson) {
+    public void persistOnly(AnomalyAlert alert, String alertContextJson) {
         // This path is used when inference or publishing failed but the alert still needs an audit record.
-        persist(alert, rawEventJson);
+        persist(alert, alertContextJson);
         log.warn("Alert persisted without publish insuredId={} sessionId={} tier={} rule={}",
                 alert.getInsuredId(),
                 alert.getSessionId(),
@@ -76,9 +76,9 @@ public class AlertPublisher {
                 alert.getRuleType());
     }
 
-    private void persist(AnomalyAlert alert, String rawEventJson) {
-        // Keep alert persistence declarative so DTO/entity drift is handled in one mapper.
-        AnomalyEvent entity = anomalyAlertMapper.toEntity(alert, rawEventJson);
+    private void persist(AnomalyAlert alert, String alertContextJson) {
+        // Persist only compact derived context, not raw session event logs.
+        AnomalyEvent entity = anomalyAlertMapper.toEntity(alert, alertContextJson);
         anomalyEventRepository.save(entity);
     }
 

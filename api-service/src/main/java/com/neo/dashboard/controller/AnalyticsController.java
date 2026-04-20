@@ -4,16 +4,22 @@ import com.neo.dashboard.dto.ApiResponse;
 import com.neo.dashboard.dto.AnomalyAlertDto;
 import com.neo.dashboard.dto.AnomalyEventDto;
 import com.neo.dashboard.dto.AnomalyExplanationDto;
+import com.neo.dashboard.dto.AnomalyInvestigationDto;
+import com.neo.dashboard.dto.ActiveSessionDto;
 import com.neo.dashboard.dto.NextActionPredictionDto;
 import com.neo.dashboard.dto.PaginationMeta;
 import com.neo.dashboard.dto.SessionAnalysisDto;
 import com.neo.dashboard.dto.StatsResponseDto;
 import com.neo.dashboard.dto.UserRiskProfileDto;
+import com.neo.dashboard.dto.CommandCenterDto;
 import com.neo.dashboard.mapper.AnomalyEventMapper;
 import com.neo.dashboard.mapper.SessionAnalysisMapper;
+import com.neo.dashboard.service.ActiveSessionService;
 import com.neo.dashboard.service.ActiveAnomalyService;
 import com.neo.dashboard.service.AnomalyEventService;
 import com.neo.dashboard.service.AnomalyExplanationService;
+import com.neo.dashboard.service.AnomalyInvestigationService;
+import com.neo.dashboard.service.CommandCenterService;
 import com.neo.dashboard.service.DashboardReadService;
 import com.neo.dashboard.service.LiveStatsStreamService;
 import com.neo.dashboard.service.NextActionPredictionService;
@@ -61,6 +67,9 @@ public class AnalyticsController {
     private final RiskProfileService riskProfileService;
     private final NextActionPredictionService nextActionPredictionService;
     private final StatsService statsService;
+    private final CommandCenterService commandCenterService;
+    private final ActiveSessionService activeSessionService;
+    private final AnomalyInvestigationService anomalyInvestigationService;
     private final ActiveAnomalyService activeAnomalyService;
     private final AnomalyExplanationService anomalyExplanationService;
     private final LiveStatsStreamService liveStatsStreamService;
@@ -101,6 +110,18 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Returns the currently active session insight rows stored in Redis. */
+    @GetMapping("/sessions/active")
+    public ResponseEntity<ApiResponse<List<ActiveSessionDto>>> getActiveSessions(
+            @RequestParam(required = false) String insuredId,
+            @RequestParam(defaultValue = "false") boolean anomalyOnly,
+            @RequestParam(defaultValue = "100") int limit
+    ) {
+        return ResponseEntity.ok(ApiResponse.of(
+                activeSessionService.getActiveSessions(insuredId, anomalyOnly, limit)
+        ));
+    }
+
     /* Returns anomaly events with optional filters and pagination metadata. */
     @GetMapping("/anomalies")
     public ResponseEntity<ApiResponse<List<AnomalyEventDto>>> listAnomalyEvents(
@@ -134,6 +155,14 @@ public class AnalyticsController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /* Returns the full anomaly investigation payload used by the deep-dive view. */
+    @GetMapping("/anomalies/{id}/investigation")
+    public ResponseEntity<ApiResponse<AnomalyInvestigationDto>> getAnomalyInvestigation(@PathVariable Long id) {
+        return anomalyInvestigationService.getInvestigation(id)
+                .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     /* Builds or refreshes an explanation for a single anomaly event. */
     @GetMapping("/anomalies/{id}/explain")
     public CompletableFuture<ResponseEntity<ApiResponse<AnomalyExplanationDto>>> explainAnomalyEvent(
@@ -160,6 +189,17 @@ public class AnalyticsController {
         return nextActionPredictionService.getPrediction(insuredId)
                 .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Returns a dashboard snapshot from Redis ({@code dashboard:{view}}) written by the Data Processor.
+     * Allowed views: alerts, risky-sessions, cluster-mix, drop-offs, path-deviations, forecasts, forecast-series.
+     */
+    @GetMapping("/dashboard/command-center")
+    public ResponseEntity<ApiResponse<CommandCenterDto>> getCommandCenter(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        return ResponseEntity.ok(ApiResponse.of(commandCenterService.getCommandCenter(date)));
     }
 
     /**

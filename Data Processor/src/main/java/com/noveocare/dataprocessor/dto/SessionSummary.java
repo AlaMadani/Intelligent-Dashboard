@@ -53,6 +53,8 @@ public class SessionSummary {
     private String primaryAnomalyType;
     private List<String> anomalyTypes;
     private List<String> campaignIds;
+    private List<String> actionSequence;
+    private List<String> routeSequence;
     private String actionSequenceSignature;
     private String routeSequenceSignature;
     private Map<String, Long> actionCounts;

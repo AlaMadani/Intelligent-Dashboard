@@ -201,7 +201,9 @@ public class StatisticsService {
         snapshot.put("top_actions_last_15m", topN(actionCounts, 5));
         snapshot.put("top_countries_right_now", topN(countryCounts, 3));
         snapshot.put("anomaly_alert_rate_last_hour", anomalyRate);
+        snapshot.put("current_anomaly_rate", anomalyRate);
         snapshot.put("ko_rate_last_15m", koRate);
+        snapshot.put("global_risk_level", resolveGlobalRiskLevel(anomalyRate, koRate, alertsLastWindow));
         snapshot.put("generated_at", Instant.now().toString());
 
         redisCacheService.setJson(
@@ -289,5 +291,15 @@ public class StatisticsService {
             }
         }
         return false;
+    }
+
+    private String resolveGlobalRiskLevel(double anomalyRate, double koRate, long alertsLastWindow) {
+        if (alertsLastWindow >= 3 || anomalyRate >= riskProperties.getHighThreshold() || koRate >= 0.20) {
+            return "HIGH";
+        }
+        if (alertsLastWindow >= 1 || anomalyRate >= riskProperties.getMediumThreshold() || koRate >= 0.10) {
+            return "MEDIUM";
+        }
+        return "LOW";
     }
 }

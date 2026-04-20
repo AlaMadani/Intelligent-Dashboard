@@ -2,6 +2,7 @@ package com.noveocare.dataprocessor.kafka;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.noveocare.dataprocessor.ai.TextNormalization;
 import com.noveocare.dataprocessor.ai.FeatureEngineeringService;
 import com.noveocare.dataprocessor.config.CacheKeys;
 import com.noveocare.dataprocessor.config.KafkaConsumerProperties;
@@ -10,7 +11,6 @@ import com.noveocare.dataprocessor.config.FeatureEngineeringProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RuleProperties;
 import com.noveocare.dataprocessor.dto.AnomalyAlert;
-import com.noveocare.dataprocessor.dto.AnomalyTypeResult;
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
 import com.noveocare.dataprocessor.dto.NextActionScore;
 import com.noveocare.dataprocessor.dto.SessionInsight;
@@ -44,7 +44,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -229,6 +228,7 @@ public class AuditTrailConsumer {
         entity.setEnsembleRiskScore(insight.getEnsembleRiskScore());
         entity.setPersonaCluster(insight.getPersonaCluster());
         entity.setBinaryDetectorArtifact(insight.getBinaryDetectorArtifact());
+        entity.setExplainabilityText(insight.getExplainabilityText());
         entity.setPathDeviation(insight.getPathDeviation() != null && insight.getPathDeviation().isDeviated());
         entity.setTransitionProbability(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getTransitionProbability());
         entity.setTransitionFromAction(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getFromAction());
@@ -242,8 +242,15 @@ public class AuditTrailConsumer {
             entity.setActionCountsJson(objectMapper.writeValueAsString(summary.getActionCounts()));
             entity.setAnomalyTypesJson(objectMapper.writeValueAsString(summary.getAnomalyTypes()));
             entity.setCampaignIdsJson(objectMapper.writeValueAsString(summary.getCampaignIds()));
+            entity.setActionSequenceJson(objectMapper.writeValueAsString(summary.getActionSequence()));
+            entity.setRouteSequenceJson(objectMapper.writeValueAsString(summary.getRouteSequence()));
             entity.setTop3NextActions(objectMapper.writeValueAsString(
                     insight.getNextActions().stream().map(NextActionScore::getAction).toList()));
+            entity.setFeatureContributionsJson(objectMapper.writeValueAsString(insight.getTopContributingFeatures()));
+            entity.setWarningsJson(objectMapper.writeValueAsString(insight.getWarnings()));
+            entity.setTriggeredRulesJson(objectMapper.writeValueAsString(insight.getTriggeredRules()));
+            entity.setContextTagsJson(objectMapper.writeValueAsString(insight.getContextTags()));
+            entity.setRareTransitionsJson(objectMapper.writeValueAsString(insight.getRareTransitions()));
         } catch (JsonProcessingException ex) {
             log.warn("Failed to serialize JSON fields for session {}", summary.getSessionId(), ex);
         }
@@ -298,7 +305,7 @@ public class AuditTrailConsumer {
                 .build();
 
         try {
-            alertPublisher.publish(alert, objectMapper.writeValueAsString(enrichedEvents));
+            alertPublisher.publish(alert, buildAlertContextJson(summary, insight, lastEvent));
         } catch (JsonProcessingException ex) {
             alertPublisher.publish(alert, "{}");
         }
@@ -323,7 +330,7 @@ public class AuditTrailConsumer {
             return false;
         }
         return ruleProperties.getSessionEndActions().stream()
-                .anyMatch(action -> action.equalsIgnoreCase(event.getAction()));
+                .anyMatch(action -> TextNormalization.equalsNormalized(action, event.getAction()));
     }
 
     private List<String> evaluateSessionRules(List<AuditTrailEvent> sessionEvents) {
@@ -372,7 +379,7 @@ public class AuditTrailConsumer {
             return false;
         }
         return ruleProperties.getSkipLogin().getAllowedActions().stream()
-                .noneMatch(action -> action.equalsIgnoreCase(firstEvent.getAction()));
+                .noneMatch(action -> TextNormalization.equalsNormalized(action, firstEvent.getAction()));
     }
 
     private boolean hasRepeatedFail(List<AuditTrailEvent> ordered) {
@@ -396,6 +403,32 @@ public class AuditTrailConsumer {
         }
         return ruleProperties.getRepeatedFail().getTypes().stream()
                 .anyMatch(allowed -> allowed.equalsIgnoreCase(type));
+    }
+
+    private String buildAlertContextJson(SessionSummary summary, SessionInsight insight, AuditTrailEvent lastEvent)
+            throws JsonProcessingException {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sessionId", summary.getSessionId());
+        payload.put("insuredId", summary.getInsuredId());
+        payload.put("lastEventId", lastEvent == null ? null : lastEvent.getId());
+        payload.put("lastAction", lastEvent == null ? null : lastEvent.getAction());
+        payload.put("lastRoute", lastEvent == null ? null : lastEvent.getRoute());
+        payload.put("lastStatus", lastEvent == null ? null : lastEvent.getStatus());
+        payload.put("eventTime", lastEvent == null ? null : lastEvent.getCreatedAt());
+        Map<String, Object> sessionMetrics = new LinkedHashMap<>();
+        sessionMetrics.put("totalEvents", summary.getTotalEvents());
+        sessionMetrics.put("totalDurationSeconds", summary.getTotalDurationSeconds());
+        sessionMetrics.put("totalKOs", summary.getTotalKOs());
+        sessionMetrics.put("maxDownloadsIn2Minutes", summary.getMaxDownloadsIn2Minutes());
+        sessionMetrics.put("pingPongCount", summary.getPingPongCount());
+        payload.put("sessionMetrics", sessionMetrics);
+        payload.put("contextTags", insight.getContextTags());
+        payload.put("triggeredRules", insight.getTriggeredRules());
+        payload.put("topContributingFeatures", insight.getTopContributingFeatures());
+        payload.put("pathDeviation", insight.getPathDeviation());
+        payload.put("rareTransitions", insight.getRareTransitions());
+        payload.put("explainabilityText", insight.getExplainabilityText());
+        return objectMapper.writeValueAsString(payload);
     }
 
     private int defaultInt(Integer value) {

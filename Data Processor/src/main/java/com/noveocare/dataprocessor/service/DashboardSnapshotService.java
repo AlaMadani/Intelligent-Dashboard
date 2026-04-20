@@ -65,9 +65,15 @@ public class DashboardSnapshotService {
         payload.put("personaCluster", insight.getPersonaCluster());
         payload.put("riskLevel", insight.getRiskLevel());
         payload.put("pathDeviation", insight.getPathDeviation());
+        payload.put("rareTransitions", insight.getRareTransitions());
         payload.put("nextActions", insight.getNextActions());
+        payload.put("contextTags", insight.getContextTags());
         payload.put("triggeredRules", insight.getTriggeredRules());
         payload.put("warnings", insight.getWarnings());
+        payload.put("topContributingFeatures", insight.getTopContributingFeatures());
+        payload.put("explainabilityText", insight.getExplainabilityText());
+        payload.put("actionSequence", summary.getActionSequence());
+        payload.put("routeSequence", summary.getRouteSequence());
         payload.put("computedAt", insight.getComputedAt());
         redisCacheService.setJson(
                 CacheKeys.sessionInsightKey(summary.getInsuredId(), summary.getSessionId()),
@@ -182,6 +188,9 @@ public class DashboardSnapshotService {
                 .toList();
         if (rows.isEmpty()) {
             rows = runtimeExport("path_deviations.csv");
+            if (rows.isEmpty()) {
+                rows = runtimeExport("path_summary.csv");
+            }
         }
         cacheDashboard("path-deviations", Map.of(
                 "items", rows,
@@ -252,6 +261,12 @@ public class DashboardSnapshotService {
         row.put("riskScore", session.getEnsembleRiskScore());
         row.put("personaCluster", session.getPersonaCluster());
         row.put("pathDeviation", session.getPathDeviation());
+        row.put("rareTransitions", parseJsonValue(session.getRareTransitionsJson()));
+        row.put("contextTags", parseJsonValue(session.getContextTagsJson()));
+        row.put("topContributingFeatures", parseJsonValue(session.getFeatureContributionsJson()));
+        row.put("explainabilityText", session.getExplainabilityText());
+        row.put("actionSequence", parseJsonValue(session.getActionSequenceJson()));
+        row.put("routeSequence", parseJsonValue(session.getRouteSequenceJson()));
         row.put("sessionStart", session.getStartTime());
         row.put("sessionEnd", session.getEndTime());
         row.put("totalEvents", session.getTotalEvents());
@@ -282,6 +297,17 @@ public class DashboardSnapshotService {
             return objectMapper.convertValue(value, Double.class);
         } catch (IllegalArgumentException ex) {
             return 0.0;
+        }
+    }
+
+    private Object parseJsonValue(String rawJson) {
+        if (rawJson == null || rawJson.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(rawJson, Object.class);
+        } catch (Exception ex) {
+            return rawJson;
         }
     }
 }

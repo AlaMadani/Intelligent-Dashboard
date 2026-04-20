@@ -78,6 +78,7 @@ public class AnomalyEvent {
     @Column(name = "next_actions_json", columnDefinition = "NVARCHAR(MAX)")
     private String nextActionsJson;
 
+    // Stores compact derived alert context; raw event logs stay in Kafka/ELK.
     @Column(name = "event_json", columnDefinition = "NVARCHAR(MAX)")
     private String eventJson;
 
