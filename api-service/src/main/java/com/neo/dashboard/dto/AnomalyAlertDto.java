@@ -36,7 +36,7 @@ public class AnomalyAlertDto {
     private String transitionFromAction;
     private String transitionToAction;
     private String modelArtifact;
-    private List<String> nextActions;
+    private List<NextActionScoreDto> nextActions;
 
     private Instant eventTime;
     private Instant detectedAt;

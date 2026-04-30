@@ -1,6 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.NextActionPredictionDto;
+import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.mapper.NextActionPredictionMapper;
 import com.neo.dashboard.redis.CacheKeys;
 import com.neo.dashboard.repository.NextActionPredictionRepository;
@@ -42,8 +43,17 @@ public class NextActionPredictionService {
         String cached = redisTemplate.opsForValue().get(key);
         if (cached != null && !cached.isBlank()) {
             try {
-                // Redis only stores the ordered action labels, so missing metadata stays null here.
-                List<String> actions = objectMapper.readValue(cached, new TypeReference<List<String>>() {});
+                // Redis only stores the ordered action labels or score objects.
+                List<NextActionScoreDto> actions;
+                try {
+                    actions = objectMapper.readValue(cached, new TypeReference<List<NextActionScoreDto>>() { });
+                } catch (Exception e) {
+                    List<String> labels = objectMapper.readValue(cached, new TypeReference<List<String>>() { });
+                    actions = labels.stream()
+                            .map(l -> new NextActionScoreDto(l, null))
+                            .toList();
+                }
+
                 return Optional.of(new NextActionPredictionDto(
                         null,
                         insuredId,

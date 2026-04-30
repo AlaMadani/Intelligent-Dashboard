@@ -1,5 +1,6 @@
 package com.neo.dashboard.service;
 
+import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.dto.SessionAnalysisDto;
 import com.neo.dashboard.entity.SessionAnalysis;
 import com.neo.dashboard.mapper.SessionAnalysisMapper;
@@ -40,7 +41,7 @@ class SessionAnalysisServiceTest {
         assertThat(dto.getActionCounts()).containsEntry("LOGIN", 2L);
         assertThat(dto.getActionSequence()).containsExactly("LOGIN", "MFA", "HOME");
         assertThat(dto.getRouteSequence()).containsExactly("/login", "/mfa", "/home");
-        assertThat(dto.getTop3NextActions()).containsExactly("A", "B", "C");
+        assertThat(dto.getTop3NextActions()).extracting(NextActionScoreDto::getAction).containsExactly("A", "B", "C");
         assertThat(dto.getTopContributingFeatures()).hasSize(1);
         assertThat(dto.getTopContributingFeatures().getFirst().getFeature()).isEqualTo("cumulativeKOs");
         assertThat(dto.getWarnings()).containsExactly("High error rate");

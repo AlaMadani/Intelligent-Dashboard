@@ -28,14 +28,19 @@ public class ActiveSessionService {
     private final ObjectMapper objectMapper;
 
     public List<ActiveSessionDto> getActiveSessions(String insuredId, Boolean anomalyOnly, Integer limit) {
-        Set<String> keys = redisTemplate.keys(resolvePattern(insuredId));
+        Set<String> keys = sessionInsightKeys(insuredId);
         if (keys == null || keys.isEmpty()) {
             return List.of();
         }
 
         List<ActiveSessionDto> sessions = new ArrayList<>(keys.size());
         for (String key : keys) {
-            readInsight(key).ifPresent(sessions::add);
+            Optional<ActiveSessionDto> insight = readInsight(key);
+            if (insight.isPresent()) {
+                sessions.add(insight.get());
+                continue;
+            }
+            removeStaleIndexEntry(key);
         }
 
         return sessions.stream()
@@ -72,13 +77,43 @@ public class ActiveSessionService {
         return hasText(insuredId) ? CacheKeys.sessionInsightPattern(insuredId) : CacheKeys.sessionInsightPattern();
     }
 
+    private String resolveIndexKey(String insuredId) {
+        return hasText(insuredId)
+                ? CacheKeys.activeSessionInsightsIndexKey(insuredId)
+                : CacheKeys.activeSessionInsightsIndexKey();
+    }
+
+    private Set<String> sessionInsightKeys(String insuredId) {
+        Set<String> indexedKeys = redisTemplate.opsForSet().members(resolveIndexKey(insuredId));
+        if (indexedKeys != null && !indexedKeys.isEmpty()) {
+            return indexedKeys;
+        }
+
+        Set<String> scannedKeys = redisTemplate.keys(resolvePattern(insuredId));
+        if (scannedKeys == null || scannedKeys.isEmpty()) {
+            return Set.of();
+        }
+
+        for (String key : scannedKeys) {
+            redisTemplate.opsForSet().add(CacheKeys.activeSessionInsightsIndexKey(), key);
+            String indexedInsuredId = insuredIdFromInsightKey(key);
+            if (indexedInsuredId != null) {
+                redisTemplate.opsForSet().add(CacheKeys.activeSessionInsightsIndexKey(indexedInsuredId), key);
+            }
+        }
+
+        return scannedKeys;
+    }
+
     private boolean isAnomalous(ActiveSessionDto session) {
         if (session == null) {
             return false;
         }
         return Boolean.TRUE.equals(session.getAnomalyFlag())
                 || Boolean.TRUE.equals(session.getBinaryAnomaly())
-                || (session.getPathDeviation() != null && Boolean.TRUE.equals(session.getPathDeviation().getDeviated()));
+                || Boolean.TRUE.equals(session.getPathDeviationFlag())
+                || (session.getPathDeviation() != null && Boolean.TRUE.equals(session.getPathDeviation().getDeviated()))
+                || (session.getAnomalyEventCount() != null && session.getAnomalyEventCount() > 0);
     }
 
     private int normalizeLimit(Integer limit) {
@@ -94,5 +129,29 @@ public class ActiveSessionService {
 
     private double numeric(Double value) {
         return value == null ? 0.0 : value;
+    }
+
+    private void removeStaleIndexEntry(String key) {
+        if (!hasText(key)) {
+            return;
+        }
+        redisTemplate.opsForSet().remove(CacheKeys.activeSessionInsightsIndexKey(), key);
+        String insuredId = insuredIdFromInsightKey(key);
+        if (insuredId != null) {
+            redisTemplate.opsForSet().remove(CacheKeys.activeSessionInsightsIndexKey(insuredId), key);
+        }
+    }
+
+    private String insuredIdFromInsightKey(String key) {
+        String prefix = "session:insight:";
+        if (key == null || !key.startsWith(prefix)) {
+            return null;
+        }
+        String remainder = key.substring(prefix.length());
+        int separator = remainder.indexOf(':');
+        if (separator <= 0) {
+            return null;
+        }
+        return remainder.substring(0, separator);
     }
 }

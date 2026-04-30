@@ -4,6 +4,7 @@ import com.neo.dashboard.dto.AnomalyAlertDto;
 import com.neo.dashboard.dto.AnomalyExplanationDto;
 import com.neo.dashboard.dto.FeatureContributionDto;
 import com.neo.dashboard.dto.NextActionPredictionDto;
+import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.dto.SessionAnalysisDto;
 import com.neo.dashboard.dto.StatsResponseDto;
 import com.neo.dashboard.dto.UserRiskProfileDto;
@@ -31,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 
@@ -303,15 +305,26 @@ public class AnomalyExplanationService {
             prompt.append("- Total events: ").append(orUnknown(session.getTotalEvents())).append('\n')
                     .append("- Duration seconds: ").append(orUnknown(session.getSessionDurationSeconds())).append('\n')
                     .append("- Unique actions: ").append(orUnknown(session.getUniqueActions())).append('\n')
+                    .append("- Total KOs / OKs: ").append(orUnknown(session.getTotalKOs())).append(" / ").append(orUnknown(session.getTotalOKs())).append('\n')
+                    .append("- Longest KO streak: ").append(orUnknown(session.getLongestKoStreak())).append('\n')
                     .append("- KO rate: ").append(orUnknown(session.getKoRate())).append('\n')
                     .append("- ISO / tabular anomaly score: ").append(orUnknown(session.getIsoScore())).append('\n')
                     .append("- Ensemble risk: ").append(orUnknown(session.getEnsembleRiskScore())).append('\n')
+                    .append("- Type confidence: ").append(orUnknown(session.getTypeConfidence())).append('\n')
                     .append("- Churn probability: ").append(orUnknown(session.getChurnProbability())).append('\n')
+                    .append("- Persona cluster: ").append(orUnknown(session.getPersonaCluster())).append('\n')
+                    .append("- Binary detector artifact: ").append(orUnknown(session.getBinaryDetectorArtifact())).append('\n')
                     .append("- Path deviation: ").append(orUnknown(session.getPathDeviation())).append('\n')
+                    .append("- Transition: ").append(orUnknown(session.getTransitionFromAction())).append(" -> ")
+                    .append(orUnknown(session.getTransitionToAction())).append(" @ ")
+                    .append(orUnknown(session.getTransitionProbability())).append('\n')
+                    .append("- Download actions / max in 2 minutes: ").append(orUnknown(session.getTotalDownloadActions())).append(" / ")
+                    .append(orUnknown(session.getMaxDownloadsIn2Minutes())).append('\n')
+                    .append("- Ping pong count: ").append(orUnknown(session.getPingPongCount())).append('\n')
                     .append("- Session anomaly flag: ").append(orUnknown(session.getIsAnomaly())).append('\n')
                     .append("- Session anomaly type: ").append(orUnknown(session.getAnomalyType())).append('\n')
                     .append("- Rule type: ").append(orUnknown(session.getRuleType())).append('\n')
-                    .append("- Top next actions: ").append(session.getTop3NextActions()).append('\n')
+                    .append("- Top next actions: ").append(summarizeNextActions(session.getTop3NextActions())).append('\n')
                     .append("- Context tags: ").append(orUnknown(session.getContextTags())).append('\n')
                     .append("- Triggered rules: ").append(orUnknown(session.getTriggeredRules())).append('\n')
                     .append("- Warnings: ").append(orUnknown(session.getWarnings())).append('\n')
@@ -324,7 +337,22 @@ public class AnomalyExplanationService {
         prompt.append("\nLive session insight:\n")
                 .append("- Available: ").append(liveSessionInsight != null).append('\n');
         if (liveSessionInsight != null) {
-            prompt.append("- Risk level: ").append(orUnknown(textAt(liveSessionInsight, "riskLevel"))).append('\n')
+            prompt.append("- Binary anomaly: ").append(orUnknown(scalarAt(liveSessionInsight, "binaryAnomaly"))).append('\n')
+                    .append("- Risk level: ").append(orUnknown(textAt(liveSessionInsight, "riskLevel"))).append('\n')
+                    .append("- Ensemble risk: ").append(orUnknown(scalarAt(liveSessionInsight, "ensembleRiskScore"))).append('\n')
+                    .append("- Type confidence: ").append(orUnknown(scalarAt(liveSessionInsight, "typeConfidence"))).append('\n')
+                    .append("- Model artifact: ").append(orUnknown(textAt(liveSessionInsight, "binaryDetectorArtifact"))).append('\n')
+                    .append("- Total KOs / OKs: ").append(orUnknown(scalarAt(liveSessionInsight, "totalKOs"))).append(" / ")
+                    .append(orUnknown(scalarAt(liveSessionInsight, "totalOKs"))).append('\n')
+                    .append("- Longest KO streak: ").append(orUnknown(scalarAt(liveSessionInsight, "longestKoStreak"))).append('\n')
+                    .append("- Download actions / max in 2 minutes: ").append(orUnknown(scalarAt(liveSessionInsight, "totalDownloadActions"))).append(" / ")
+                    .append(orUnknown(scalarAt(liveSessionInsight, "maxDownloadsIn2Minutes"))).append('\n')
+                    .append("- Ping pong count: ").append(orUnknown(scalarAt(liveSessionInsight, "pingPongCount"))).append('\n')
+                    .append("- Transition: ").append(orUnknown(scalarAt(liveSessionInsight, "transitionFromAction"))).append(" -> ")
+                    .append(orUnknown(scalarAt(liveSessionInsight, "transitionToAction"))).append(" @ ")
+                    .append(orUnknown(scalarAt(liveSessionInsight, "transitionProbability"))).append('\n')
+                    .append("- Next actions: ").append(sanitizeJson(liveSessionInsight.path("nextActions"))).append('\n')
+                    .append("- Action counts: ").append(sanitizeJson(liveSessionInsight.path("actionCounts"))).append('\n')
                     .append("- Context tags: ").append(sanitizeJson(liveSessionInsight.path("contextTags"))).append('\n')
                     .append("- Triggered rules: ").append(sanitizeJson(liveSessionInsight.path("triggeredRules"))).append('\n')
                     .append("- Warnings: ").append(sanitizeJson(liveSessionInsight.path("warnings"))).append('\n')
@@ -345,7 +373,7 @@ public class AnomalyExplanationService {
         }
 
         prompt.append("\nPredicted next actions:\n")
-                .append(nextActions == null ? "- Not available\n" : "- Top-3: " + nextActions.getTop3Actions() + "\n");
+                .append(nextActions == null ? "- Not available\n" : "- Top-3: " + summarizeNextActions(nextActions.getTop3Actions()) + "\n");
 
         prompt.append("\nCurrent active anomaly:\n")
                 .append(activeAnomaly == null ? "- None\n" : "- Tier=" + orUnknown(activeAnomaly.getAnomalyTier())
@@ -380,17 +408,28 @@ public class AnomalyExplanationService {
         if (anomaly.getAnomalyProbability() != null) {
             evidence.add("model anomaly probability is " + String.format("%.2f", anomaly.getAnomalyProbability()));
         }
+        if (anomaly.getTypeConfidence() != null) {
+            evidence.add("anomaly type confidence is " + String.format("%.2f", anomaly.getTypeConfidence()));
+        }
         if (anomaly.getChurnProbability() != null) {
             evidence.add("churn probability is " + String.format("%.2f", anomaly.getChurnProbability()));
         }
         if (Boolean.TRUE.equals(anomaly.getPathDeviation())) {
             evidence.add("the latest action transition was a low-probability (path deviation) step");
         }
+        if (anomaly.getTransitionFromAction() != null || anomaly.getTransitionToAction() != null) {
+            evidence.add("transition context is `" + orUnknown(anomaly.getTransitionFromAction())
+                    + " -> " + orUnknown(anomaly.getTransitionToAction())
+                    + "` at probability " + orUnknown(anomaly.getTransitionProbability()));
+        }
         if (anomaly.getRuleType() != null && !anomaly.getRuleType().isBlank()) {
             evidence.add("rule engine flagged `" + anomaly.getRuleType() + "`");
         }
         if (session != null && Boolean.TRUE.equals(session.getIsAnomaly())) {
             evidence.add("session summary is already marked anomalous");
+        }
+        if (session != null && session.getBinaryDetectorArtifact() != null && !session.getBinaryDetectorArtifact().isBlank()) {
+            evidence.add("the worker used binary detector artifact `" + session.getBinaryDetectorArtifact() + "`");
         }
         if (session != null && session.getTopContributingFeatures() != null && !session.getTopContributingFeatures().isEmpty()) {
             evidence.add("top contributing features include " + summarizeFeatures(session.getTopContributingFeatures()));
@@ -406,6 +445,12 @@ public class AnomalyExplanationService {
         }
         if (liveSessionInsight != null && !liveSessionInsight.path("contextTags").isMissingNode()) {
             evidence.add("live session context shows " + sanitizeJson(liveSessionInsight.path("contextTags")));
+        }
+        if (liveSessionInsight != null && !liveSessionInsight.path("binaryDetectorArtifact").isMissingNode()) {
+            evidence.add("live session model artifact is `" + orUnknown(textAt(liveSessionInsight, "binaryDetectorArtifact")) + "`");
+        }
+        if (liveSessionInsight != null && !liveSessionInsight.path("nextActions").isMissingNode()) {
+            evidence.add("live session next actions are " + sanitizeJson(liveSessionInsight.path("nextActions")));
         }
         if (eventContext != null && !eventContext.isMissingNode() && !eventContext.isEmpty()) {
             evidence.add("alert context includes " + sanitizeJson(eventContext));
@@ -435,7 +480,7 @@ public class AnomalyExplanationService {
                 .append("- Cross-check the insured's recent anomaly history and current risk tier.\n");
         if (nextActions != null && nextActions.getTop3Actions() != null && !nextActions.getTop3Actions().isEmpty()) {
             builder.append("- Compare the observed session outcome with predicted next actions: ")
-                    .append(String.join(", ", nextActions.getTop3Actions()))
+                    .append(summarizeNextActions(nextActions.getTop3Actions()))
                     .append(".\n");
         }
         builder.append("- Escalate if the activity affects sensitive flows or if additional alerts arrive for the same insured.\n");
@@ -529,6 +574,20 @@ public class AnomalyExplanationService {
         return hasText(value) ? value : null;
     }
 
+    private String scalarAt(JsonNode node, String fieldName) {
+        if (node == null || fieldName == null || fieldName.isBlank()) {
+            return null;
+        }
+        JsonNode value = node.path(fieldName);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (value.isValueNode()) {
+            return value.asText();
+        }
+        return sanitizeJson(value);
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
@@ -543,6 +602,16 @@ public class AnomalyExplanationService {
                 .map(item -> item.getFeature() + "=" + orUnknown(item.getActualValue()))
                 .reduce((left, right) -> left + ", " + right)
                 .orElse(null);
+    }
+
+    private String summarizeNextActions(List<NextActionScoreDto> nextActions) {
+        if (nextActions == null || nextActions.isEmpty()) {
+            return "n/a";
+        }
+        return nextActions.stream()
+                .filter(item -> item != null && hasText(item.getAction()))
+                .map(item -> item.getAction() + (item.getProbability() != null ? String.format(" (%.2f)", item.getProbability()) : ""))
+                .collect(Collectors.joining(", "));
     }
 
     /* Extract plain text chunks from Gemini's nested candidate payload. */

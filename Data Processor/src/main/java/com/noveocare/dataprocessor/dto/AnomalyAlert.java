@@ -37,7 +37,7 @@ public class AnomalyAlert {
     private String transitionFromAction;
     private String transitionToAction;
     private String modelArtifact;
-    private List<String> nextActions;
+    private List<NextActionScore> nextActions;
 
     // Timestamps for the triggering event and the actual detection moment.
     private Instant eventTime;

@@ -16,12 +16,12 @@ public class LiveStatsScheduler {
     private final StatisticsService statisticsService;
     private final DashboardSnapshotService dashboardSnapshotService;
 
-    @Scheduled(fixedRateString = "${app.scheduling.live-stats-fixed-rate-ms}")
+    @Scheduled(fixedRateString = "${app.scheduling.live-stats-fixed-rate-ms:5000}")
     public void refresh() {
         try {
-            // Delegate the actual aggregation logic to the statistics service.
+            // Aggregate rolling metrics and refresh only the views that depend on in-flight sessions.
             statisticsService.refreshLiveStatsSnapshot();
-            dashboardSnapshotService.refreshAll();
+            dashboardSnapshotService.refreshRiskySessions();
         } catch (Exception e) {
             log.error("Failed to refresh live stats snapshot", e);
         }

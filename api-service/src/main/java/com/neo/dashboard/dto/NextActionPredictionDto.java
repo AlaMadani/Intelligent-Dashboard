@@ -22,5 +22,5 @@ public class NextActionPredictionDto {
 
     /* Prediction timestamp and ordered action suggestions. */
     private Instant predictedAt;
-    private List<String> top3Actions;
+    private List<NextActionScoreDto> top3Actions;
 }

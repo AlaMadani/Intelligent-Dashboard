@@ -1,6 +1,7 @@
 package com.neo.dashboard.mapper;
 
 import com.neo.dashboard.dto.NextActionPredictionDto;
+import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.entity.NextActionPrediction;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Maps next-action prediction entities to DTOs and parses JSON arrays.
@@ -25,15 +27,22 @@ public interface NextActionPredictionMapper extends EntityMapper<NextActionPredi
     NextActionPredictionDto toDto(NextActionPrediction entity);
 
     @Named("parseActions")
-    default List<String> parseActions(String json) {
+    default List<NextActionScoreDto> parseActions(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
         try {
-            return JSON.readValue(json, new TypeReference<List<String>>() {
+            return JSON.readValue(json, new TypeReference<List<NextActionScoreDto>>() {
             });
-        } catch (Exception ignored) {
-            return Collections.emptyList();
+        } catch (Exception e) {
+            try {
+                List<String> labels = JSON.readValue(json, new TypeReference<List<String>>() { });
+                return labels.stream()
+                        .map(l -> new NextActionScoreDto(l, null))
+                        .collect(Collectors.toList());
+            } catch (Exception ignored) {
+                return Collections.emptyList();
+            }
         }
     }
 }

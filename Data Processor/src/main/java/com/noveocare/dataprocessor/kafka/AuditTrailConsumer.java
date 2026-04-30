@@ -97,12 +97,12 @@ public class AuditTrailConsumer {
 
         try {
             statisticsService.recordEvent(event);
+            sessionBufferService.appendEvent(event);
 
-            List<AuditTrailEvent> sessionEvents = new ArrayList<>(
-                    sessionBufferService.getSessionEvents(event.getInsuredId(), event.getSessionId()));
-            sessionEvents.add(event);
+            List<AuditTrailEvent> sessionEvents = sessionBufferService.getSessionEvents(
+                    event.getInsuredId(),
+                    event.getSessionId());
             List<AuditTrailEvent> enrichedEvents = featureEngineeringService.enrichSessionEvents(sessionEvents);
-            sessionBufferService.replaceSession(event.getInsuredId(), event.getSessionId(), enrichedEvents);
 
             SessionSummary summary = featureEngineeringService.buildSessionSummary(enrichedEvents);
             List<String> triggeredRules = evaluateSessionRules(enrichedEvents);
@@ -127,9 +127,11 @@ public class AuditTrailConsumer {
             }
 
             if (isSessionEnd(event)) {
-                persistSessionAnalysis(summary, insight, triggeredRules);
-                persistNextActions(summary, insight.getNextActions());
-                statisticsService.updateUserRiskProfile(summary.getInsuredId());
+                if (shouldPersist(insight)) {
+                    persistSessionAnalysis(summary, insight, triggeredRules);
+                    persistNextActions(summary, insight.getNextActions());
+                    statisticsService.updateUserRiskProfile(summary.getInsuredId());
+                }
                 dashboardSnapshotService.refreshAll();
                 dashboardSnapshotService.removeSessionInsight(summary.getInsuredId(), summary.getSessionId());
                 sessionBufferService.deleteSession(summary.getInsuredId(), summary.getSessionId());
@@ -140,6 +142,12 @@ public class AuditTrailConsumer {
                     record.topic(), record.partition(), record.offset(), ex);
             routeToDlq(record, "processing_failure", ex);
         }
+    }
+
+    private boolean shouldPersist(SessionInsight insight) {
+        return insight.isAnomaly()
+                || (insight.getEnsembleRiskScore() != null
+                && insight.getEnsembleRiskScore() >= featureEngineeringProperties.getSessionAlertRiskThreshold());
     }
 
     private long estimatePartitionLag(ConsumerRecord<String, String> record, Consumer<?, ?> consumer) {
@@ -300,7 +308,7 @@ public class AuditTrailConsumer {
                 .transitionFromAction(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getFromAction())
                 .transitionToAction(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getToAction())
                 .modelArtifact(insight.getBinaryDetectorArtifact())
-                .nextActions(insight.getNextActions().stream().map(NextActionScore::getAction).toList())
+                .nextActions(insight.getNextActions())
                 .detectedAt(Instant.now())
                 .build();
 

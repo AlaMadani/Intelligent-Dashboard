@@ -3,6 +3,7 @@ spring:
   application:
     name: ${SPRING_APPLICATION_NAME:api-service}
 
+
   # SQL Server connection for read-side analytics snapshots.
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true}
@@ -22,8 +23,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false
     open-in-view: false
+    properties:
+      hibernate:
+        connection:
+          release_mode: after_transaction
+        transaction:
+          jta:
+            platform: false
 
   # Liquibase can be enabled later if this service starts owning schema migrations.
   liquibase:
@@ -46,7 +54,7 @@ spring:
   ai:
     google:
       genai:
-        api-key: ${GEMINI_API_KEY:}
+        api-key: ${GEMINI_API_KEY:AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw}
         base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
         chat:
           options:
@@ -54,7 +62,10 @@ spring:
 
 app:
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:9000,http://localhost:9008 }
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:9008}
+  redis:
+    pubsub:
+      live-stats-channel: ${REDIS_LIVE_STATS_CHANNEL:LIVE_STATS}
   # Local topic names consumed by the stream bridge.
   kafka:
     topics:

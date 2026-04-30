@@ -1,6 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.NextActionPredictionDto;
+import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.entity.NextActionPrediction;
 import com.neo.dashboard.mapper.NextActionPredictionMapper;
 import org.instancio.Instancio;
@@ -25,7 +26,7 @@ class NextActionPredictionMapperTest {
 
         NextActionPredictionDto dto = mapper.toDto(entity);
 
-        assertThat(dto.getTop3Actions()).containsExactly("VERIFY", "UPLOAD", "SUBMIT");
+        assertThat(dto.getTop3Actions()).extracting(NextActionScoreDto::getAction).containsExactly("VERIFY", "UPLOAD", "SUBMIT");
     }
 
     @Test

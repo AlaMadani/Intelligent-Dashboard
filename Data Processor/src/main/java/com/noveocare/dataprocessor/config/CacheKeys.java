@@ -31,6 +31,22 @@ public final class CacheKeys {
         return "session:insight:" + insuredId + ":" + sessionId;
     }
 
+    public static String sessionInsightPattern() {
+        return "session:insight:*";
+    }
+
+    public static String sessionInsightPattern(String insuredId) {
+        return "session:insight:" + insuredId + ":*";
+    }
+
+    public static String activeSessionInsightsIndexKey() {
+        return "session:insight:index";
+    }
+
+    public static String activeSessionInsightsIndexKey(String insuredId) {
+        return "session:insight:index:" + insuredId;
+    }
+
     public static String trendStatsKey(String date) {
         return "stats:trend:" + date;
     }
@@ -41,10 +57,6 @@ public final class CacheKeys {
 
     public static String detectedAnomalyKey(String insuredId, String sessionId) {
         return "anomaly:detected:" + insuredId + ":" + sessionId;
-    }
-
-    public static String pendingAlertsKey(String insuredId, String sessionId) {
-        return "alerts:pending:" + insuredId + ":" + sessionId;
     }
 
     // Keys used for rolling minute-based live statistics.
@@ -68,11 +80,23 @@ public final class CacheKeys {
         return "stats:ko:minute:" + minute;
     }
 
-    public static String dailyActionCountsKey(String date) {
-        return "stats:daily:" + date;
+    public static String downloadsMinuteKey(String minute) {
+        return "stats:downloads:minute:" + minute;
     }
 
     public static String dashboardKey(String view) {
         return "dashboard:" + view;
+    }
+
+    public static String eventsDayKey(String date) {
+        return "stats:events:day:" + date;
+    }
+
+    public static String alertsDayKey(String date) {
+        return "stats:alerts:day:" + date;
+    }
+
+    public static String downloadsDayKey(String date) {
+        return "stats:downloads:day:" + date;
     }
 }

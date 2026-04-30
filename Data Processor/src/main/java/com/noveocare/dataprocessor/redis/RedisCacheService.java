@@ -9,7 +9,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Small Redis utility that centralizes JSON serialization and counter updates.
@@ -122,5 +124,30 @@ public class RedisCacheService {
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize pubsub payload for Redis channel={}", channel, e);
         }
+    }
+
+    public void addSetMember(String key, String value) {
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
+            return;
+        }
+        redisTemplate.opsForSet().add(key, value);
+    }
+
+    public void removeSetMember(String key, String value) {
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
+            return;
+        }
+        redisTemplate.opsForSet().remove(key, value);
+    }
+
+    public Set<String> getSetMembers(String key) {
+        if (key == null || key.isBlank()) {
+            return Set.of();
+        }
+        Set<String> members = redisTemplate.opsForSet().members(key);
+        if (members == null || members.isEmpty()) {
+            return Set.of();
+        }
+        return new LinkedHashSet<>(members);
     }
 }

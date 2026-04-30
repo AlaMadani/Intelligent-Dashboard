@@ -17,14 +17,19 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class RuntimeArtifactService {
+
+    private static final String MARKOV_TRANSITIONS_CSV = "markov_transitions.csv";
+    private static final Set<String> FORECAST_BASE_COLUMNS = Set.of("ds", "yhat", "yhat_lower", "yhat_upper", "trend");
 
     private final AiResourceProperties properties;
     private final ResourceLoader resourceLoader;
@@ -87,7 +92,9 @@ public class RuntimeArtifactService {
         churnNumericMedians = readJsonMapDouble(deploymentManifest.getChurn().getNumericMedians());
         anomalyTypeLabels = normalizeLabelValues(readJsonMapIntegerString(deploymentManifest.getAnomalyType().getLabels()));
         clusterScalerParams = readJson(deploymentManifest.getClustering().getScalerParams(), ClusterScalerParams.class);
-        markovLookup = normalizeMarkovLookup(readJsonMarkovLookup(deploymentManifest.getNextAction().getArtifact()));
+        Map<String, List<MarkovTransition>> manifestMarkovLookup =
+                normalizeMarkovLookup(readJsonMarkovLookup(deploymentManifest.getNextAction().getArtifact()));
+        markovLookup = mergeMarkovLookups(manifestMarkovLookup, loadMarkovLookupFromCsv(MARKOV_TRANSITIONS_CSV));
         forecastSeries = loadForecastSeries();
         forecastModelJson = loadForecastModels();
         dashboardExports = normalizeDashboardExports(loadDashboardExports());
@@ -112,9 +119,18 @@ public class RuntimeArtifactService {
     }
 
     public String resolveBinaryArtifact() {
+        if (featureBundle != null && featureBundle.isUsesXgboostBinary() && resourceExists("xgb_binary.onnx")) {
+            return "xgb_binary.onnx";
+        }
         String preferred = deploymentManifest.getBinaryDetection().getPreferred();
         if (resourceExists(preferred)) {
             return preferred;
+        }
+        if (resourceExists(deploymentManifest.getBinaryDetection().getFallback())) {
+            return deploymentManifest.getBinaryDetection().getFallback();
+        }
+        if (resourceExists("iso_binary.onnx")) {
+            return "iso_binary.onnx";
         }
         return deploymentManifest.getBinaryDetection().getFallback();
     }
@@ -158,12 +174,86 @@ public class RuntimeArtifactService {
     }
 
     private Map<String, List<MarkovTransition>> readJsonMarkovLookup(String name) throws IOException {
-        if (name == null || name.isBlank()) {
+        if (name == null || name.isBlank() || !resourceExists(name)) {
             return Map.of();
         }
         try (InputStream inputStream = resource(name).getInputStream()) {
             return objectMapper.readValue(inputStream, new TypeReference<Map<String, List<MarkovTransition>>>() { });
         }
+    }
+
+    private Map<String, List<MarkovTransition>> loadMarkovLookupFromCsv(String name) {
+        if (!resourceExists(name)) {
+            return Map.of();
+        }
+        try {
+            List<Map<String, String>> rows = readCsvAsMaps(name);
+            Map<String, List<MarkovTransition>> lookup = new LinkedHashMap<>();
+            for (Map<String, String> row : rows) {
+                String fromAction = TextNormalization.normalizeLabel(row.get("from_action"));
+                String toAction = TextNormalization.normalizeLabel(row.get("to_action"));
+                Double probability = parseDouble(row.get("probability"));
+                if (!hasText(fromAction) || !hasText(toAction) || probability == null) {
+                    continue;
+                }
+                MarkovTransition transition = new MarkovTransition();
+                transition.setToAction(toAction);
+                transition.setProbability(probability);
+                lookup.computeIfAbsent(fromAction, ignored -> new ArrayList<>()).add(transition);
+            }
+            for (Map.Entry<String, List<MarkovTransition>> entry : lookup.entrySet()) {
+                entry.setValue(entry.getValue().stream()
+                        .sorted(Comparator.comparing(MarkovTransition::getProbability, Comparator.nullsLast(Double::compareTo)).reversed())
+                        .toList());
+            }
+            return lookup;
+        } catch (IOException ex) {
+            log.warn("Failed to load markov transitions fallback {}", name, ex);
+            return Map.of();
+        }
+    }
+
+    private Map<String, List<MarkovTransition>> mergeMarkovLookups(Map<String, List<MarkovTransition>> primary,
+                                                                    Map<String, List<MarkovTransition>> fallback) {
+        if ((primary == null || primary.isEmpty()) && (fallback == null || fallback.isEmpty())) {
+            return Map.of();
+        }
+        if (primary == null || primary.isEmpty()) {
+            return fallback == null ? Map.of() : fallback;
+        }
+        if (fallback == null || fallback.isEmpty()) {
+            return primary;
+        }
+
+        Map<String, List<MarkovTransition>> merged = new LinkedHashMap<>();
+        for (Map.Entry<String, List<MarkovTransition>> entry : primary.entrySet()) {
+            merged.put(entry.getKey(), entry.getValue() == null ? List.of() : entry.getValue());
+        }
+
+        for (Map.Entry<String, List<MarkovTransition>> entry : fallback.entrySet()) {
+            String fromAction = entry.getKey();
+            List<MarkovTransition> primaryTransitions = merged.get(fromAction);
+            if (primaryTransitions == null || primaryTransitions.isEmpty()) {
+                merged.put(fromAction, entry.getValue());
+                continue;
+            }
+
+            Map<String, MarkovTransition> byTarget = new LinkedHashMap<>();
+            for (MarkovTransition transition : primaryTransitions) {
+                if (transition != null && hasText(transition.getToAction())) {
+                    byTarget.put(transition.getToAction(), transition);
+                }
+            }
+            for (MarkovTransition transition : entry.getValue()) {
+                if (transition != null && hasText(transition.getToAction())) {
+                    byTarget.putIfAbsent(transition.getToAction(), transition);
+                }
+            }
+            merged.put(fromAction, byTarget.values().stream()
+                    .sorted(Comparator.comparing(MarkovTransition::getProbability, Comparator.nullsLast(Double::compareTo)).reversed())
+                    .toList());
+        }
+        return merged;
     }
 
     private Map<String, List<ForecastSeriesPoint>> loadForecastSeries() throws IOException {
@@ -236,9 +326,28 @@ public class RuntimeArtifactService {
                     .yhatLower(parseDouble(row.get("yhat_lower")))
                     .yhatUpper(parseDouble(row.get("yhat_upper")))
                     .trend(parseDouble(row.get("trend")))
+                    .metrics(parseForecastMetrics(row))
                     .build());
         }
         return points;
+    }
+
+    private Map<String, Double> parseForecastMetrics(Map<String, String> row) {
+        if (row == null || row.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Double> metrics = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : row.entrySet()) {
+            String key = entry.getKey();
+            if (key == null || FORECAST_BASE_COLUMNS.contains(key)) {
+                continue;
+            }
+            Double value = parseDouble(entry.getValue());
+            if (value != null) {
+                metrics.put(key, value);
+            }
+        }
+        return metrics;
     }
 
     private List<Map<String, String>> readCsvAsMaps(String name) throws IOException {
@@ -366,5 +475,9 @@ public class RuntimeArtifactService {
         }
         normalized = normalized.replace("\"\"", "\"");
         return TextNormalization.normalizeLabel(normalized);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

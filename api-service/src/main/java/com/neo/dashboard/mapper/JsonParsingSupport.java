@@ -1,11 +1,13 @@
 package com.neo.dashboard.mapper;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.neo.dashboard.dto.FeatureContributionDto;
-import com.neo.dashboard.dto.PathDeviationDto;
-import org.mapstruct.Named;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.neo.dashboard.dto.FeatureContributionDto;
+import com.neo.dashboard.dto.NextActionScoreDto;
+import com.neo.dashboard.dto.PathDeviationDto;
+import org.mapstruct.Named;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,29 +61,43 @@ public final class JsonParsingSupport {
     }
 
     @Named("parseTop3Actions")
-    public static List<String> parseTop3Actions(String json) {
+    public static List<NextActionScoreDto> parseTop3Actions(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
         try {
-            return OM.readValue(json, new TypeReference<List<String>>() { });
-        } catch (Exception ignored) {
-            return Collections.emptyList();
+            return OM.readValue(json, new TypeReference<List<NextActionScoreDto>>() { });
+        } catch (Exception e) {
+            try {
+                List<String> simple = OM.readValue(json, new TypeReference<List<String>>() { });
+                return simple.stream()
+                        .map(a -> new NextActionScoreDto(a, null))
+                        .collect(Collectors.toList());
+            } catch (Exception ignored) {
+                return Collections.emptyList();
+            }
         }
     }
 
     /**
-     * Handles both JSON arrays and the legacy {@code List#toString()} form persisted for next actions.
+     * Handles both JSON arrays (of strings or objects) and the legacy {@code List#toString()} form persisted for next actions.
      */
     @Named("parseNextActionsJson")
-    public static List<String> parseNextActionsJson(String json) {
+    public static List<NextActionScoreDto> parseNextActionsJson(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
         String trimmed = json.trim();
         try {
             if (trimmed.startsWith("[")) {
-                return OM.readValue(trimmed, new TypeReference<List<String>>() { });
+                try {
+                    return OM.readValue(trimmed, new TypeReference<List<NextActionScoreDto>>() { });
+                } catch (Exception e) {
+                    List<String> strings = OM.readValue(trimmed, new TypeReference<List<String>>() { });
+                    return strings.stream()
+                            .map(s -> new NextActionScoreDto(s, null))
+                            .collect(Collectors.toList());
+                }
             }
         } catch (Exception ignored) {
             // fall through to bracket split
@@ -91,11 +107,11 @@ public final class JsonParsingSupport {
             if (inner.isEmpty()) {
                 return Collections.emptyList();
             }
-            List<String> parts = new ArrayList<>();
+            List<NextActionScoreDto> parts = new ArrayList<>();
             for (String piece : Arrays.asList(inner.split(","))) {
                 String p = piece.trim();
                 if (!p.isEmpty()) {
-                    parts.add(p);
+                    parts.add(new NextActionScoreDto(p, null));
                 }
             }
             return parts;

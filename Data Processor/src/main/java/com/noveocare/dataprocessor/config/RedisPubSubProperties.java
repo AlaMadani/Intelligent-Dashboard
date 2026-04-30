@@ -8,4 +8,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class RedisPubSubProperties {
     private String criticalAlertsChannel = "CRITICAL_ALERT";
     private String systemTrafficAnomalyChannel = "SYSTEM_TRAFFIC_ANOMALY";
+    private String liveStatsChannel = "LIVE_STATS";
 }

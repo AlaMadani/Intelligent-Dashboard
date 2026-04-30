@@ -170,8 +170,8 @@ public class ModelInferenceService {
                     runtimeArtifactService.getSessionNumericMedians());
             try {
                 ResultBundle bundle = runSingle(binaryDetector, vector);
-                long label = bundle.longOutput("label", 1L);
-                double score = bundle.doubleOutput("scores", 0.0);
+                long label = bundle.longOutput(List.of("label", "output_label"), 0L);
+                double score = bundle.doubleOutput(List.of("scores", "score", "anomaly_score"), 0.0);
                 boolean anomalyFlag;
                 double anomalyProbability;
 
@@ -182,7 +182,7 @@ public class ModelInferenceService {
                 } else {
                     anomalyProbability = bundle.probabilityForClass(1L);
                     anomalyFlag = label == 1L || anomalyProbability >= 0.5;
-                    score = anomalyProbability;
+                    score = anomalyProbability > 0.0 ? anomalyProbability : score;
                 }
                 return new BinaryDetectionResult(anomalyFlag, score, anomalyProbability, binaryDetector.artifactName());
             } catch (Exception ex) {
@@ -590,7 +590,11 @@ public class ModelInferenceService {
         }
 
         private long longOutput(String name, long fallback) {
-            Object value = outputs.get(name);
+            return longOutput(List.of(name), fallback);
+        }
+
+        private long longOutput(List<String> names, long fallback) {
+            Object value = firstValue(names);
             if (value instanceof long[] array && array.length > 0) {
                 return array[0];
             }
@@ -607,7 +611,11 @@ public class ModelInferenceService {
         }
 
         private double doubleOutput(String name, double fallback) {
-            Object value = outputs.get(name);
+            return doubleOutput(List.of(name), fallback);
+        }
+
+        private double doubleOutput(List<String> names, double fallback) {
+            Object value = firstValue(names);
             if (value instanceof float[] array && array.length > 0) {
                 return array[0];
             }
@@ -625,21 +633,46 @@ public class ModelInferenceService {
 
         @SuppressWarnings("unchecked")
         private double probabilityForClass(long label) {
-            Object value = outputs.get("output_probability");
+            Object value = firstValue(List.of("output_probability", "probabilities", "probability"));
             if (value instanceof List<?> sequence && !sequence.isEmpty() && sequence.get(0) instanceof Map<?, ?> probabilityMap) {
                 Object probability = probabilityMap.get(label);
                 if (probability == null) {
                     probability = probabilityMap.get((int) label);
                 }
+                if (probability == null) {
+                    probability = probabilityMap.get(String.valueOf(label));
+                }
                 if (probability instanceof Number number) {
                     return number.doubleValue();
                 }
             }
-            value = outputs.get("scores");
+            value = firstValue(List.of("scores", "score"));
             if (value instanceof float[][] matrix && matrix.length > 0 && matrix[0].length > (int) label) {
                 return matrix[0][(int) label];
             }
+            if (value instanceof double[][] matrix && matrix.length > 0 && matrix[0].length > (int) label) {
+                return matrix[0][(int) label];
+            }
+            if (value instanceof float[] vector && vector.length > (int) label) {
+                return vector[(int) label];
+            }
+            if (value instanceof double[] vector && vector.length > (int) label) {
+                return vector[(int) label];
+            }
             return 0.0;
+        }
+
+        private Object firstValue(List<String> names) {
+            return names.stream()
+                    .filter(name -> name != null && !name.isBlank())
+                    .map(outputs::get)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElseGet(() -> outputs.entrySet().stream()
+                            .filter(entry -> names.stream().anyMatch(name -> entry.getKey().equalsIgnoreCase(name)))
+                            .map(Map.Entry::getValue)
+                            .findFirst()
+                            .orElse(null));
         }
     }
 }

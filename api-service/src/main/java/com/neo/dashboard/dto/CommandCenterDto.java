@@ -17,5 +17,8 @@ public class CommandCenterDto {
     private StatsResponseDto trendForecast;
     private JsonNode alertFeed;
     private JsonNode riskySessions;
+    private JsonNode clusterMix;
+    private JsonNode dropOffs;
+    private JsonNode pathDeviations;
     private JsonNode forecastDetails;
 }

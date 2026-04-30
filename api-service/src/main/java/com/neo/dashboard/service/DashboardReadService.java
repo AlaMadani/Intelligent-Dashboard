@@ -1,7 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.redis.CacheKeys;
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -16,9 +16,21 @@ import java.util.Set;
  * {@code dashboard:*} keys.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class DashboardReadService {
+
+    private static final Set<String> ITEM_LIST_VIEWS = Set.of(
+            "alerts",
+            "risky-sessions",
+            "cluster-mix",
+            "drop-offs",
+            "path-deviations"
+    );
+
+    private static final Set<String> OBJECT_VIEWS = Set.of(
+            "forecasts",
+            "forecast-series"
+    );
 
     private static final Set<String> ALLOWED_VIEWS = Set.of(
             "alerts",
@@ -33,8 +45,13 @@ public class DashboardReadService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
+    public DashboardReadService(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+    }
+
     public Optional<JsonNode> getSnapshot(String view) {
-        if (view == null || view.isBlank() || !ALLOWED_VIEWS.contains(view)) {
+        if (!isAllowedView(view)) {
             return Optional.empty();
         }
         String cached = redisTemplate.opsForValue().get(CacheKeys.dashboardKey(view));
@@ -47,5 +64,25 @@ public class DashboardReadService {
             log.warn("Failed to parse dashboard snapshot view={}", view, e);
             return Optional.empty();
         }
+    }
+
+    public Optional<JsonNode> getSnapshotOrDefault(String view) {
+        if (!isAllowedView(view)) {
+            return Optional.empty();
+        }
+        return getSnapshot(view).or(() -> Optional.of(defaultSnapshot(view)));
+    }
+
+    private boolean isAllowedView(String view) {
+        return view != null && !view.isBlank() && ALLOWED_VIEWS.contains(view);
+    }
+
+    private JsonNode defaultSnapshot(String view) {
+        if (ITEM_LIST_VIEWS.contains(view)) {
+            ObjectNode payload = objectMapper.createObjectNode();
+            payload.set("items", objectMapper.createArrayNode());
+            return payload;
+        }
+        return objectMapper.createObjectNode();
     }
 }

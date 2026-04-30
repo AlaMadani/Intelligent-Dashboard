@@ -19,8 +19,17 @@ import java.util.Optional;
 public interface AnomalyEventRepository extends JpaRepository<AnomalyEvent, Long> {
 
     /* Apply optional filters for insured id, time window, anomaly tier, and type. */
-    @Query("""
+    @Query(value = """
             SELECT e
+            FROM AnomalyEvent e
+            WHERE (:insuredId IS NULL OR e.insuredId = :insuredId)
+              AND (:fromTime IS NULL OR e.eventTime >= :fromTime)
+              AND (:toTime IS NULL OR e.eventTime <= :toTime)
+              AND (:tier IS NULL OR e.anomalyTier = :tier)
+              AND (:type IS NULL OR e.anomalyType = :type)
+            """,
+           countQuery = """
+            SELECT COUNT_BIG(e.id)
             FROM AnomalyEvent e
             WHERE (:insuredId IS NULL OR e.insuredId = :insuredId)
               AND (:fromTime IS NULL OR e.eventTime >= :fromTime)

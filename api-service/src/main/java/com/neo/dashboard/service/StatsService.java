@@ -44,6 +44,7 @@ public class StatsService {
      * nothing is cached.  No @Transactional here: the method only touches Redis,
      * so acquiring a JDBC connection from HikariCP would be wasteful.
      */
+    @Transactional(readOnly = true)
     public StatsResponseDto getLiveStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
         for (String key : dateKeys("stats:live:", resolvedDate)) {
@@ -68,6 +69,7 @@ public class StatsService {
      * isolated in its own @Transactional method so a JDBC connection is only
      * acquired when truly needed.
      */
+    @Transactional(readOnly = true)
     public StatsResponseDto getTrendStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
         StatsResponseDto forecastSnapshot = getForecastSnapshot(resolvedDate);
@@ -98,9 +100,8 @@ public class StatsService {
             }
             try {
                 JsonNode payload = objectMapper.readTree(cached);
-                JsonNode points = extractForecastPoints(payload);
-                if (points != null && points.isArray() && !points.isEmpty()) {
-                    return new StatsResponseDto(date, "redis", points);
+                if (hasForecastContent(payload)) {
+                    return new StatsResponseDto(date, "redis", payload);
                 }
             } catch (Exception e) {
                 log.warn("Failed to parse forecast snapshot view={}", view, e);
@@ -126,19 +127,20 @@ public class StatsService {
         return new StatsResponseDto(date, "missing", payload);
     }
 
-    private JsonNode extractForecastPoints(JsonNode payload) {
+    private boolean hasForecastContent(JsonNode payload) {
         if (payload == null || payload.isMissingNode() || payload.isNull()) {
-            return null;
+            return false;
+        }
+        JsonNode items = payload.path("items");
+        if (items.isObject() && items.size() > 0) {
+            return true;
         }
         JsonNode direct = payload.path("total_events").path("points");
         if (direct.isArray() && !direct.isEmpty()) {
-            return direct;
+            return true;
         }
         JsonNode wrapped = payload.path("items").path("total_events").path("points");
-        if (wrapped.isArray() && !wrapped.isEmpty()) {
-            return wrapped;
-        }
-        return null;
+        return wrapped.isArray() && !wrapped.isEmpty();
     }
 
     /* Support both supported key formats while avoiding duplicates. */

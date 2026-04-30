@@ -1,0 +1,3662 @@
+{
+  "Connexion": [
+    {
+      "to_action": "Validation MFA",
+      "probability": 0.4055793991416309
+    },
+    {
+      "to_action": "Sélection email MFA",
+      "probability": 0.11695278969957082
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.05996661897949451
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.045779685264663805
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.03278493085360038
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.028969957081545063
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.028254649499284693
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.027896995708154508
+    },
+    {
+      "to_action": "Connexion",
+      "probability": 0.026347162613257032
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.02503576537911302
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.019432522651406773
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.016571292322365285
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.014425369575584168
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.013471626132570339
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.012994754411063424
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.012994754411063424
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.012756318550309967
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.010848831664282308
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.010848831664282308
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.01072961373390558
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.008702908917501192
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.008583690987124463
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.00798760133524082
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.0075107296137339056
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.007272293752980448
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.004649499284692418
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.004649499284692418
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.004291845493562232
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.003934191702432046
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0033381020505484026
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "probability": 0.002503576537911302
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.002384358607534573
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.001072961373390558
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0004768717215069146
+    }
+  ],
+  "Changer ses informations personnel": [
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.29888888888888887
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.29138888888888886
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.1238888888888889
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.07888888888888888
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.04083333333333333
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.02361111111111111
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.02361111111111111
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.021111111111111112
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.015
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.015
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.014166666666666666
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.0125
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.009444444444444445
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.008055555555555555
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.005833333333333334
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.005555555555555556
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0038888888888888888
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.0030555555555555557
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.0022222222222222222
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.0008333333333333334
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0005555555555555556
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0005555555555555556
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.0002777777777777778
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0002777777777777778
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0002777777777777778
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0002777777777777778
+    }
+  ],
+  "Régénération code MFA": [
+    {
+      "to_action": "Validation MFA",
+      "probability": 1.0
+    }
+  ],
+  "Sélection email MFA": [
+    {
+      "to_action": "Régénération code MFA",
+      "probability": 1.0
+    }
+  ],
+  "Signature électronique d'un mandat sepa": [
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.25614591593973035
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.2484800422944753
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.12873380914618027
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.10177108115252445
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.0795664816283373
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.052339413164155434
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.034892942109436956
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.020089875759978854
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.015331747290510176
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.015331747290510176
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.010837959291567539
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.007137192704203013
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.007137192704203013
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.006872852233676976
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.0050224689399947136
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.003965107057890563
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.00105736188210415
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.00105736188210415
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.00105736188210415
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0007930214115781126
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.000528680941052075
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0002643404705260375
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.0002643404705260375
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0002643404705260375
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.0002643404705260375
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.0002643404705260375
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0002643404705260375
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0002643404705260375
+    }
+  ],
+  "Exporter remboursement": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.24585091420534458
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.23938115330520393
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.1670886075949367
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.12320675105485232
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.05682137834036568
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.02981715893108298
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.018565400843881856
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.016877637130801686
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.015471167369901548
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.015189873417721518
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.012939521800281293
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.008157524613220815
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.007032348804500703
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.00590717299578059
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.004781997187060478
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.00450070323488045
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.00450070323488045
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.004219409282700422
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0033755274261603376
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0028129395218002813
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0028129395218002813
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.002531645569620253
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.001969057665260197
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.0014064697609001407
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.0011251758087201125
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0011251758087201125
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.0011251758087201125
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0005625879043600563
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.00028129395218002813
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.00028129395218002813
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.00028129395218002813
+    }
+  ],
+  "Connexion en tant que": [
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.2989550204452522
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.17492049068605178
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.10540663334847797
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.06724216265333939
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.05724670604270786
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.05406633348477965
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.04361653793730123
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.0372557928214448
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.024988641526578828
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.019082235347569285
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.017719218537028625
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.016810540663334848
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.013175829168559746
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.012721490231712857
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.009995456610631531
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.009086778736937756
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.005906406179009541
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.004997728305315766
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.004543389368468878
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.00408905043162199
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.00408905043162199
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.003634711494775102
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "probability": 0.001817355747387551
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0013630168105406633
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0013630168105406633
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0013630168105406633
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0013630168105406633
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0013630168105406633
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.0009086778736937755
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0009086778736937755
+    }
+  ],
+  "Envoi d'un document": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.22792231586661782
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.1714913887871015
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.14474166361304508
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.1330157566874313
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.07621839501648955
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.031513374862587026
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.02491755221692928
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.021986075485525832
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.021253206302674972
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.016489556614144377
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.015390252839868083
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.0131916452913155
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.01282521069989007
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.011359472334188348
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.010260168559912056
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.009160864785635764
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.008427995602784902
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.007695126419934042
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.006962257237083181
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.00622938805423232
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.005862953462806889
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.005496518871381458
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.005496518871381458
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.004397215097105167
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0021986075485525836
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.001832172957127153
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0014657383657017222
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0010993037742762918
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0010993037742762918
+    }
+  ],
+  "Validation MFA": [
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.12571298197581565
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.10107232489162674
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.07757243896874287
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.0675336527492585
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.059320100387862194
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.057494866529774126
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.055441478439425054
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.04426192105863564
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.04175222450376454
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.03376682637462925
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.03353867214236824
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.03194159251654118
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.03148528405201916
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.03057266712297513
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.02806297056810404
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.02304357745836185
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.022359114761578827
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.019849418206707735
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.018708647045402694
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.018024184348619667
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.016655258955053615
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.015058179329226557
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.012092174309833448
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.009126169290440338
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.008669860825918321
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.005019393109742185
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.004334930412959161
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0031941592516541184
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.0025096965548710927
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0018252338580880675
+    }
+  ],
+  "Connexion SSO": [
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.13925661914460286
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.07459266802443992
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.07408350305498981
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.07128309572301425
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.07026476578411406
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.06364562118126273
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.0554989816700611
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.04124236252545825
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.040224032586558045
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.03895112016293279
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.03665987780040733
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.032586558044806514
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.03131364562118126
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.029276985743380855
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.028258655804480653
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.024185336048879836
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.02189409368635438
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.021639511201629328
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.017820773930753563
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.017566191446028515
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.014511201629327902
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.012983706720977596
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.009164969450101833
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.007892057026476579
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.006364562118126273
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.004837067209775967
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.004582484725050916
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.003564154786150713
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.002291242362525458
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "probability": 0.002036659877800407
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0015274949083503055
+    }
+  ],
+  "Changer l'organisme de rattachement sécu. Social": [
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.25478011472275336
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.24808795411089865
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.20889101338432123
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.10468451242829828
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.03489483747609943
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.027246653919694074
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.020076481835564052
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.019120458891013385
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.016252390057361378
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.01577437858508604
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.0124282982791587
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.010038240917782026
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.0057361376673040155
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.004302103250478011
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.0028680688336520078
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.002390057361376673
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.0019120458891013384
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0019120458891013384
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0019120458891013384
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.0019120458891013384
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.0009560229445506692
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0009560229445506692
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.0009560229445506692
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0004780114722753346
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0004780114722753346
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0004780114722753346
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0004780114722753346
+    }
+  ],
+  "Ouverture d'un document contractuel": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.22654561175961954
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.1556420233463035
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.14829226113272806
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.14310419368785127
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.07479463899697363
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.03285776048421963
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.025507998270644185
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.023778642455685256
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.021184608733246867
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.01772589710332901
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.016428880242109815
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.01599654128837008
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.01340250756593169
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.01297016861219196
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.012537829658452227
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.00864677907479464
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.007349762213575443
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.006917423259835711
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.005620406398616515
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.005188067444876783
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0034587116299178555
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.0034587116299178555
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0034587116299178555
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0030263726761781237
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0030263726761781237
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.00216169476869866
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.00216169476869866
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.00216169476869866
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0017293558149589277
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.00043233895373973193
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.00043233895373973193
+    }
+  ],
+  "Télécharger un décompte": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.2277365491651206
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.19573283858998144
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.150278293135436
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.14517625231910947
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.05380333951762523
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.03942486085343228
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.021799628942486084
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.021799628942486084
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.019016697588126158
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.016233766233766232
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.014842300556586271
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.013450834879406308
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.012523191094619666
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.011595547309833023
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.010667903525046383
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.007884972170686457
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.006957328385899814
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.00463821892393321
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.0037105751391465678
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0037105751391465678
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.0037105751391465678
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0027829313543599257
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.002319109461966605
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.002319109461966605
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0018552875695732839
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.0013914656771799629
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0013914656771799629
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0013914656771799629
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0009276437847866419
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.00046382189239332097
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.00046382189239332097
+    }
+  ],
+  "Changement de Mot de passe": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.2858036272670419
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.28205128205128205
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.1357098186366479
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.08067542213883677
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.031269543464665414
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.02626641651031895
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.021888680425265792
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.021888680425265792
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.01876172607879925
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.017510944340212633
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.016885553470919325
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.012507817385866166
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.008130081300813009
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.0075046904315197
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.0075046904315197
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.006253908692933083
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.005628517823639775
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.004377736085053158
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0031269543464665416
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.001876172607879925
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0012507817385866166
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0006253908692933083
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0006253908692933083
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0006253908692933083
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.0006253908692933083
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0006253908692933083
+    }
+  ],
+  "Téléchargement de la carte de tiers payant": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.24345969033635878
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.21195942338494395
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.17458622530699414
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.09236518953550454
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.06353443673251469
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.05018686599038975
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.03844100373731981
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.02189001601708489
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.0202883075280299
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.01601708489054992
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.015483182060864922
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.013347570742124934
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.011745862253069941
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.005339028296849973
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.004805125467164976
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.004271222637479978
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0037373198077949813
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.001601708489054992
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.001601708489054992
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.001601708489054992
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.0010678056593699946
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.0010678056593699946
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.0010678056593699946
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0005339028296849973
+    }
+  ],
+  "Changer les coordonnées bancaire": [
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.20693333333333333
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.1584
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.14986666666666668
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.14826666666666666
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.08
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.07786666666666667
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.042133333333333335
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.028266666666666666
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.024
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.014933333333333333
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.014933333333333333
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.013333333333333334
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.011733333333333333
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "probability": 0.0096
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.005866666666666667
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.005333333333333333
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.0037333333333333333
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0016
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.0010666666666666667
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.0005333333333333334
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0005333333333333334
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0005333333333333334
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.0005333333333333334
+    }
+  ],
+  "Partager un justificatif du PACS": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.23793337865397687
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.15771583956492183
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.13936097892590074
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.1318830727396329
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.10808973487423522
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.028552005438477225
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.02787219578518015
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.024473147518694765
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.018354860639021073
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.01563562202583277
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.01563562202583277
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.014276002719238613
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.011556764106050306
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.008837525492861998
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.008157715839564922
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.008157715839564922
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.007477906186267845
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.006118286879673691
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.006118286879673691
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.003399048266485384
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.003399048266485384
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.003399048266485384
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.002719238613188307
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.002719238613188307
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.002719238613188307
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0020394289598912306
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0013596193065941536
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0013596193065941536
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0006798096532970768
+    }
+  ],
+  "Envoi d'une réclamation": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.26853932584269663
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.21685393258426966
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.12696629213483146
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.10674157303370786
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.029213483146067417
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.029213483146067417
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.02696629213483146
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.020224719101123594
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.019101123595505618
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.017977528089887642
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.016853932584269662
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.015730337078651686
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.015730337078651686
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.012359550561797753
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.012359550561797753
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.012359550561797753
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.008988764044943821
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.007865168539325843
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.006741573033707865
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0056179775280898875
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.0044943820224719105
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0033707865168539327
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.0033707865168539327
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.0033707865168539327
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0022471910112359553
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0022471910112359553
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.0011235955056179776
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.0011235955056179776
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.0011235955056179776
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.0011235955056179776
+    }
+  ],
+  "Téléchargement carte TP": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.22547169811320755
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.16886792452830188
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.15943396226415094
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.14150943396226415
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.07358490566037736
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.0509433962264151
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.03207547169811321
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.024528301886792454
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.020754716981132074
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.018867924528301886
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.017924528301886792
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.016037735849056604
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.014150943396226415
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.007547169811320755
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.006603773584905661
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.005660377358490566
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.0037735849056603774
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0037735849056603774
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0037735849056603774
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.002830188679245283
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.0009433962264150943
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.0009433962264150943
+    }
+  ],
+  "Télécharger le certificat d'adhésion": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.19663865546218487
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.18487394957983194
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.1453781512605042
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.10756302521008404
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.0865546218487395
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.037815126050420166
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.03361344537815126
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.025210084033613446
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.02100840336134454
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.01764705882352941
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.01764705882352941
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.01680672268907563
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.015126050420168067
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.014285714285714285
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.011764705882352941
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.010924369747899159
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.008403361344537815
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.008403361344537815
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0058823529411764705
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.0058823529411764705
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.005042016806722689
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.005042016806722689
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.005042016806722689
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.004201680672268907
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0033613445378151263
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.0025210084033613447
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.0016806722689075631
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.0008403361344537816
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0008403361344537816
+    }
+  ],
+  "Renvoi carte TP papier": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.21033210332103322
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.1466789667896679
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.12269372693726938
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.11070110701107011
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.06549815498154982
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.06088560885608856
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.05996309963099631
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.02859778597785978
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.023985239852398525
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.02214022140221402
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.021217712177121772
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.021217712177121772
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.02029520295202952
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.017527675276752766
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.012915129151291513
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.006457564575645757
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.006457564575645757
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.005535055350553505
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.005535055350553505
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.005535055350553505
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.004612546125461255
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.004612546125461255
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.0036900369003690036
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0036900369003690036
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0036900369003690036
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0027675276752767526
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0018450184501845018
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0009225092250922509
+    }
+  ],
+  "envoi d'une demande de résiliation": [
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.3149717514124294
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.2994350282485876
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.14689265536723164
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.025423728813559324
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.02401129943502825
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.0211864406779661
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.018361581920903956
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.01694915254237288
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.015536723163841809
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.014124293785310734
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.014124293785310734
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.014124293785310734
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.011299435028248588
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.009887005649717515
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.00847457627118644
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.005649717514124294
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.00423728813559322
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.00423728813559322
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.00423728813559322
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.00423728813559322
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.00423728813559322
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.00423728813559322
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.002824858757062147
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.002824858757062147
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0014124293785310734
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.0014124293785310734
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.0014124293785310734
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0014124293785310734
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.0014124293785310734
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.0014124293785310734
+    }
+  ],
+  "Changer les coordonnées bancaire, changement de RIB pour les cotisations": [
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.18892794376098418
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.1625659050966608
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.15026362038664323
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.14499121265377857
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.09753954305799649
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.0773286467486819
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.029876977152899824
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.028119507908611598
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.022847100175746926
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "probability": 0.01757469244288225
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.015817223198594025
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.015817223198594025
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.011423550087873463
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.008787346221441126
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.006151142355008787
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.005272407732864675
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.004393673110720563
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.0026362038664323375
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0026362038664323375
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.0026362038664323375
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.0017574692442882249
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0017574692442882249
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.0008787346221441124
+    }
+  ],
+  "Changer les coordonnées bancaire, changement de RIB pour les remboursements": [
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.2034764826175869
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.1574642126789366
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.15030674846625766
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.12883435582822086
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.08895705521472393
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.07259713701431493
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.04396728016359918
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.032719836400818
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.019427402862985686
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "probability": 0.017382413087934562
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.016359918200409
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.014314928425357873
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.013292433537832311
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.011247443762781187
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.0081799591002045
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.00408997955010225
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.00408997955010225
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.00408997955010225
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.003067484662576687
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.002044989775051125
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0010224948875255625
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0010224948875255625
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0010224948875255625
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.0010224948875255625
+    }
+  ],
+  "Envoi carte TP par mail": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.20187793427230047
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.13849765258215962
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.11267605633802817
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.11150234741784038
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.07746478873239436
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.07511737089201878
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.0539906103286385
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.029342723004694836
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.028169014084507043
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.025821596244131457
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.025821596244131457
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.01995305164319249
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.018779342723004695
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.014084507042253521
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.011737089201877934
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.01056338028169014
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.008215962441314555
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.007042253521126761
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.005868544600938967
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.004694835680751174
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.004694835680751174
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.0035211267605633804
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.0035211267605633804
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.002347417840375587
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.002347417840375587
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0011737089201877935
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0011737089201877935
+    }
+  ],
+  "Envoi d'un message": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.3030973451327434
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.1261061946902655
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.0752212389380531
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.06415929203539823
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.05530973451327434
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.048672566371681415
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.046460176991150445
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.046460176991150445
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.03761061946902655
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.030973451327433628
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.022123893805309734
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.01991150442477876
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.017699115044247787
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.017699115044247787
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.017699115044247787
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.015486725663716814
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.015486725663716814
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.01327433628318584
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.011061946902654867
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.00663716814159292
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.004424778761061947
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.0022123893805309734
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.0022123893805309734
+    }
+  ],
+  "demander un renvoi par mail d'échéancier": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.25806451612903225
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.19556451612903225
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.11895161290322581
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.0967741935483871
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.04435483870967742
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.04435483870967742
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.04032258064516129
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.024193548387096774
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.020161290322580645
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.020161290322580645
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.016129032258064516
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.014112903225806451
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.014112903225806451
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.012096774193548387
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.010080645161290322
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.008064516129032258
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.008064516129032258
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.008064516129032258
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.006048387096774193
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.006048387096774193
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.006048387096774193
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.006048387096774193
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.004032258064516129
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.004032258064516129
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.004032258064516129
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.004032258064516129
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.0020161290322580645
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.0020161290322580645
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.0020161290322580645
+    }
+  ],
+  "Contactez nous : via message (Mes remboursements)": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.30927835051546393
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.12027491408934708
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.09965635738831616
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.061855670103092786
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.048109965635738834
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.048109965635738834
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.044673539518900345
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.03436426116838488
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.030927835051546393
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.024054982817869417
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.024054982817869417
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.024054982817869417
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.020618556701030927
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.01718213058419244
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.01718213058419244
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.013745704467353952
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.013745704467353952
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.013745704467353952
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.010309278350515464
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.010309278350515464
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.006872852233676976
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.003436426116838488
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.003436426116838488
+    }
+  ],
+  "Contactez nous : via message (Mon adhésion, Autres)": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.2713178294573643
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.1124031007751938
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.08527131782945736
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.06976744186046512
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.06201550387596899
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.05813953488372093
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.05426356589147287
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.03875968992248062
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.03488372093023256
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.031007751937984496
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.031007751937984496
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.027131782945736434
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.023255813953488372
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.023255813953488372
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.01937984496124031
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.015503875968992248
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.011627906976744186
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.011627906976744186
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.007751937984496124
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.007751937984496124
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.003875968992248062
+    }
+  ],
+  "Contactez nous : via message (Mes garanties)": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.26877470355731226
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.13438735177865613
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.11462450592885376
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.07509881422924901
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.05138339920948617
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.043478260869565216
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.043478260869565216
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.039525691699604744
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.03557312252964427
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.02766798418972332
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.023715415019762844
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.023715415019762844
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.019762845849802372
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.019762845849802372
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.015810276679841896
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.011857707509881422
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.007905138339920948
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.007905138339920948
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.007905138339920948
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.007905138339920948
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.007905138339920948
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.003952569169960474
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.003952569169960474
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.003952569169960474
+    }
+  ],
+  "Ajout de la carte tiers payant dans le wallet": [
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.1917808219178082
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.11301369863013698
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.1095890410958904
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.08904109589041095
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.07534246575342465
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.07191780821917808
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.0547945205479452
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.0547945205479452
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.04794520547945205
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.04452054794520548
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.0273972602739726
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.023972602739726026
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.023972602739726026
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.0136986301369863
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.010273972602739725
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.010273972602739725
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.010273972602739725
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.00684931506849315
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.003424657534246575
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.003424657534246575
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.003424657534246575
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.003424657534246575
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.003424657534246575
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.003424657534246575
+    }
+  ],
+  "Contactez nous : via message (Mes prises en charge/devis)": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.28313253012048195
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.10843373493975904
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.0963855421686747
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.060240963855421686
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.04819277108433735
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.04819277108433735
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.04216867469879518
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.04216867469879518
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.03614457831325301
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.03614457831325301
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.024096385542168676
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.024096385542168676
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.024096385542168676
+    },
+    {
+      "to_action": "Téléchargement carte TP",
+      "probability": 0.024096385542168676
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.018072289156626505
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.018072289156626505
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.012048192771084338
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.012048192771084338
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.012048192771084338
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.006024096385542169
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.006024096385542169
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.006024096385542169
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.006024096385542169
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.006024096385542169
+    }
+  ],
+  "Contactez nous : via message (Mes cotisations)": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.24
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.15333333333333332
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.09333333333333334
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.07333333333333333
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.06666666666666667
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.05333333333333334
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.04666666666666667
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.03333333333333333
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.03333333333333333
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.03333333333333333
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.03333333333333333
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.03333333333333333
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.03333333333333333
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.02666666666666667
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.013333333333333334
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.013333333333333334
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.006666666666666667
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.006666666666666667
+    },
+    {
+      "to_action": "Envoi carte TP par mail",
+      "probability": 0.006666666666666667
+    }
+  ],
+  "Changer les coordonnées bancaire, changement de RIB de bénéficiaire": [
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.27450980392156865
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.19607843137254902
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.17647058823529413
+    },
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.14705882352941177
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB de bénéficiaire",
+      "probability": 0.13725490196078433
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.06862745098039216
+    }
+  ],
+  "Contactez nous : via message (Ma carte tiers-payant)": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.2988505747126437
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.16091954022988506
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.10344827586206896
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.06896551724137931
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.05747126436781609
+    },
+    {
+      "to_action": "demander un renvoi par mail d'échéancier",
+      "probability": 0.04597701149425287
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.034482758620689655
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma carte tiers-payant)",
+      "probability": 0.034482758620689655
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.034482758620689655
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes prises en charge/devis)",
+      "probability": 0.034482758620689655
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes cotisations)",
+      "probability": 0.022988505747126436
+    },
+    {
+      "to_action": "Ajout de la carte tiers payant dans le wallet",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Changer l'organisme de rattachement sécu. Social",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.011494252873563218
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.011494252873563218
+    }
+  ],
+  "Contactez nous : via message (Ma télétransmission - rattachement automatique avec votre Régime Obligatoire)": [
+    {
+      "to_action": "Déconnexion",
+      "probability": 0.19298245614035087
+    },
+    {
+      "to_action": "SSO Disconnect",
+      "probability": 0.15789473684210525
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.10526315789473684
+    },
+    {
+      "to_action": "Renvoi carte TP papier",
+      "probability": 0.08771929824561403
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.07017543859649122
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.07017543859649122
+    },
+    {
+      "to_action": "Envoi d'une réclamation",
+      "probability": 0.05263157894736842
+    },
+    {
+      "to_action": "envoi d'une demande de résiliation",
+      "probability": 0.05263157894736842
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.03508771929824561
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes remboursements)",
+      "probability": 0.03508771929824561
+    },
+    {
+      "to_action": "Changement de Mot de passe",
+      "probability": 0.017543859649122806
+    },
+    {
+      "to_action": "Changer ses informations personnel",
+      "probability": 0.017543859649122806
+    },
+    {
+      "to_action": "Contactez nous : via message (Mes garanties)",
+      "probability": 0.017543859649122806
+    },
+    {
+      "to_action": "Contactez nous : via message (Mon adhésion, Autres)",
+      "probability": 0.017543859649122806
+    },
+    {
+      "to_action": "Envoi d'un message",
+      "probability": 0.017543859649122806
+    },
+    {
+      "to_action": "Téléchargement de la carte de tiers payant",
+      "probability": 0.017543859649122806
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.017543859649122806
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.017543859649122806
+    }
+  ],
+  "Déconnexion": [
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.15517241379310345
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.13793103448275862
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.1206896551724138
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.1206896551724138
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.1206896551724138
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.10344827586206896
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.08620689655172414
+    },
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.06896551724137931
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.05172413793103448
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.034482758620689655
+    }
+  ],
+  "SSO Disconnect": [
+    {
+      "to_action": "Ouverture d'un document contractuel",
+      "probability": 0.21428571428571427
+    },
+    {
+      "to_action": "Envoi d'un document",
+      "probability": 0.16666666666666666
+    },
+    {
+      "to_action": "Télécharger un décompte",
+      "probability": 0.11904761904761904
+    },
+    {
+      "to_action": "Signature électronique d'un mandat sepa",
+      "probability": 0.09523809523809523
+    },
+    {
+      "to_action": "Partager un justificatif du PACS",
+      "probability": 0.09523809523809523
+    },
+    {
+      "to_action": "Exporter remboursement",
+      "probability": 0.09523809523809523
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les remboursements",
+      "probability": 0.07142857142857142
+    },
+    {
+      "to_action": "Télécharger le certificat d'adhésion",
+      "probability": 0.047619047619047616
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire, changement de RIB pour les cotisations",
+      "probability": 0.047619047619047616
+    },
+    {
+      "to_action": "Changer les coordonnées bancaire",
+      "probability": 0.047619047619047616
+    }
+  ]
+}

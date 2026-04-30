@@ -1,14 +1,19 @@
 package com.noveocare.dataprocessor.ai;
 
 import lombok.Builder;
-import lombok.Value;
+import lombok.Getter;
+import lombok.Singular;
 
-@Value
+import java.util.Map;
+
+@Getter
 @Builder
 public class ForecastSeriesPoint {
-    String ds;
-    Double yhat;
-    Double yhatLower;
-    Double yhatUpper;
-    Double trend;
+    private final String ds;
+    private final Double yhat;
+    private final Double yhatLower;
+    private final Double yhatUpper;
+    private final Double trend;
+    @Singular("metric")
+    private final Map<String, Double> metrics;
 }

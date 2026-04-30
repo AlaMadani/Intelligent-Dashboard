@@ -25,6 +25,9 @@ public class CommandCenterService {
                 statsService.getTrendStats(date),
                 dashboardReadService.getSnapshot("alerts").orElseGet(this::emptyItemsPayload),
                 dashboardReadService.getSnapshot("risky-sessions").orElseGet(this::emptyItemsPayload),
+                dashboardReadService.getSnapshot("cluster-mix").orElseGet(this::emptyItemsPayload),
+                dashboardReadService.getSnapshot("drop-offs").orElseGet(this::emptyItemsPayload),
+                dashboardReadService.getSnapshot("path-deviations").orElseGet(this::emptyItemsPayload),
                 dashboardReadService.getSnapshot("forecasts").orElseGet(objectMapper::createObjectNode)
         );
     }

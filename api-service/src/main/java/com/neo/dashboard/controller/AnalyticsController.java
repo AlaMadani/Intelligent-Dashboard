@@ -1,17 +1,7 @@
 package com.neo.dashboard.controller;
 
-import com.neo.dashboard.dto.ApiResponse;
-import com.neo.dashboard.dto.AnomalyAlertDto;
-import com.neo.dashboard.dto.AnomalyEventDto;
-import com.neo.dashboard.dto.AnomalyExplanationDto;
-import com.neo.dashboard.dto.AnomalyInvestigationDto;
-import com.neo.dashboard.dto.ActiveSessionDto;
-import com.neo.dashboard.dto.NextActionPredictionDto;
-import com.neo.dashboard.dto.PaginationMeta;
-import com.neo.dashboard.dto.SessionAnalysisDto;
-import com.neo.dashboard.dto.StatsResponseDto;
-import com.neo.dashboard.dto.UserRiskProfileDto;
-import com.neo.dashboard.dto.CommandCenterDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neo.dashboard.dto.*;
 import com.neo.dashboard.mapper.AnomalyEventMapper;
 import com.neo.dashboard.mapper.SessionAnalysisMapper;
 import com.neo.dashboard.service.ActiveSessionService;
@@ -46,8 +36,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 /**
  * Exposes read-only analytics endpoints used by the dashboard:
  * paginated queries, detail views, summary widgets, and SSE streams.
@@ -77,6 +65,7 @@ public class AnalyticsController {
     private final SessionInsightReadService sessionInsightReadService;
     private final SessionAnalysisMapper sessionAnalysisMapper;
     private final AnomalyEventMapper anomalyEventMapper;
+    private final ObjectMapper objectMapper;
 
     /* Returns session analysis rows with optional filters and pagination metadata. */
     @GetMapping("/sessions/risk-scores")
@@ -165,14 +154,14 @@ public class AnalyticsController {
 
     /* Builds or refreshes an explanation for a single anomaly event. */
     @GetMapping("/anomalies/{id}/explain")
-    public CompletableFuture<ResponseEntity<ApiResponse<AnomalyExplanationDto>>> explainAnomalyEvent(
+    public ResponseEntity<ApiResponse<AnomalyExplanationDto>> explainAnomalyEvent(
             @PathVariable Long id,
             @RequestParam(defaultValue = "false") boolean refresh
     ) {
         return anomalyExplanationService.explainAsync(id, refresh)
-                .thenApply(result -> result
-                        .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
-                        .orElseGet(() -> ResponseEntity.notFound().build()));
+                .join()
+                .map(dto -> ResponseEntity.ok(ApiResponse.of(dto)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /* Returns the latest risk summary for one insured user. */
@@ -196,20 +185,21 @@ public class AnalyticsController {
      * Allowed views: alerts, risky-sessions, cluster-mix, drop-offs, path-deviations, forecasts, forecast-series.
      */
     @GetMapping("/dashboard/command-center")
-    public ResponseEntity<ApiResponse<CommandCenterDto>> getCommandCenter(
+    public ResponseEntity<ApiResponse<Object>> getCommandCenter(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return ResponseEntity.ok(ApiResponse.of(commandCenterService.getCommandCenter(date)));
+        CommandCenterDto dto = commandCenterService.getCommandCenter(date);
+        return ResponseEntity.ok(ApiResponse.of(objectMapper.convertValue(dto, Object.class)));
     }
 
     /**
      * Returns a dashboard snapshot from Redis ({@code dashboard:{view}}) written by the Data Processor.
-     * Allowed views: alerts, risky-sessions, cluster-mix, drop-offs, path-deviations, forecasts, forecast-series.
+     * When Redis has no snapshot yet, supported views degrade to an empty payload instead of a 404.
      */
     @GetMapping("/dashboard/{view}")
-    public ResponseEntity<ApiResponse<JsonNode>> getDashboardSnapshot(@PathVariable String view) {
-        return dashboardReadService.getSnapshot(view)
-                .map(payload -> ResponseEntity.ok(ApiResponse.of(payload)))
+    public ResponseEntity<ApiResponse<Object>> getDashboardSnapshot(@PathVariable String view) {
+        return dashboardReadService.getSnapshotOrDefault(view)
+                .map(payload -> ResponseEntity.ok(ApiResponse.of(objectMapper.convertValue(payload, Object.class))))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -218,29 +208,46 @@ public class AnalyticsController {
      * ({@code session:insight:{insuredId}:{sessionId}}).
      */
     @GetMapping("/sessions/{insuredId}/{sessionId}/insight")
-    public ResponseEntity<ApiResponse<JsonNode>> getSessionInsight(
+    public ResponseEntity<ApiResponse<Object>> getSessionInsight(
             @PathVariable String insuredId,
             @PathVariable String sessionId
     ) {
         return sessionInsightReadService.getInsight(insuredId, sessionId)
-                .map(payload -> ResponseEntity.ok(ApiResponse.of(payload)))
+                .map(payload -> ResponseEntity.ok(ApiResponse.of(objectMapper.convertValue(payload, Object.class))))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /* Returns the latest live stats snapshot for the requested date or today by default. */
     @GetMapping("/stats/live")
-    public ResponseEntity<ApiResponse<StatsResponseDto>> getLiveStats(
+    public ResponseEntity<ApiResponse<StatsApiResponseDto>> getLiveStats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return ResponseEntity.ok(ApiResponse.of(statsService.getLiveStats(date)));
+        return ResponseEntity.ok(ApiResponse.of(toApiDto(statsService.getLiveStats(date))));
     }
 
     /* Returns trend stats, falling back to SQL when Redis does not contain the snapshot. */
     @GetMapping("/trends/forecast")
-    public ResponseEntity<ApiResponse<StatsResponseDto>> getTrendStats(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    public ResponseEntity<ApiResponse<StatsApiResponseDto>> getTrendStats(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return ResponseEntity.ok(ApiResponse.of(statsService.getTrendStats(date)));
+        return ResponseEntity.ok(ApiResponse.of(toApiDto(statsService.getTrendStats(date))));
+    }
+
+    private StatsApiResponseDto toApiDto(StatsResponseDto stats) {
+        if (stats == null) {
+            return null;
+        }
+
+        Object payload = stats.getPayload() == null
+                ? null
+                : objectMapper.convertValue(stats.getPayload(), Object.class);
+
+        return new StatsApiResponseDto(
+                stats.getDate(),
+                stats.getSource(),
+                payload
+        );
     }
 
     /* Returns the currently active anomaly marker for the insured user, if any. */

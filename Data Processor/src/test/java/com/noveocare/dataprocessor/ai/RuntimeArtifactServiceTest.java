@@ -25,6 +25,7 @@ class RuntimeArtifactServiceTest {
 
         service.load();
 
+        assertEquals("xgb_binary.onnx", service.getDeploymentManifest().getBinaryDetection().getPreferred());
         assertEquals("iso_binary.onnx", service.resolveBinaryArtifact());
         assertTrue(service.getBinaryFeatureColumns().contains("totalEvents"));
         assertTrue(service.getAnomalyTypeLabels().containsValue("geo_jump"));

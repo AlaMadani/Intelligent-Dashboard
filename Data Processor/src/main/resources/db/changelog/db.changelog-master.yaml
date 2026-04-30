@@ -68,3 +68,32 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: add-search-indexes-v8
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V8__add_performance_indexes.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+
+  - changeSet:
+      id: add-covering-indexes-v9
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V9__add_covering_indexes.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+
+  - changeSet:
+      id: remove-dead-schema-v10
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V10__remove_dead_schema.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

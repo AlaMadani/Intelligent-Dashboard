@@ -1,6 +1,7 @@
 package com.neo.dashboard.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.neo.dashboard.dto.NextActionScoreDto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -99,7 +100,7 @@ public class SessionAnalysisDto {
     private String transitionFromAction;
     private String transitionToAction;
 
-    private List<String> top3NextActions;
+    private List<NextActionScoreDto> top3NextActions;
 
     private Boolean ruleTriggered;
     private String ruleType;

@@ -18,8 +18,16 @@ import java.util.Optional;
 public interface SessionAnalysisRepository extends JpaRepository<SessionAnalysis, Long> {
 
     /* Apply optional filters for insured id, time window, and anomaly flag. */
-    @Query("""
+    @Query(value = """
             SELECT s
+            FROM SessionAnalysis s
+            WHERE (:insuredId IS NULL OR s.insuredId = :insuredId)
+              AND (:fromTime IS NULL OR s.startTime >= :fromTime)
+              AND (:toTime IS NULL OR s.endTime <= :toTime)
+              AND (:isAnomaly IS NULL OR s.isAnomaly = :isAnomaly)
+            """,
+           countQuery = """
+            SELECT COUNT_BIG(s.id)
             FROM SessionAnalysis s
             WHERE (:insuredId IS NULL OR s.insuredId = :insuredId)
               AND (:fromTime IS NULL OR s.startTime >= :fromTime)

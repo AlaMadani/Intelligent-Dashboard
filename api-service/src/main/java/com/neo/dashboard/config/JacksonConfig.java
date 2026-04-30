@@ -7,7 +7,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Provides a shared Jackson mapper for services that parse Redis/HTTP payloads.
+ * Provides an ObjectMapper bean for services that parse Redis/HTTP payloads.
+ * Uses Jackson 2.x (com.fasterxml.jackson) matching Spring Boot 3.x default.
  */
 @Configuration
 public class JacksonConfig {

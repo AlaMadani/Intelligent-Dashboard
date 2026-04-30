@@ -1,6 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.AnomalyEventDto;
+import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.entity.AnomalyEvent;
 import com.neo.dashboard.mapper.AnomalyEventMapper;
 import org.instancio.Instancio;
@@ -28,7 +29,7 @@ class AnomalyEventMapperTest {
 
         AnomalyEventDto dto = mapper.toDto(entity);
 
-        assertThat(dto.getNextActions()).containsExactly("VERIFY", "UPLOAD");
+        assertThat(dto.getNextActions()).extracting(NextActionScoreDto::getAction).containsExactly("VERIFY", "UPLOAD");
         assertThat(dto.getEventContext()).isNotNull();
         assertThat(dto.getEventContext().path("lastAction").asText()).isEqualTo("UPLOAD");
         assertThat(dto.getEventContext().path("contextTags")).hasSize(1);

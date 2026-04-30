@@ -9,6 +9,14 @@ spring:
     username: ${DB_USERNAME:app_user}
     password: ${DB_PASSWORD:securePass123!}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${HIKARI_MINIMUM_IDLE:5}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      # Log a warning when a connection is held longer than 10 seconds — helps detect leaks.
+      leak-detection-threshold: ${HIKARI_LEAK_DETECTION_THRESHOLD:10000}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -38,7 +46,7 @@ app:
       anomaly-alerts: ${ANOMALY_ALERTS_TOPIC:topic-anomaly-alerts}
       dlq: ${AUDIT_TRAIL_DLQ_TOPIC:topic-audit-trail-dlq}
     consumer:
-      concurrency: ${KAFKA_CONSUMER_CONCURRENCY:3}
+      concurrency: ${KAFKA_CONSUMER_CONCURRENCY:5}
       load-shedding-lag-threshold: ${KAFKA_LOAD_SHEDDING_LAG_THRESHOLD:10000}
   redis:
     ttl:
@@ -102,10 +110,9 @@ app:
       anomaly-window-minutes: 60
       ko-window-minutes: 15
   scheduling:
-    live-stats-fixed-rate-ms: 60000
-    trend-cron: "0 */5 * * * *"
-  trend:
-    spike-sigma: 2.0
+    live-stats-fixed-rate-ms: 5000
+    trend-cron: "0/30 * * * * *"
+
   ai:
     base-path: "classpath:/AI/"
     manifest: deployment_manifest.json

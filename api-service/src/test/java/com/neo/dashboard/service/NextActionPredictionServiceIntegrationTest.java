@@ -1,6 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.NextActionPredictionDto;
+import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.mapper.NextActionPredictionMapper;
 import com.neo.dashboard.repository.NextActionPredictionRepository;
 import org.junit.jupiter.api.AfterAll;
@@ -73,7 +74,7 @@ class NextActionPredictionServiceIntegrationTest {
 
         assertThat(result).isPresent();
         assertThat(result.orElseThrow().getInsuredId()).isEqualTo(INSURED_ID);
-        assertThat(result.orElseThrow().getTop3Actions()).containsExactly("VERIFY", "UPLOAD", "SUBMIT");
+        assertThat(result.orElseThrow().getTop3Actions()).extracting(NextActionScoreDto::getAction).containsExactly("VERIFY", "UPLOAD", "SUBMIT");
         verifyNoInteractions(repository);
     }
 }

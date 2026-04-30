@@ -6,11 +6,14 @@ import com.neo.dashboard.redis.CacheKeys;
 import com.neo.dashboard.repository.AnomalyEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -27,6 +30,8 @@ public class ActiveAnomalyService {
     private final ObjectMapper objectMapper;
     private final AnomalyEventRepository anomalyEventRepository;
     private final AnomalyAlertMapper anomalyAlertMapper;
+    @Value("${app.read-model.active-anomaly-window:30m}")
+    private Duration activeAnomalyWindow;
 
     /*
      * Return the current anomaly marker, ignoring empty or "UNKNOWN" placeholders.
@@ -58,6 +63,7 @@ public class ActiveAnomalyService {
     Optional<AnomalyAlertDto> findActiveAnomalyFromDb(String insuredId) {
         return anomalyEventRepository.findTopByInsuredIdOrderByDetectedAtDesc(insuredId)
                 .map(anomalyAlertMapper::toDto)
+                .filter(this::isWithinActiveWindow)
                 .filter(alert -> !isUnknown(alert));
     }
 
@@ -66,5 +72,15 @@ public class ActiveAnomalyService {
         return alert == null
                 || alert.getAnomalyType() == null
                 || "UNKNOWN".equalsIgnoreCase(alert.getAnomalyType());
+    }
+
+    private boolean isWithinActiveWindow(AnomalyAlertDto alert) {
+        if (alert == null || alert.getDetectedAt() == null) {
+            return false;
+        }
+        Duration window = activeAnomalyWindow == null || activeAnomalyWindow.isNegative() || activeAnomalyWindow.isZero()
+                ? Duration.ofMinutes(30)
+                : activeAnomalyWindow;
+        return !alert.getDetectedAt().isBefore(Instant.now().minus(window));
     }
 }

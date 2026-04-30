@@ -38,7 +38,7 @@ public class AnomalyEventDto {
     private String transitionFromAction;
     private String transitionToAction;
     private String modelArtifact;
-    private List<String> nextActions;
+    private List<NextActionScoreDto> nextActions;
 
     private JsonNode eventContext;
     private Instant detectedAt;

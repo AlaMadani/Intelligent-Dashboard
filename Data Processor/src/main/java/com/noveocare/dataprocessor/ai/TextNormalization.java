@@ -11,7 +11,11 @@ import java.util.Locale;
  */
 public final class TextNormalization {
 
-    private static final List<String> SUSPICIOUS_TOKENS = List.of("Ã", "Â", "â€™", "â€", "�");
+    private static final List<String> SUSPICIOUS_TOKENS = List.of(
+            "\u00C3", // Ã
+            "\u00C2", // Â
+            "\uFFFD"  // replacement character
+    );
 
     private TextNormalization() {
     }
@@ -21,8 +25,11 @@ public final class TextNormalization {
             return null;
         }
         String normalized = value.trim();
-        for (int attempt = 0; attempt < 2 && looksCorrupted(normalized); attempt++) {
-            String repaired = new String(normalized.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8).trim();
+        for (int attempt = 0; attempt < 3 && looksCorrupted(normalized); attempt++) {
+            String repaired = new String(
+                    normalized.getBytes(StandardCharsets.ISO_8859_1),
+                    StandardCharsets.UTF_8)
+                    .trim();
             if (repaired.equals(normalized)) {
                 break;
             }
@@ -38,7 +45,7 @@ public final class TextNormalization {
         }
         String asciiFolded = Normalizer.normalize(normalized, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "")
-                .replace('’', '\'');
+                .replace('\u2019', '\'');
         return asciiFolded.toLowerCase(Locale.ROOT).trim();
     }
 
