@@ -62,11 +62,11 @@
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
-        <!-- Source: https://mvnrepository.com/artifact/com.fasterxml.jackson.datatype/jackson-datatype-jsr310 -->
+        <!-- Explicit because spring-boot-starter-jackson does not transitively include the JSR310 module. -->
+        <!-- Required by JacksonConfig for java.time.Instant / LocalDate ISO-8601 serialization. -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <scope>compile</scope>
         </dependency>
 
         <!-- Infrastructure drivers and developer productivity dependencies. -->

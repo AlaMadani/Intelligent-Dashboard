@@ -1,10 +1,6 @@
 package com.neo.dashboard.service;
 
-import com.neo.dashboard.dto.ActionStatsDailyDto;
 import com.neo.dashboard.dto.StatsResponseDto;
-import com.neo.dashboard.mapper.ActionStatsDailyMapper;
-import com.neo.dashboard.redis.CacheKeys;
-import com.neo.dashboard.repository.ActionStatsDailyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,11 +15,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
- * Resolves dashboard statistics from Redis first and falls back to SQL-backed
- * daily aggregates when needed.
+ * Resolves dashboard statistics from Redis first and falls back to an empty
+ * payload when nothing is cached.  The action_stats_daily SQL table has been
+ * removed — all stats go through Redis.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,16 +29,13 @@ public class StatsService {
     /* Redis may use either ISO dates or compact yyyyMMdd dates in cache keys. */
     private static final DateTimeFormatter COMPACT_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
-    /* Cache access, JSON conversion, and SQL fallback repository. */
+    /* Cache access and JSON conversion. */
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-    private final ActionStatsDailyRepository actionStatsDailyRepository;
-    private final ActionStatsDailyMapper actionStatsDailyMapper;
 
     /*
      * Read the latest live snapshot from Redis and return an empty payload if
-     * nothing is cached.  No @Transactional here: the method only touches Redis,
-     * so acquiring a JDBC connection from HikariCP would be wasteful.
+     * nothing is cached.
      */
     @Transactional(readOnly = true)
     public StatsResponseDto getLiveStats(LocalDate date) {
@@ -51,7 +44,6 @@ public class StatsService {
             String cached = redisTemplate.opsForValue().get(key);
             if (cached != null && !cached.isBlank()) {
                 try {
-                    // Cached stats are stored as generic JSON because the shape can evolve over time.
                     JsonNode payload = objectMapper.readTree(cached);
                     return new StatsResponseDto(resolvedDate, "redis", payload);
                 } catch (Exception e) {
@@ -64,10 +56,9 @@ public class StatsService {
     }
 
     /*
-     * Read trend stats from Redis and fall back to SQL aggregates when Redis is
-     * empty.  The Redis path avoids opening a transaction; the SQL fallback is
-     * isolated in its own @Transactional method so a JDBC connection is only
-     * acquired when truly needed.
+     * Read trend stats from Redis and return an empty payload when nothing is
+     * cached.  The action_stats_daily table no longer exists, so there is no
+     * SQL fallback.
      */
     @Transactional(readOnly = true)
     public StatsResponseDto getTrendStats(LocalDate date) {
@@ -80,7 +71,6 @@ public class StatsService {
             String cached = redisTemplate.opsForValue().get(key);
             if (cached != null && !cached.isBlank()) {
                 try {
-                    // Trend payloads follow the same generic JSON contract as live stats.
                     JsonNode payload = objectMapper.readTree(cached);
                     return new StatsResponseDto(resolvedDate, "redis", payload);
                 } catch (Exception e) {
@@ -89,12 +79,12 @@ public class StatsService {
             }
         }
 
-        return buildFromSql(resolvedDate, "sql");
+        return buildMissing(resolvedDate);
     }
 
     private StatsResponseDto getForecastSnapshot(LocalDate date) {
         for (String view : Arrays.asList("forecast-series", "forecasts")) {
-            String cached = redisTemplate.opsForValue().get(CacheKeys.dashboardKey(view));
+            String cached = redisTemplate.opsForValue().get(com.neo.dashboard.redis.CacheKeys.dashboardKey(view));
             if (cached == null || cached.isBlank()) {
                 continue;
             }
@@ -110,18 +100,7 @@ public class StatsService {
         return null;
     }
 
-    /* Convert SQL rows into the generic JSON payload expected by the API.
-     * This is the only path that actually needs a database connection. */
-    @Transactional(readOnly = true)
-    StatsResponseDto buildFromSql(LocalDate date, String source) {
-        List<ActionStatsDailyDto> dtos = actionStatsDailyRepository.findByStatDate(date).stream()
-                .map(actionStatsDailyMapper::toDto)
-                .collect(Collectors.toList());
-        JsonNode payload = objectMapper.valueToTree(dtos);
-        return new StatsResponseDto(date, source, payload);
-    }
-
-    /* Return a consistent empty payload instead of null when live cache data is absent. */
+    /* Return a consistent empty payload instead of null when cached data is absent. */
     private StatsResponseDto buildMissing(LocalDate date) {
         JsonNode payload = objectMapper.createObjectNode();
         return new StatsResponseDto(date, "missing", payload);

@@ -1,7 +1,5 @@
 package com.neo.dashboard.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -40,11 +38,6 @@ public class AnomalyEventDto {
     private String modelArtifact;
     private List<NextActionScoreDto> nextActions;
 
-    private JsonNode eventContext;
+    private Object eventContext;
     private Instant detectedAt;
-
-    @JsonProperty("eventJson")
-    public JsonNode getEventJsonAlias() {
-        return eventContext;
-    }
 }

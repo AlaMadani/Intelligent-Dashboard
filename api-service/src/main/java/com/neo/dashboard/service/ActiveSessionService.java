@@ -123,6 +123,15 @@ public class ActiveSessionService {
         return Math.min(limit, DEFAULT_LIMIT);
     }
 
+    public long countActive() {
+        Set<String> keys = redisTemplate.opsForSet().members(CacheKeys.activeSessionInsightsIndexKey());
+        if (keys == null || keys.isEmpty()) {
+            Set<String> scanned = redisTemplate.keys(CacheKeys.sessionInsightPattern());
+            return scanned == null ? 0L : scanned.size();
+        }
+        return (long) keys.size();
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }

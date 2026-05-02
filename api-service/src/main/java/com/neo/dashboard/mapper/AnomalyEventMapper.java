@@ -17,7 +17,7 @@ public interface AnomalyEventMapper extends EntityMapper<AnomalyEventDto, Anomal
 
     @Override
     @Mapping(target = "nextActions", source = "nextActionsJson", qualifiedByName = "parseNextActionsJson")
-    @Mapping(target = "eventContext", source = "eventJson", qualifiedByName = "parseJsonNode")
+    @Mapping(target = "eventContext", source = "eventJson", qualifiedByName = "parseJsonObject")
     AnomalyEventDto toDto(AnomalyEvent entity);
 
     @Mapping(target = "id", ignore = true)

@@ -9,16 +9,12 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
-/**
- * Repository for anomaly event lookups used by list endpoints, enrichment, and
- * active-alert resolution.
- */
 @Repository
 public interface AnomalyEventRepository extends JpaRepository<AnomalyEvent, Long> {
 
-    /* Apply optional filters for insured id, time window, anomaly tier, and type. */
     @Query(value = """
             SELECT e
             FROM AnomalyEvent e
@@ -44,13 +40,13 @@ public interface AnomalyEventRepository extends JpaRepository<AnomalyEvent, Long
                               @Param("type") String type,
                               Pageable pageable);
 
-    /* Return the latest anomaly detected for one insured user. */
     Optional<AnomalyEvent> findTopByInsuredIdOrderByDetectedAtDesc(String insuredId);
 
-    /* Resolve the freshest persisted copy of a Kafka alert. */
     Optional<AnomalyEvent> findTopByInsuredIdAndSessionIdAndEventIdOrderByDetectedAtDesc(
-            String insuredId,
-            String sessionId,
-            String eventId
-    );
+            String insuredId, String sessionId, String eventId);
+
+    List<AnomalyEvent> findTop10ByInsuredIdOrderByEventTimeDesc(String insuredId);
+
+    @Query("SELECT e.anomalyType, COUNT(e) FROM AnomalyEvent e WHERE e.anomalyType IS NOT NULL GROUP BY e.anomalyType")
+    List<Object[]> countByAnomalyType();
 }

@@ -8,6 +8,7 @@ import com.neo.dashboard.dto.FeatureContributionDto;
 import com.neo.dashboard.dto.NextActionScoreDto;
 import com.neo.dashboard.dto.PathDeviationDto;
 import org.mapstruct.Named;
+import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,25 +18,29 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Shared JSON parsing helpers for MapStruct mappers (static methods so
- * {@code Mappers.getMapper(...)} works in plain unit tests without Spring).
+ * Shared JSON parsing helpers for MapStruct mappers.
+ * Injected as a Spring bean so the shared ObjectMapper (with JavaTimeModule)
+ * is reused instead of creating standalone instances.
  */
-public final class JsonParsingSupport {
+@Component
+public class JsonParsingSupport {
 
-    private static final ObjectMapper OM = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    private JsonParsingSupport() {}
+    public JsonParsingSupport(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Named("parseActionCounts")
-    public static Map<String, Long> parseActionCounts(String json) {
+    public Map<String, Long> parseActionCounts(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyMap();
         }
         try {
-            return OM.readValue(json, new TypeReference<Map<String, Long>>() { });
+            return objectMapper.readValue(json, new TypeReference<Map<String, Long>>() { });
         } catch (Exception first) {
             try {
-                Map<String, Number> raw = OM.readValue(json, new TypeReference<Map<String, Number>>() { });
+                Map<String, Number> raw = objectMapper.readValue(json, new TypeReference<Map<String, Number>>() { });
                 if (raw == null || raw.isEmpty()) {
                     return Collections.emptyMap();
                 }
@@ -49,27 +54,27 @@ public final class JsonParsingSupport {
     }
 
     @Named("parseStringList")
-    public static List<String> parseStringList(String json) {
+    public List<String> parseStringList(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
         try {
-            return OM.readValue(json, new TypeReference<List<String>>() { });
+            return objectMapper.readValue(json, new TypeReference<List<String>>() { });
         } catch (Exception ignored) {
             return Collections.emptyList();
         }
     }
 
     @Named("parseTop3Actions")
-    public static List<NextActionScoreDto> parseTop3Actions(String json) {
+    public List<NextActionScoreDto> parseTop3Actions(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
         try {
-            return OM.readValue(json, new TypeReference<List<NextActionScoreDto>>() { });
+            return objectMapper.readValue(json, new TypeReference<List<NextActionScoreDto>>() { });
         } catch (Exception e) {
             try {
-                List<String> simple = OM.readValue(json, new TypeReference<List<String>>() { });
+                List<String> simple = objectMapper.readValue(json, new TypeReference<List<String>>() { });
                 return simple.stream()
                         .map(a -> new NextActionScoreDto(a, null))
                         .collect(Collectors.toList());
@@ -83,7 +88,7 @@ public final class JsonParsingSupport {
      * Handles both JSON arrays (of strings or objects) and the legacy {@code List#toString()} form persisted for next actions.
      */
     @Named("parseNextActionsJson")
-    public static List<NextActionScoreDto> parseNextActionsJson(String json) {
+    public List<NextActionScoreDto> parseNextActionsJson(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
@@ -91,9 +96,9 @@ public final class JsonParsingSupport {
         try {
             if (trimmed.startsWith("[")) {
                 try {
-                    return OM.readValue(trimmed, new TypeReference<List<NextActionScoreDto>>() { });
+                    return objectMapper.readValue(trimmed, new TypeReference<List<NextActionScoreDto>>() { });
                 } catch (Exception e) {
-                    List<String> strings = OM.readValue(trimmed, new TypeReference<List<String>>() { });
+                    List<String> strings = objectMapper.readValue(trimmed, new TypeReference<List<String>>() { });
                     return strings.stream()
                             .map(s -> new NextActionScoreDto(s, null))
                             .collect(Collectors.toList());
@@ -120,36 +125,48 @@ public final class JsonParsingSupport {
     }
 
     @Named("parseFeatureContributionList")
-    public static List<FeatureContributionDto> parseFeatureContributionList(String json) {
+    public List<FeatureContributionDto> parseFeatureContributionList(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
         try {
-            return OM.readValue(json, new TypeReference<List<FeatureContributionDto>>() { });
+            return objectMapper.readValue(json, new TypeReference<List<FeatureContributionDto>>() { });
         } catch (Exception ignored) {
             return Collections.emptyList();
         }
     }
 
     @Named("parsePathDeviationList")
-    public static List<PathDeviationDto> parsePathDeviationList(String json) {
+    public List<PathDeviationDto> parsePathDeviationList(String json) {
         if (json == null || json.isBlank()) {
             return Collections.emptyList();
         }
         try {
-            return OM.readValue(json, new TypeReference<List<PathDeviationDto>>() { });
+            return objectMapper.readValue(json, new TypeReference<List<PathDeviationDto>>() { });
         } catch (Exception ignored) {
             return Collections.emptyList();
         }
     }
 
     @Named("parseJsonNode")
-    public static JsonNode parseJsonNode(String json) {
+    public JsonNode parseJsonNode(String json) {
         if (json == null || json.isBlank()) {
             return null;
         }
         try {
-            return OM.readTree(json);
+            return objectMapper.readTree(json);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @Named("parseJsonObject")
+    public Object parseJsonObject(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, Object.class);
         } catch (Exception ignored) {
             return null;
         }
