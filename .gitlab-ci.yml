@@ -1,0 +1,47 @@
+stages:
+  - test
+  - build
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .m2/repository/
+
+test_dataprocessor:
+  stage: test
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - cd "Data Processor"
+    - mvn clean test
+
+test_api_service:
+  stage: test
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - cd api-service
+    - mvn clean test
+
+build_dataprocessor:
+  stage: build
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - cd "Data Processor"
+    - mvn clean package -DskipTests
+  artifacts:
+    paths:
+      - "Data Processor/target/*.jar"
+    expire_in: 1 week
+
+build_api_service:
+  stage: build
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - cd api-service
+    - mvn clean package -DskipTests
+  artifacts:
+    paths:
+      - api-service/target/*.jar
+    expire_in: 1 week
