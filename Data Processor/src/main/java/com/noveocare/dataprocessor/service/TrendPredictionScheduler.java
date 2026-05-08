@@ -53,16 +53,19 @@ public class TrendPredictionScheduler {
         }
 
         ForecastSeriesPoint baseline = resolveForecastPoint(totalEventsSeries, referenceDate);
-        if (baseline == null) {
+        if (baseline == null || baseline.getYhatUpper() == null) {
             return;
         }
 
         Instant now = Instant.now();
         long actual = statisticsService.countEventsForDate(referenceDate);
-        double progress = Math.max(1.0 / 1440.0, (now.atZone(ZoneOffset.UTC).getHour() * 60.0
-                + now.atZone(ZoneOffset.UTC).getMinute() + 1.0) / 1440.0);
-        double upper = baseline.getYhatUpper() == null ? Double.MAX_VALUE : baseline.getYhatUpper() * progress;
-        if (actual <= Math.max(1.0, upper)) {
+        double hoursElapsed = Math.max(1.0, now.atZone(ZoneOffset.UTC).getHour()
+                + now.atZone(ZoneOffset.UTC).getMinute() / 60.0);
+        double projectedDaily = actual / hoursElapsed * 24.0;
+        if (hoursElapsed < 4.0 && actual < baseline.getYhatUpper() / 2.0) {
+            return;
+        }
+        if (projectedDaily <= baseline.getYhatUpper()) {
             return;
         }
 

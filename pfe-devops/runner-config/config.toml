@@ -6,19 +6,22 @@ shutdown_timeout = 0
   session_timeout = 1800
 
 [[runners]]
-  name = "Runner Docker PFE"
+  name = "runner1"
   url = "http://gitlab"
+  clone_url = "http://gitlab"
   id = 1
-  token = "glrt-hMp6Zym3J3IG28C-2d_chm86MQp0OjEKdToxCw.01.1213dhs2e"
-  token_obtained_at = 2026-02-27T09:45:01Z
+  token = "YOUR_EXISTING_TOKEN"
+  token_obtained_at = 2026-03-18T15:40:31Z
   token_expires_at = 0001-01-01T00:00:00Z
   executor = "docker"
   clone_url = "http://gitlab"
   [runners.cache]
     MaxUploadedArchiveSize = 0
+
     [runners.cache.s3]
     [runners.cache.gcs]
     [runners.cache.azure]
+
   [runners.docker]
     tls_verify = false
     image = "alpine:latest"
@@ -26,7 +29,10 @@ shutdown_timeout = 0
     disable_entrypoint_overwrite = false
     oom_kill_disable = false
     disable_cache = false
-    volumes = ["/cache"]
+    volumes = [
+      "/cache",
+      "/var/run/docker.sock:/var/run/docker.sock"
+    ]
     network_mode = "devops-net"
     shm_size = 0
     network_mtu = 0

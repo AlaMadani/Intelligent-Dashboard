@@ -154,7 +154,7 @@ public class DashboardSnapshotService {
         List<Map<String, Object>> alerts = anomalyEventRepository.findTop100ByOrderByDetectedAtDesc().stream()
                 .map(this::alertRow)
                 .toList();
-        if (alerts.isEmpty()) {
+        if (alerts.isEmpty() && anomalyEventRepository.count() == 0) {
             alerts = runtimeExport("alerts_feed.csv");
         }
         cacheDashboard("alerts", Map.of(
@@ -230,7 +230,8 @@ public class DashboardSnapshotService {
     }
 
     public void refreshPathDeviations() {
-        List<Map<String, Object>> rows = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc().stream()
+        List<SessionAnalysis> recentSessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
+        List<Map<String, Object>> rows = recentSessions.stream()
                 .filter(session -> Boolean.TRUE.equals(session.getPathDeviation()))
                 .map(session -> {
                     Map<String, Object> row = new LinkedHashMap<>();
@@ -239,11 +240,11 @@ public class DashboardSnapshotService {
                     row.put("from_action", session.getTransitionFromAction());
                     row.put("to_action", session.getTransitionToAction());
                     row.put("transition_probability", session.getTransitionProbability());
-                    row.put("session_count", 1); // We don't have aggregation here, but frontend expects it
+                    row.put("session_count", 1);
                     return row;
                 })
                 .toList();
-        if (rows.isEmpty()) {
+        if (rows.isEmpty() && recentSessions.isEmpty()) {
             rows = runtimeExport("path_deviations.csv");
             if (rows.isEmpty()) {
                 rows = runtimeExport("path_summary.csv");
@@ -310,10 +311,14 @@ public class DashboardSnapshotService {
         }
         List<Map<String, Object>> rows = new ArrayList<>(keys.size());
         for (String key : keys) {
-            Map<String, Object> value = redisCacheService.getJson(key, new TypeReference<Map<String, Object>>() { });
-            if (value != null) {
-                rows.add(value);
-                continue;
+            try {
+                Map<String, Object> value = redisCacheService.getJson(key, new TypeReference<Map<String, Object>>() { });
+                if (value != null) {
+                    rows.add(value);
+                    continue;
+                }
+            } catch (Exception ex) {
+                log.warn("Stale or invalid insight key {}, removing from index", key);
             }
             removeStaleInsightIndexEntry(key);
         }
@@ -337,6 +342,9 @@ public class DashboardSnapshotService {
             return Set.of();
         }
         for (String key : scannedKeys) {
+            if (key.contains(":index") || key.contains(":index:")) {
+                continue;
+            }
             redisCacheService.addSetMember(CacheKeys.activeSessionInsightsIndexKey(), key);
             String insuredId = insuredIdFromInsightKey(key);
             if (insuredId != null) {

@@ -125,7 +125,7 @@ class LiveSimulator:
         )
 
     def start_new_session(self, user: training_sim.UserProfile):
-        is_anomaly = self.args.anomaly_mode and self.rng.random() < 0.20
+        is_anomaly = self.args.anomaly_mode and self.rng.random() < 0.05
         session_number = user.sessions_generated + 1
         month_start = self.clock.current_virtual.replace(day=1, hour=0, minute=0, second=0)
         month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
@@ -290,7 +290,7 @@ def main():
     parser.add_argument("--virtual-day-start", default="2026-03-24T08:00:00+01:00")
     parser.add_argument("--virtual-speed", type=float, default=60.0, help="1.0 = real time, 60.0 = 1 min per wall sec")
     parser.add_argument("--duration", type=int, default=0, help="seconds to run")
-    parser.add_argument("--anomaly-mode", action="store_true", help="inject 20% anomaly sessions into the normal traffic stream")
+    parser.add_argument("--anomaly-mode", action="store_true", help="inject 5% anomaly sessions into the normal traffic stream")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--api-version", default="3.7.0")
     parser.add_argument("--acks", type=int, default=1)

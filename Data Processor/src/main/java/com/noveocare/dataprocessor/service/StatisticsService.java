@@ -198,7 +198,7 @@ public class StatisticsService {
         List<String> koKeys = lastMinuteKeys(now, liveStatsProperties.getKoWindowMinutes());
 
         long eventsLastWindow = sumCounters(eventKeys, CacheKeys::eventsMinuteKey);
-        long eventsLastHour = sumCounters(eventKeys, CacheKeys::eventsMinuteKey);
+        long eventsLastHour = sumCounters(alertKeys, CacheKeys::eventsMinuteKey);
         long alertsLastWindow = sumCounters(alertKeys, CacheKeys::alertsMinuteKey);
         double anomalyRate = eventsLastHour == 0 ? 0.0 : (double) alertsLastWindow / eventsLastHour;
 
@@ -214,13 +214,7 @@ public class StatisticsService {
         snapshot.put("active_sessions", countActiveSessions());
         snapshot.put("events_per_minute", eventsLastWindow);
         snapshot.put("top_actions_last_15m", topN(actionCounts, 5));
-        // If no country data, provide a placeholder to keep UI happy.
-        if (countryCounts.isEmpty()) {
-            // Example placeholder data – can be overridden by real events.
-            countryCounts.put("US", 1L);
-            countryCounts.put("FR", 1L);
-            countryCounts.put("DE", 1L);
-        }
+
         snapshot.put("top_countries_right_now", topN(countryCounts, 3));
         snapshot.put("anomaly_alert_rate_last_hour", anomalyRate);
         snapshot.put("current_anomaly_rate", anomalyRate);

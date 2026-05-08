@@ -106,37 +106,48 @@ public class AuditTrailConsumer {
 
             SessionSummary summary = featureEngineeringService.buildSessionSummary(enrichedEvents);
             List<String> triggeredRules = evaluateSessionRules(enrichedEvents);
-            long lag = estimatePartitionLag(record, consumer);
-            boolean heavyInferenceEnabled = lag < kafkaConsumerProperties.getLoadSheddingLagThreshold();
-            SessionInsight insight = heavyInferenceEnabled
-                    ? modelInferenceService.infer(summary, enrichedEvents, triggeredRules)
-                    : modelInferenceService.inferLightweight(
-                    summary,
-                    enrichedEvents,
-                    triggeredRules,
-                    "heavy_inference_disabled_due_to_kafka_lag_" + lag);
+
+            boolean isEnd = isSessionEnd(event);
+            SessionInsight insight;
+
+            if (isEnd) {
+                long lag = estimatePartitionLag(record, consumer);
+                boolean heavyInferenceEnabled = lag < kafkaConsumerProperties.getLoadSheddingLagThreshold();
+                insight = heavyInferenceEnabled
+                        ? modelInferenceService.infer(summary, enrichedEvents, triggeredRules)
+                        : modelInferenceService.inferLightweight(
+                        summary,
+                        enrichedEvents,
+                        triggeredRules,
+                        "heavy_inference_disabled_due_to_kafka_lag_" + lag);
+
+                if (shouldAlert(insight) && !hasDetectedAnomaly(summary.getInsuredId(), summary.getSessionId())) {
+                    publishAlert(summary, insight, enrichedEvents);
+                }
+                persistSessionAnalysis(summary, insight, triggeredRules);
+                persistNextActions(summary, insight.getNextActions());
+                statisticsService.updateUserRiskProfile(summary.getInsuredId());
+                dashboardSnapshotService.refreshAll();
+                dashboardSnapshotService.removeSessionInsight(summary.getInsuredId(), summary.getSessionId());
+                sessionBufferService.deleteSession(summary.getInsuredId(), summary.getSessionId());
+                redisCacheService.deleteKey(CacheKeys.detectedAnomalyKey(summary.getInsuredId(), summary.getSessionId()));
+            } else {
+                insight = modelInferenceService.inferLightweight(
+                        summary,
+                        enrichedEvents,
+                        triggeredRules,
+                        "mid_session_lightweight");
+
+                if (shouldAlert(insight) && !hasDetectedAnomaly(summary.getInsuredId(), summary.getSessionId())) {
+                    publishAlert(summary, insight, enrichedEvents);
+                }
+            }
 
             dashboardSnapshotService.cacheSessionInsight(summary, insight);
             redisCacheService.setJson(
                     CacheKeys.nextActionsKey(summary.getInsuredId()),
                     insight.getNextActions(),
                     redisCacheProperties.getNextActions());
-
-            if (shouldAlert(insight) && !hasDetectedAnomaly(summary.getInsuredId(), summary.getSessionId())) {
-                publishAlert(summary, insight, enrichedEvents);
-            }
-
-            if (isSessionEnd(event)) {
-                if (shouldPersist(insight)) {
-                    persistSessionAnalysis(summary, insight, triggeredRules);
-                    persistNextActions(summary, insight.getNextActions());
-                    statisticsService.updateUserRiskProfile(summary.getInsuredId());
-                }
-                dashboardSnapshotService.refreshAll();
-                dashboardSnapshotService.removeSessionInsight(summary.getInsuredId(), summary.getSessionId());
-                sessionBufferService.deleteSession(summary.getInsuredId(), summary.getSessionId());
-                redisCacheService.deleteKey(CacheKeys.detectedAnomalyKey(summary.getInsuredId(), summary.getSessionId()));
-            }
         } catch (Exception ex) {
             log.error("Processing failed for topic={} partition={} offset={}",
                     record.topic(), record.partition(), record.offset(), ex);

@@ -31,7 +31,7 @@ public class FeatureEngineeringService {
     private static final Set<String> LOGIN_ACTIONS = Set.of("Connexion", "Connexion SSO", "Connexion en tant que");
     private static final Set<String> LOGOUT_ACTIONS = Set.of("Deconnexion", "SSO Disconnect");
     private static final String[] DOWNLOAD_WORDS = {
-            "download", "document", "card", "wallet", "certificate", "refund", "telecharg"
+            "telecharg", "document", "certificat", "decompte", "wallet", "carte tp"
     };
 
     private final FeatureEngineeringProperties properties;
@@ -274,7 +274,7 @@ public class FeatureEngineeringService {
                 .pingPongCount(maxPingPongCount)
                 .riskScoreMax(riskScores.stream().mapToDouble(Double::doubleValue).max().orElse(0.0))
                 .riskScoreAvg(riskScores.isEmpty() ? 0.0 : riskScores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0))
-                .endedAbruptly(hasAnyAction(ordered, LOGOUT_ACTIONS) == 1 ? 0 : 1)
+                .endedAbruptly(hasAnyAction(ordered, LOGOUT_ACTIONS) == 1 ? 0 : (ordered.size() >= 3 ? 1 : 0))
                 .anomalyEventCount(anomalyEventCount)
                 .primaryAnomalyType(primaryAnomalyType)
                 .anomalyTypes(anomalyTypes.stream().distinct().toList())

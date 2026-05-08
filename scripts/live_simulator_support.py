@@ -130,19 +130,17 @@ def is_showcase_safe_normal(view: SessionRuntimeView) -> bool:
         return False
     if str(summary.get("primary_anomaly_type", "normal")) != "normal":
         return False
-    if view.triggered_rules or view.rare_transition_count:
-        return False
     if int(summary.get("ipChanged", 0)) != 0 or int(summary.get("deviceChanged", 0)) != 0:
         return False
-    if int(summary.get("totalKOs", 0)) > 1:
+    if int(summary.get("totalKOs", 0)) >= 3:
         return False
-    if int(summary.get("maxDownloadsIn2Minutes", 0)) > 3:
+    if int(summary.get("maxDownloadsIn2Minutes", 0)) > 5:
         return False
-    if int(summary.get("pingPongCount", 0)) != 0:
+    if float(summary.get("riskScoreMax", 0.0) or 0.0) >= 80.0:
         return False
-    if int(summary.get("endedAbruptly", 0)) != 0:
+    if view.rare_transition_count > 0:
         return False
-    return float(summary.get("riskScoreMax", 0.0) or 0.0) < 40.0
+    return True
 
 
 def anomaly_matches_target(view: SessionRuntimeView, anomaly_type: str) -> bool:

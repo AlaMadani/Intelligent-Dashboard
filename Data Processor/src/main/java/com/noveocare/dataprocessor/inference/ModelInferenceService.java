@@ -72,6 +72,11 @@ public class ModelInferenceService {
         AnomalyTypeResult anomalyTypeResult = overallAnomaly
                 ? classifyAnomaly(summary, warnings, triggeredRules, enrichedEvents)
                 : AnomalyTypeResult.builder().type("normal").confidence(1.0).build();
+
+        if ("repeated_fail".equals(anomalyTypeResult.getType()) && defaultInt(summary.getTotalKOs()) < 3) {
+            anomalyTypeResult = AnomalyTypeResult.builder().type("unknown").confidence(0.0).build();
+            overallAnomaly = false;
+        }
         double churnProbability = predictChurn(summary, warnings);
         Integer personaCluster = predictCluster(summary, warnings);
         List<NextActionScore> nextActions = transitionMatrixService.predictNextActions(summary.getLastAction(), 3);
@@ -250,7 +255,11 @@ public class ModelInferenceService {
         } else {
             warnings.add("churn_artifact_unavailable");
         }
-        return defaultInt(summary.getEndedAbruptly()) == 1 ? 1.0 : 0.0;
+        double abruptBase = defaultInt(summary.getEndedAbruptly()) == 1 ? 0.5 : 0.0;
+        double koBoost = defaultInt(summary.getTotalKOs()) >= 3 ? 0.2 : 0.0;
+        double downloadBoost = defaultInt(summary.getMaxDownloadsIn2Minutes()) >= 10 ? 0.15 : 0.0;
+        double pingPongBoost = defaultInt(summary.getPingPongCount()) >= 2 ? 0.15 : 0.0;
+        return Math.min(1.0, abruptBase + koBoost + downloadBoost + pingPongBoost);
     }
 
     private Integer predictCluster(SessionSummary summary, List<String> warnings) {
