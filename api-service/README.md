@@ -1,4 +1,4 @@
-﻿# API Service — NoveoCare Analytics REST API
+# API Service — NoveoCare Analytics REST API
 
 A **Spring Boot 4.0.3** read-side REST API that serves real-time analytics, session data, anomaly events, risk profiles, and AI-powered explanations to the Quasar frontend dashboard. Reads from Redis (written by the **Data Processor** worker) and SQL Server, with optional Gemini AI integration for natural-language anomaly explanations.
 
@@ -24,7 +24,7 @@ A **Spring Boot 4.0.3** read-side REST API that serves real-time analytics, sess
 
 ## Architecture Overview
 
-`
+```
                     ┌──────────────────────────────────────┐
                     │            Quasar Frontend            │
                     │  (Vue 3 + vue-echarts + Pinia)        │
@@ -59,7 +59,7 @@ A **Spring Boot 4.0.3** read-side REST API that serves real-time analytics, sess
               │  (Kafka -> Feature Engineering -> ONNX ML  │
               │   -> Redis + SQL Server)                   │
               └──────────────────────────────────────────┘
-`
+```
 
 The API Service is a **stateless REST API** that:
 
@@ -83,17 +83,16 @@ The API Service and Data Processor share Redis keys. The **Data Processor writes
 | Live stats | stats:live:{date} every 5s | StatsService.getLiveStats() |
 | Trend/forecast | dashboard:forecasts + dashboard:forecast-series every 30s | StatsService.getTrendStats() |
 | Session insight | session:insight:{insuredId}:{sessionId} per session | SessionInsightReadService.getInsight() |
-| Risk profile | isk:{insuredId} per user update | RiskProfileService.getRiskProfile() |
-| Next actions | 
-ext_actions:{insuredId} per session | NextActionPredictionService.getPrediction() |
-| Active anomaly | nomaly:active:{insuredId} per anomaly | ActiveAnomalyService.getActiveAnomaly() |
+| Risk profile | risk:{insuredId} per user update | RiskProfileService.getRiskProfile() |
+| Next actions | next_actions:{insuredId} per session | NextActionPredictionService.getPrediction() |
+| Active anomaly | anomaly:active:{insuredId} per anomaly | ActiveAnomalyService.getActiveAnomaly() |
 | Dashboard snapshots | dashboard:{view} per refresh cycle | DashboardReadService.getSnapshot() |
 
 ### Redis PubSub Bridge
 
 The Data Processor publishes refresh notifications to the LIVE_STATS Redis PubSub channel. The API Service's RedisDashboardRefreshListener picks up these notifications and broadcasts them to all SSE subscribers.
 
-`
+```
 Data Processor                Redis PubSub                API Service
      │                             │                           │
      ├── publishes ──────────────► │                           │
@@ -105,7 +104,7 @@ Data Processor                Redis PubSub                API Service
      ├── publishes ──────────────► │                           │
      │  {"refresh":"forecasts"}   │                           │
      │                            └── broadcast SSE "refresh"
-`
+```
 
 ### SQL Server Read Path
 
@@ -128,7 +127,7 @@ All endpoints under /api/v1. Return ApiResponse<T> with optional PaginationMeta.
 
 | Method | Path | Description | Pagination |
 |--------|------|-------------|------------|
-| GET | /sessions | List sessions (filters: insuredId, rom/	o, isAnomaly, signature) | Yes |
+| GET | /sessions | List sessions (filters: insuredId, from/to, isAnomaly, signature) | Yes |
 | GET | /sessions/{id} | Get single session by PK | -- |
 | GET | /sessions/active | List live active sessions from Redis | -- |
 | GET | /sessions/{insuredId}/{sessionId}/insight | Get live session insight from Redis | -- |
@@ -151,7 +150,7 @@ All endpoints under /api/v1. Return ApiResponse<T> with optional PaginationMeta.
 
 | Method | Path | Description | Pagination |
 |--------|------|-------------|------------|
-| GET | /anomalies | List anomaly events (filters: insuredId, rom/	o, 	ier, 	ype) | Yes |
+| GET | /anomalies | List anomaly events (filters: insuredId, from/to, tier, type) | Yes |
 | GET | /anomalies/{id} | Get single anomaly event | -- |
 | GET | /anomalies/{id}/investigation | Deep-dive aggregation (session + timeline + related anomalies) | -- |
 | GET | /anomalies/{id}/explain | AI-powered explanation via Gemini | -- |
@@ -176,7 +175,7 @@ All endpoints under /api/v1. Return ApiResponse<T> with optional PaginationMeta.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | /dashboard/command-center | Full aggregated dashboard payload |
-| GET | /dashboard/{view} | Single snapshot. Valid views: lerts, isky-sessions, cluster-mix, drop-offs, path-deviations, orecasts, orecast-series |
+| GET | /dashboard/{view} | Single snapshot. Valid views: alerts, risky-sessions, cluster-mix, drop-offs, path-deviations, forecasts, forecast-series |
 
 ### Streaming & Health
 
@@ -189,14 +188,14 @@ All endpoints under /api/v1. Return ApiResponse<T> with optional PaginationMeta.
 
 ## SSE Live Streaming
 
-**Endpoint:** GET /api/v1/stream/live produces 	ext/event-stream
+**Endpoint:** GET /api/v1/stream/live produces text/event-stream
 
 ### Events
 
 | Name | Payload | Frequency | Description |
 |------|---------|-----------|-------------|
 | stats | StatsApiResponseDto | Every 10s + immediate on subscribe | Live stats snapshot |
-| efresh | {"refresh":"..."} | On Redis PubSub | Signal to re-fetch |
+| refresh | {"refresh":"..."} | On Redis PubSub | Signal to re-fetch |
 
 ### Implementation
 
@@ -221,152 +220,39 @@ All endpoints under /api/v1. Return ApiResponse<T> with optional PaginationMeta.
 
 ### Flow
 
-`
+```
 GET /anomalies/{id}/explain?refresh=false
-  |
-  +-- 1. Fetch AnomalyEvent from SQL
-  +-- 2. Gather context:
-  |      SessionAnalysis (DB) + SessionInsight (Redis)
-  |      + UserRiskProfile + NextActionPrediction
-  |      + ActiveAnomaly + LiveStats + TrendStats
-  +-- 3. Check pre-computed SQL explanation (explainabilityText)
-  +-- 4. Check Redis cache (24h TTL)
-  +-- 5. Build prompt -> Call Gemini API (10s timeout, 2048 tokens)
-  |      Fallback: buildFallbackExplanation() -> heuristic
-  +-- 6. Cache result in Redis (24h TTL)
-  +-- 7. Return AnomalyExplanationDto
-`
-
-### Prompt
-
-Constructed from 7 context sources, formatted as JSON with max 400 chars per section, requiring sections: ssessment, evidence, operational impact, ecommended action.
-
-### Requirements
-
-- GEMINI_API_KEY environment variable (optional -- falls back to heuristics when absent)
-- Model: gemini-2.5-flash (configurable)
-- Base URL: https://generativelanguage.googleapis.com
-- Async execution via @Async + CompletableFuture
-- WebClient with Reactor Netty and 10s timeout
-
-### Caching
-
-- Two Redis keys per anomaly: i:explanation:anomaly:{id} (DTO) and i:explanation:anomaly:raw:{id} (raw AI response)
-- 24h TTL
-- ?refresh=true query parameter bypasses cache
-
----
-
-## DTO Layer
-
-18 DTO files in com.neo.dashboard.dto:
-
-| DTO | Fields | Purpose |
-|-----|--------|---------|
-| ActiveSessionDto | sessionId, insuredId, lastEvent, actionCount, duration, anomalyFlag, riskScore, etc. | Live session from Redis insight |
-| AnomalyAlertDto | insuredId, sessionId, type, tier, score, probability, riskScore, ruleType, modelArtifact, nextActions, eventContext | Active anomaly for a user |
-| AnomalyEventDto | id, insuredId, sessionId, anomalyType, tier, flag, score, probability, confidence, riskScore, cluster, pathDeviation, nextActions | Anomaly event from DB |
-| AnomalyExplanationDto | anomalyEventId, source, modelVersion, generatedAt, cached, explanation | AI or heuristic explanation |
-| AnomalyInvestigationDto | anomaly, session, relatedAnomalies, timeline | Deep-dive aggregation |
-| ApiResponse<T> | data, meta (PaginationMeta), timestamp | Standard API envelope |
-| CommandCenterDto | liveStats, trendForecast, forecastDetails, alerts, riskySessions, clusterMix, dropOffs, pathDeviations | Aggregated dashboard |
-| FeatureContributionDto | feature, importance, actualValue, description | ML feature importance |
-| NextActionPredictionDto | insuredId, sessionId, predictedAt, top3Actions | Markov next-action predictions |
-| NextActionScoreDto | action, probability | Single action+probability pair |
-| PaginationMeta | page, size, totalElements, totalPages | Pagination metadata |
-| PathDeviationDto | deviated, fromAction, toAction, transitionProbability | Markov deviation result |
-| SessionAnalysisDto | id, sessionId, insuredId, persona, country, times, scores, features, sequences, anomalies, risk | Full session analysis |
-| StatsApiResponseDto | date, source, payload | Stats/trend response wrapper |
-| StatsResponseDto | date (LocalDate), source (String), payload (JsonNode) | Internal stats DTO |
-| StatsSummaryDto | totalSessions, totalAnomalies, activeSessionsNow, eventsToday, anomalyRate, breakdowns | Aggregated counts |
-| UserDashboardDto | riskProfile, recentSessions, recentAnomalies, nextActions, clusterHistory | Per-user dashboard |
-| UserRiskProfileDto | insuredId, tier, counts, rates, actions, duration, consecutiveClean | User risk profile |
-
----
-
-## Mapper Layer
-
-Uses **MapStruct** for entity-to-DTO conversion (annotation processor with componentModel=spring).
-
-| Mapper | Source | Target | Custom Logic |
-|--------|--------|--------|-------------|
-| SessionAnalysisMapper | SessionAnalysis | SessionAnalysisDto | Standard MapStruct |
-| AnomalyEventMapper | AnomalyEvent | AnomalyEventDto | Standard MapStruct |
-| AnomalyAlertMapper | AnomalyAlertDto + AnomalyEvent | Persistence mapping | Custom detectedAtOrNow |
-| UserRiskProfileMapper | UserRiskProfile | UserRiskProfileDto | Standard MapStruct |
-| NextActionPredictionMapper | NextActionPrediction | NextActionPredictionDto | Standard MapStruct |
-| EntityMapper | Marker interface for generic DTO/entity conversion | -- | -- |
-| JsonParsingSupport | Utility for JSON string <-> object conversion | -- | 174 lines of parsing helpers (safe conversions, fallback handling) |
-
-The JsonParsingSupport is a shared utility that safely parses JSON column values (stored as NVARCHAR(MAX) in SQL) into Java objects with graceful fallback for null, blank, or malformed values. Used by all mappers when converting *_json entity fields to their DTO equivalents.
-
----
-
-## Redis Key Layout
-
-Keys shared with the **Data Processor** worker. Defined in com.neo.dashboard.redis.CacheKeys.
-
-### Live Stats & Trends
-
-| Key Pattern | TTL | Description |
-|-------------|-----|-------------|
-| stats:live:{date} | 24h | Live real-time stats snapshot |
-| stats:trend:{date} | 24h | Trend/forecast snapshot (legacy) |
-| stats:events:day:{date} | 24h | Daily event counter |
-| stats:alerts:day:{date} | 24h | Daily alert counter |
-| stats:downloads:day:{date} | 24h | Daily download counter |
-
-### Dashboard Snapshots
-
-| Key Pattern | TTL | Description |
-|-------------|-----|-------------|
-| dashboard:alerts | 15m | Recent alerts feed |
-| dashboard:risky-sessions | 15m | Top risky sessions |
-| dashboard:cluster-mix | 15m | Persona cluster distribution |
-| dashboard:drop-offs | 15m | Drop-off action counts |
-| dashboard:path-deviations | 15m | Path deviation events |
-| dashboard:forecasts | 15m | Full forecast snapshot |
-| dashboard:forecast-series | 15m | Forecast time series |
-
-### Cached Entities
-
-| Key Pattern | TTL | Description |
-|-------------|-----|-------------|
-| session:insight:{insuredId}:{sessionId} | 2h | Live session insight payload |
-| session:insight:index | -- (set) | Active insight key index |
-| session:insight:index:{insuredId} | -- (set) | Per-user insight index |
-| isk:{insuredId} | 15m | User risk profile |
-| 
-ext_actions:{insuredId} | 2h | Top-3 next actions |
-| nomaly:active:{insuredId} | 30m | Active anomaly flag |
+| risk:{insuredId} | 15m | User risk profile |
+| next_actions:{insuredId} | 2h | Top-3 next actions |
+| anomaly:active:{insuredId} | 30m | Active anomaly flag |
 | pending:alerts:{sessionId} | 30m | Deduplication guard |
 
 ### AI Explanations
 
 | Key Pattern | TTL | Description |
 |-------------|-----|-------------|
-| i:explanation:anomaly:{id} | 24h | Cached anomaly explanation DTO |
-| i:explanation:anomaly:raw:{id} | 24h | Raw Gemini API response |
+| ai:explanation:anomaly:{id} | 24h | Cached anomaly explanation DTO |
+| ai:explanation:anomaly:raw:{id} | 24h | Raw Gemini API response |
 
 ---
 
 ## Configuration Reference
 
-### pplication.yaml Key Sections
+### application.yaml Key Sections
 
 | Prefix | Key | Default | Description |
 |--------|-----|---------|-------------|
 | spring.datasource | url | jdbc:sqlserver://... | SQL Server JDBC |
-| | username | pp_user | DB user |
+| | username | app_user | DB user |
 | | password | securePass123! | DB password |
 | spring.data.redis | host | localhost | Redis host |
 | | port | 6379 | Redis port |
-| spring.ai.google.genai | pi-key | (empty) | Gemini API key |
-| | ase-url | https://generativelanguage.googleapis.com | Gemini endpoint |
+| spring.ai.google.genai | api-key | (empty) | Gemini API key |
+| | base-url | https://generativelanguage.googleapis.com | Gemini endpoint |
 | | model | gemini-2.5-flash | Gemini model name |
-| pp.cors | llowed-origins | http://localhost:9008 | CORS origins (comma-separated) |
-| pp.redis.pubsub | live-stats-channel | LIVE_STATS | PubSub channel for live stats |
-| pp.kafka.topics | nomaly-alerts | 	opic-anomaly-alerts | Kafka topic for alerts |
+| app.cors | allowed-origins | http://localhost:9008 | CORS origins (comma-separated) |
+| app.redis.pubsub | live-stats-channel | LIVE_STATS | PubSub channel for live stats |
+| app.kafka.topics | anomaly-alerts | topic-anomaly-alerts | Kafka topic for alerts |
 | server | port | 8081 | HTTP listener port |
 | logging.logstash | destination | localhost:5000 | Logstash TCP endpoint |
 
@@ -374,20 +260,20 @@ ext_actions:{insuredId} | 2h | Top-3 next actions |
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| SPRING_APPLICATION_NAME | pi-service | App name for logs/metrics |
+| SPRING_APPLICATION_NAME | api-service | App name for logs/metrics |
 | SERVER_PORT | 8081 | HTTP port |
 | SPRING_DATASOURCE_URL | SQL Server localhost | Database JDBC URL |
-| SPRING_DATASOURCE_USERNAME | pp_user | Database user |
+| SPRING_DATASOURCE_USERNAME | app_user | Database user |
 | SPRING_DATASOURCE_PASSWORD | securePass123! | Database password |
 | SPRING_DATA_REDIS_HOST | localhost | Redis host |
 | SPRING_DATA_REDIS_PORT | 6379 | Redis port |
 | APP_CORS_ALLOWED_ORIGINS | http://localhost:9008 | CORS allowed origins |
 | REDIS_LIVE_STATS_CHANNEL | LIVE_STATS | Redis PubSub channel |
-| APP_KAFKA_TOPIC_ANOMALY_ALERTS | 	opic-anomaly-alerts | Kafka alert topic |
+| APP_KAFKA_TOPIC_ANOMALY_ALERTS | topic-anomaly-alerts | Kafka alert topic |
 | GEMINI_API_KEY | (empty) | Gemini API key (optional) |
 | GEMINI_BASE_URL | https://generativelanguage.googleapis.com | Gemini base URL |
 | GEMINI_MODEL | gemini-2.5-flash | Gemini model |
-| SPRING_LIQUIBASE_ENABLED | alse | Liquibase activation |
+| SPRING_LIQUIBASE_ENABLED | false | Liquibase activation |
 | LOGSTASH_DESTINATION | localhost:5000 | Logstash endpoint |
 
 ---
@@ -403,16 +289,15 @@ Full session analysis with all ML outputs. 64+ columns including:
 | Column Group | Fields |
 |-------------|--------|
 | Identity | id, session_id, insured_id, persona, country_code, city |
-| Timing | start_time, end_time, session_duration_seconds, vg/min/max_inter_action_seconds |
-| Counts | 	otal_events, unique_actions, unique_routes, unique_ips/devices, 	otal_kos/oks |
+| Timing | start_time, end_time, session_duration_seconds, avg/min/max_inter_action_seconds |
+| Counts | total_events, unique_actions, unique_routes, unique_ips/devices, total_kos/oks |
 | Flags | has_login, has_logout, ip_changed, device_changed, ended_abruptly |
-| ML Scores | iso_score, nomaly_score, nomaly_probability, churn_probability, ensemble_risk_score |
-| Classification | is_anomaly, nomaly_type, 	ype_confidence, persona_cluster, isk_level |
-| Sequences | ction_sequence_json, oute_sequence_json, ction_counts_json, 
-ext_actions_json |
-| Explainability | eature_contributions_json, explainability_text |
+| ML Scores | iso_score, anomaly_score, anomaly_probability, churn_probability, ensemble_risk_score |
+| Classification | is_anomaly, anomaly_type, type_confidence, persona_cluster, risk_level |
+| Sequences | action_sequence_json, route_sequence_json, action_counts_json, next_actions_json |
+| Explainability | feature_contributions_json, explainability_text |
 
-### nomaly_events
+### anomaly_events
 
 Durable anomaly alert records. 30+ columns:
 
@@ -420,12 +305,11 @@ Durable anomaly alert records. 30+ columns:
 |-------------|--------|
 | Identity | id, insured_id, session_id, event_id |
 | Timing | event_time, detected_at |
-| Classification | nomaly_tier, nomaly_type, nomaly_flag |
-| Scores | nomaly_score, nomaly_probability, 	ype_confidence, isk_score, churn_probability |
-| Model Info | ule_type, model_artifact, persona_cluster |
-| Markov | path_deviation, 	ransition_probability, 	ransition_from/to_action |
-| Context | 
-ext_actions_json, event_json |
+| Classification | anomaly_tier, anomaly_type, anomaly_flag |
+| Scores | anomaly_score, anomaly_probability, type_confidence, risk_score, churn_probability |
+| Model Info | rule_type, model_artifact, persona_cluster |
+| Markov | path_deviation, transition_probability, transition_from/to_action |
+| Context | next_actions_json, event_json |
 
 ### user_risk_profile
 
@@ -436,17 +320,16 @@ Rolling risk assessment per user:
 | id | BIGINT | PK |
 | insured_id | VARCHAR | User identifier |
 | last_updated | DATETIME2 | Last refresh |
-| nomaly_count_7d/30d | INT | Anomaly counts |
+| anomaly_count_7d/30d | INT | Anomaly counts |
 | last_anomaly_type | VARCHAR | Most recent type |
-| isk_tier | VARCHAR | HIGH/MEDIUM/LOW |
-| nomaly_rate_30d | FLOAT | Anomaly ratio |
+| risk_tier | VARCHAR | HIGH/MEDIUM/LOW |
+| anomaly_rate_30d | FLOAT | Anomaly ratio |
 | sessions_7d/30d | INT | Session counts |
 | most_frequent_action_30d | VARCHAR | Dominant action |
-| vg_session_duration_30d | FLOAT | Mean duration |
+| avg_session_duration_30d | FLOAT | Mean duration |
 | consecutive_clean_sessions | INT | Clean streak |
 
-### 
-ext_action_prediction
+### next_action_prediction
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -454,7 +337,7 @@ ext_action_prediction
 | insured_id | VARCHAR | User identifier |
 | session_id | VARCHAR | Current session |
 | predicted_at | DATETIME2 | Prediction timestamp |
-| 	op3_actions_json | NVARCHAR(MAX) | Top-3 Markov predictions |
+| top3_actions_json | NVARCHAR(MAX) | Top-3 Markov predictions |
 
 ---
 
@@ -472,7 +355,7 @@ ext_action_prediction
 
 Copy .env.example to .env:
 
-`properties
+```properties
 SPRING_DATASOURCE_URL=jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true
 SPRING_DATASOURCE_USERNAME=app_user
 SPRING_DATASOURCE_PASSWORD=change-me
@@ -483,20 +366,20 @@ REDIS_LIVE_STATS_CHANNEL=LIVE_STATS
 SERVER_PORT=8081
 GEMINI_API_KEY=
 LOGSTASH_DESTINATION=localhost:5000
-`
+```
 
 ### Infrastructure
 
-`ash
+`bash
 # Start Vault (optional, for secret management)
 docker compose -f docker-compose.vault.yaml up -d
-`
+```
 
 SQL Server and Redis should be running externally (shared with Data Processor).
 
 ### Build & Run
 
-`ash
+`bash
 # Compile
 ./mvnw compile
 
@@ -505,11 +388,11 @@ SQL Server and Redis should be running externally (shared with Data Processor).
 
 # Run application
 ./mvnw spring-boot:run
-`
+```
 
 ### Verify
 
-`ash
+`bash
 # Health check
 curl http://localhost:8081/api/v1/health
 
@@ -518,7 +401,7 @@ curl http://localhost:8081/api/v1/stats/live
 
 # SSE stream (connect and watch)
 curl -N http://localhost:8081/api/v1/stream/live
-`
+```
 
 ---
 
@@ -528,7 +411,7 @@ curl -N http://localhost:8081/api/v1/stream/live
 |------------|------|-----------|
 | Unit tests in src/test/java/ | Unit | JUnit 5 + Instancio |
 
-`ash
+`bash
 # Run all tests
 ./mvnw test
 
@@ -537,7 +420,7 @@ curl -N http://localhost:8081/api/v1/stream/live
 
 # Skip tests
 ./mvnw package -DskipTests
-`
+```
 
 Testing approach:
 - **Instancio** for randomized test data generation
@@ -550,7 +433,7 @@ Testing approach:
 
 Uses **Jib Maven Plugin** (no Dockerfile needed):
 
-`ash
+`bash
 # Build Docker image
 ./mvnw compile jib:dockerBuild
 
@@ -558,13 +441,13 @@ Uses **Jib Maven Plugin** (no Dockerfile needed):
 # Base: eclipse-temurin:25-jre
 # Port: 8081
 # JVM: default (UseContainerSupport)
-`
+```
 
 ---
 
 ## Project Structure
 
-`
+```
 src/main/java/com/neo/dashboard/
 +-- ApiServiceApplication.java          # Entry point
 +-- config/
@@ -579,7 +462,7 @@ src/main/java/com/neo/dashboard/
 |   +-- CacheKeys.java                  # Shared Redis key definitions
 +-- repository/                         # 4 Spring Data JPA repositories
 +-- service/                            # 20 service classes
-    +-- StatsService.java               # Redis-firt stats resolution
+    +-- StatsService.java               # Redis-first stats resolution
     +-- StatsSummaryService.java        # Aggregated summary counts
     +-- CommandCenterService.java       # Dashboard aggregation
     +-- DashboardReadService.java       # Dashboard snapshot reads
@@ -601,7 +484,7 @@ src/main/java/com/neo/dashboard/
 src/main/resources/
 +-- application.yaml                    # Main config (99 lines)
 +-- db/changelog/db.changelog-master.yaml  # No-op baseline
-`
+```
 
 ---
 
