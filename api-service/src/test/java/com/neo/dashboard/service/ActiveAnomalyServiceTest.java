@@ -6,7 +6,6 @@ import com.neo.dashboard.mapper.AnomalyAlertMapper;
 import com.neo.dashboard.repository.AnomalyEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -25,7 +24,8 @@ class ActiveAnomalyServiceTest {
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     private final ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
     private final AnomalyEventRepository anomalyEventRepository = mock(AnomalyEventRepository.class);
-    private final AnomalyAlertMapper anomalyAlertMapper = Mappers.getMapper(AnomalyAlertMapper.class);
+    private final AnomalyAlertMapper anomalyAlertMapper =
+            MapperTestSupport.mapperWithJsonSupport(AnomalyAlertMapper.class);
 
     private ActiveAnomalyService service;
 

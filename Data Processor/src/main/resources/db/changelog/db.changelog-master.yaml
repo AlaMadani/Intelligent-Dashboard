@@ -97,3 +97,22 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+
+  - changeSet:
+      id: create-users-v11
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V11__create_users.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: add-user-email-verified-v12
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V12__add_user_email_verified.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

@@ -33,10 +33,24 @@ spring:
           jta:
             platform: false
 
-  # Liquibase can be enabled later if this service starts owning schema migrations.
+  # Schema migrations are owned by the Data Processor project.
   liquibase:
     enabled: ${SPRING_LIQUIBASE_ENABLED:false}
     change-log: ${SPRING_LIQUIBASE_CHANGE_LOG:classpath:db/changelog/db.changelog-master.yaml}
+
+  # SMTP settings used when email verification sending is enabled.
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:alemedeni0@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:xnsw ngei djrq vgvc}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
+            required: ${SPRING_MAIL_SMTP_STARTTLS_REQUIRED:false}
 
   # Redis stores the freshest risk, anomaly, and stats snapshots.
   data:
@@ -70,6 +84,22 @@ app:
   kafka:
     topics:
       anomaly-alerts: ${APP_KAFKA_TOPIC_ANOMALY_ALERTS:topic-anomaly-alerts}
+  auth:
+    allowed-domain: ${APP_AUTH_ALLOWED_DOMAIN:@enicar.ucar.tn}
+    verification:
+      code-ttl-seconds: ${APP_AUTH_VERIFICATION_CODE_TTL_SECONDS:300}
+      resend-cooldown-seconds: ${APP_AUTH_VERIFICATION_RESEND_COOLDOWN_SECONDS:120}
+      max-attempts: ${APP_AUTH_VERIFICATION_MAX_ATTEMPTS:5}
+      mail-enabled: ${APP_AUTH_VERIFICATION_MAIL_ENABLED:true}
+      from: ${APP_AUTH_VERIFICATION_FROM:alemedeni0@gmail.com}
+      logo-url: ${APP_AUTH_VERIFICATION_LOGO_URL:https://static.wixstatic.com/media/a0887f_2cc2a114359747b1aaa96bc842fa93ea~mv2.png/v1/fill/w_938,h_360,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo-NOVEOCARE-CMJN-2021_-_CHEVALIER_Rodolphe-removebg.png}
+    password-reset:
+      token-ttl-seconds: ${APP_AUTH_PASSWORD_RESET_TOKEN_TTL_SECONDS:600}
+
+jwt:
+  secret: ${JWT_SECRET:your-secret-key-must-be-at-least-32-characters-long-for-hs256}
+  expiration: ${JWT_EXPIRATION:900000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
 server:
   # HTTP port exposed by this analytics API.
@@ -97,3 +127,7 @@ management:
         http:
           server:
             requests: true
+
+
+
+

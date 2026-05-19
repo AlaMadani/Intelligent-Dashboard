@@ -6,7 +6,6 @@ import com.neo.dashboard.entity.NextActionPrediction;
 import com.neo.dashboard.mapper.NextActionPredictionMapper;
 import org.instancio.Instancio;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.instancio.Select.field;
@@ -16,7 +15,8 @@ import static org.instancio.Select.field;
  */
 class NextActionPredictionMapperTest {
 
-    private final NextActionPredictionMapper mapper = Mappers.getMapper(NextActionPredictionMapper.class);
+    private final NextActionPredictionMapper mapper =
+            MapperTestSupport.mapperWithJsonSupport(NextActionPredictionMapper.class);
 
     @Test
     void toDtoParsesTopActionsJson() {

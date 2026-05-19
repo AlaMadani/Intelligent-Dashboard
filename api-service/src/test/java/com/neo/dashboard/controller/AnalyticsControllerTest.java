@@ -6,6 +6,7 @@ import com.neo.dashboard.config.CorsConfig;
 import com.neo.dashboard.dto.StatsResponseDto;
 import com.neo.dashboard.mapper.AnomalyEventMapper;
 import com.neo.dashboard.mapper.SessionAnalysisMapper;
+import com.neo.dashboard.mapper.UserRiskProfileMapper;
 import com.neo.dashboard.service.ActiveAnomalyService;
 import com.neo.dashboard.service.ActiveSessionService;
 import com.neo.dashboard.service.AnomalyEventService;
@@ -19,6 +20,9 @@ import com.neo.dashboard.service.RiskProfileService;
 import com.neo.dashboard.service.SessionAnalysisService;
 import com.neo.dashboard.service.SessionInsightReadService;
 import com.neo.dashboard.service.StatsService;
+import com.neo.dashboard.service.StatsSummaryService;
+import com.neo.dashboard.service.UserDashboardService;
+import com.neo.dashboard.service.UserRiskProfileRepositoryHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -43,6 +47,7 @@ class AnalyticsControllerTest {
     private final RiskProfileService riskProfileService = mock(RiskProfileService.class);
     private final NextActionPredictionService nextActionPredictionService = mock(NextActionPredictionService.class);
     private final StatsService statsService = mock(StatsService.class);
+    private final StatsSummaryService statsSummaryService = mock(StatsSummaryService.class);
     private final CommandCenterService commandCenterService = mock(CommandCenterService.class);
     private final ActiveSessionService activeSessionService = mock(ActiveSessionService.class);
     private final AnomalyInvestigationService anomalyInvestigationService = mock(AnomalyInvestigationService.class);
@@ -51,8 +56,12 @@ class AnalyticsControllerTest {
     private final LiveStatsStreamService liveStatsStreamService = mock(LiveStatsStreamService.class);
     private final DashboardReadService dashboardReadService = mock(DashboardReadService.class);
     private final SessionInsightReadService sessionInsightReadService = mock(SessionInsightReadService.class);
+    private final UserDashboardService userDashboardService = mock(UserDashboardService.class);
+    private final UserRiskProfileRepositoryHelper userRiskProfileRepositoryHelper =
+            mock(UserRiskProfileRepositoryHelper.class);
     private final SessionAnalysisMapper sessionAnalysisMapper = mock(SessionAnalysisMapper.class);
     private final AnomalyEventMapper anomalyEventMapper = mock(AnomalyEventMapper.class);
+    private final UserRiskProfileMapper userRiskProfileMapper = mock(UserRiskProfileMapper.class);
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     private MockMvc mockMvc;
@@ -65,6 +74,7 @@ class AnalyticsControllerTest {
                 riskProfileService,
                 nextActionPredictionService,
                 statsService,
+                statsSummaryService,
                 commandCenterService,
                 activeSessionService,
                 anomalyInvestigationService,
@@ -73,8 +83,11 @@ class AnalyticsControllerTest {
                 liveStatsStreamService,
                 dashboardReadService,
                 sessionInsightReadService,
+                userDashboardService,
+                userRiskProfileRepositoryHelper,
                 sessionAnalysisMapper,
                 anomalyEventMapper,
+                userRiskProfileMapper,
                 objectMapper
         );
 

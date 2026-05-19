@@ -222,17 +222,37 @@ All endpoints under /api/v1. Return ApiResponse<T> with optional PaginationMeta.
 
 ```
 GET /anomalies/{id}/explain?refresh=false
-| risk:{insuredId} | 15m | User risk profile |
-| next_actions:{insuredId} | 2h | Top-3 next actions |
-| anomaly:active:{insuredId} | 30m | Active anomaly flag |
-| pending:alerts:{sessionId} | 30m | Deduplication guard |
+  |
+  +-- 1. Fetch AnomalyEvent from SQL
+  +-- 2. Gather context:
+  |      SessionAnalysis (DB) + SessionInsight (Redis)
+  |      + UserRiskProfile + NextActionPrediction
+  |      + ActiveAnomaly + LiveStats + TrendStats
+  +-- 3. Check pre-computed SQL explanation (explainabilityText)
+  +-- 4. Check Redis cache (24h TTL)
+  +-- 5. Build prompt -> Call Gemini API (10s timeout, 2048 tokens)
+  |      Fallback: buildFallbackExplanation() -> heuristic
+  +-- 6. Cache result in Redis (24h TTL)
+  +-- 7. Return AnomalyExplanationDto
+```
 
-### AI Explanations
+### Prompt
 
-| Key Pattern | TTL | Description |
-|-------------|-----|-------------|
-| ai:explanation:anomaly:{id} | 24h | Cached anomaly explanation DTO |
-| ai:explanation:anomaly:raw:{id} | 24h | Raw Gemini API response |
+Constructed from 7 context sources, formatted as JSON with max 400 chars per section, requiring sections: assessment, evidence, operational impact, recommended action.
+
+### Requirements
+
+- GEMINI_API_KEY environment variable (optional -- falls back to heuristics when absent)
+- Model: gemini-2.5-flash (configurable)
+- Base URL: https://generativelanguage.googleapis.com
+- Async execution via @Async + CompletableFuture
+- WebClient with Reactor Netty and 10s timeout
+
+### Caching
+
+- Two Redis keys per anomaly: ai:explanation:anomaly:{id} (DTO) and ai:explanation:anomaly:raw:{id} (raw AI response)
+- 24h TTL
+- ?refresh=true query parameter bypasses cache
 
 ---
 
@@ -370,7 +390,7 @@ LOGSTASH_DESTINATION=localhost:5000
 
 ### Infrastructure
 
-`bash
+```bash
 # Start Vault (optional, for secret management)
 docker compose -f docker-compose.vault.yaml up -d
 ```
@@ -379,7 +399,7 @@ SQL Server and Redis should be running externally (shared with Data Processor).
 
 ### Build & Run
 
-`bash
+```bash
 # Compile
 ./mvnw compile
 
@@ -392,7 +412,7 @@ SQL Server and Redis should be running externally (shared with Data Processor).
 
 ### Verify
 
-`bash
+```bash
 # Health check
 curl http://localhost:8081/api/v1/health
 
@@ -411,7 +431,7 @@ curl -N http://localhost:8081/api/v1/stream/live
 |------------|------|-----------|
 | Unit tests in src/test/java/ | Unit | JUnit 5 + Instancio |
 
-`bash
+```bash
 # Run all tests
 ./mvnw test
 
@@ -433,7 +453,7 @@ Testing approach:
 
 Uses **Jib Maven Plugin** (no Dockerfile needed):
 
-`bash
+```bash
 # Build Docker image
 ./mvnw compile jib:dockerBuild
 

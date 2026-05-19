@@ -10,7 +10,6 @@ import com.neo.dashboard.repository.AnomalyEventRepository;
 import com.neo.dashboard.repository.SessionAnalysisRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
 import org.mockito.Mockito;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -39,7 +38,8 @@ class AnomalyExplanationServiceTest {
     private final ActiveAnomalyService activeAnomalyService = mock(ActiveAnomalyService.class);
     private final SessionInsightReadService sessionInsightReadService = mock(SessionInsightReadService.class);
     private final StatsService statsService = mock(StatsService.class);
-    private final SessionAnalysisMapper sessionAnalysisMapper = Mappers.getMapper(SessionAnalysisMapper.class);
+    private final SessionAnalysisMapper sessionAnalysisMapper =
+            MapperTestSupport.mapperWithJsonSupport(SessionAnalysisMapper.class);
 
     private AnomalyExplanationService service;
 

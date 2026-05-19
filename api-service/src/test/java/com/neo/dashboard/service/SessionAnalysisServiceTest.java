@@ -6,7 +6,6 @@ import com.neo.dashboard.entity.SessionAnalysis;
 import com.neo.dashboard.mapper.SessionAnalysisMapper;
 import org.instancio.Instancio;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.instancio.Select.field;
@@ -16,7 +15,8 @@ import static org.instancio.Select.field;
  */
 class SessionAnalysisServiceTest {
 
-    private final SessionAnalysisMapper mapper = Mappers.getMapper(SessionAnalysisMapper.class);
+    private final SessionAnalysisMapper mapper =
+            MapperTestSupport.mapperWithJsonSupport(SessionAnalysisMapper.class);
 
     @Test
     void toDtoParsesJsonFields() {

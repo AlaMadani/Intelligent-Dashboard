@@ -6,7 +6,9 @@ import com.neo.dashboard.entity.AnomalyEvent;
 import com.neo.dashboard.mapper.AnomalyEventMapper;
 import org.instancio.Instancio;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.instancio.Select.field;
@@ -16,7 +18,8 @@ import static org.instancio.Select.field;
  */
 class AnomalyEventMapperTest {
 
-    private final AnomalyEventMapper mapper = Mappers.getMapper(AnomalyEventMapper.class);
+    private final AnomalyEventMapper mapper =
+            MapperTestSupport.mapperWithJsonSupport(AnomalyEventMapper.class);
 
     @Test
     void toDtoParsesNextActionsAndCompactContextJson() {
@@ -31,7 +34,9 @@ class AnomalyEventMapperTest {
 
         assertThat(dto.getNextActions()).extracting(NextActionScoreDto::getAction).containsExactly("VERIFY", "UPLOAD");
         assertThat(dto.getEventContext()).isNotNull();
-        assertThat(dto.getEventContext().path("lastAction").asText()).isEqualTo("UPLOAD");
-        assertThat(dto.getEventContext().path("contextTags")).hasSize(1);
+        assertThat(dto.getEventContext()).isInstanceOf(Map.class);
+        Map<?, ?> eventContext = (Map<?, ?>) dto.getEventContext();
+        assertThat(eventContext.get("lastAction")).isEqualTo("UPLOAD");
+        assertThat((List<?>) eventContext.get("contextTags")).hasSize(1);
     }
 }
