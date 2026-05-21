@@ -3,30 +3,37 @@ stages:
   - build
 
 variables:
-  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+  MAVEN_IMAGE: "maven:3.9-eclipse-temurin-25"
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
 
 cache:
   key: "$CI_COMMIT_REF_SLUG"
   paths:
     - .m2/repository/
 
+.before_maven:
+  image: $MAVEN_IMAGE
+  before_script:
+    - java -version
+    - mvn -version
+
 test_dataprocessor:
+  extends: .before_maven
   stage: test
-  image: maven:3.9-eclipse-temurin-17
   script:
     - cd "Data Processor"
     - mvn clean test
 
 test_api_service:
+  extends: .before_maven
   stage: test
-  image: maven:3.9-eclipse-temurin-17
   script:
     - cd api-service
     - mvn clean test
 
 build_dataprocessor:
+  extends: .before_maven
   stage: build
-  image: maven:3.9-eclipse-temurin-17
   script:
     - cd "Data Processor"
     - mvn clean package -DskipTests
@@ -36,8 +43,8 @@ build_dataprocessor:
     expire_in: 1 week
 
 build_api_service:
+  extends: .before_maven
   stage: build
-  image: maven:3.9-eclipse-temurin-17
   script:
     - cd api-service
     - mvn clean package -DskipTests
