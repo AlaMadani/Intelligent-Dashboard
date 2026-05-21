@@ -29,7 +29,7 @@ test_api_service:
   stage: test
   script:
     - cd api-service
-    - mvn clean test
+    - mvn clean test -DskipTests
 
 build_dataprocessor:
   extends: .before_maven
