@@ -37,10 +37,7 @@ build_dataprocessor:
   script:
     - cd "Data Processor"
     - mvn clean package -DskipTests
-  artifacts:
-    paths:
-      - "Data Processor/target/*.jar"
-    expire_in: 1 week
+    - ls -lh target/*.jar
 
 build_api_service:
   extends: .before_maven
@@ -48,7 +45,4 @@ build_api_service:
   script:
     - cd api-service
     - mvn clean package -DskipTests
-  artifacts:
-    paths:
-      - api-service/target/*.jar
-    expire_in: 1 week
+    - ls -lh target/*.jar
