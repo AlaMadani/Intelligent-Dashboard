@@ -1,0 +1,121 @@
+[
+  {
+    "use_case": "security_anomaly_detection_ranking",
+    "recommended_approach": "XGBoost",
+    "family": "tabular_anomaly",
+    "selection_metric": "pr_auc",
+    "metric_value": 0.5158066864165053
+  },
+  {
+    "use_case": "security_anomaly_detection_alerting",
+    "recommended_approach": "LightGBM",
+    "family": "tabular_anomaly",
+    "selection_metric": "best_f1",
+    "metric_value": 0.56973293768546
+  },
+  {
+    "use_case": "security_anomaly_detection_auc_reference",
+    "recommended_approach": "XGBoost",
+    "family": "tabular_anomaly",
+    "selection_metric": "anomaly_auc",
+    "metric_value": 0.9087463307487849
+  },
+  {
+    "use_case": "sequence_foundation_best_detection",
+    "recommended_approach": "Behavioral Transformer MH (2-head)",
+    "family": "deep_sequence",
+    "selection_metric": "anomaly_auc",
+    "metric_value": 0.818647
+  },
+  {
+    "use_case": "sequence_foundation_next_action_prediction",
+    "recommended_approach": "Behavioral Transformer MH (2-head)",
+    "family": "deep_sequence",
+    "selection_metric": "val_acc1",
+    "metric_value": 0.749521
+  },
+  {
+    "use_case": "sequence_runtime_fast_combined",
+    "recommended_approach": "Temporal CNN / TCN",
+    "family": "deep_sequence",
+    "selection_metric": "combined_score",
+    "metric_value": 0.6918053044920878
+  },
+  {
+    "use_case": "anomaly_type_api_scraping",
+    "recommended_approach": "XGBoost",
+    "family": "tabular_anomaly",
+    "selection_metric": "auc_vs_rest",
+    "metric_value": 0.930093000746637
+  },
+  {
+    "use_case": "anomaly_type_credential_stuffing",
+    "recommended_approach": "CNN + Transformer Hybrid",
+    "family": "deep_sequence",
+    "selection_metric": "auc_vs_rest",
+    "metric_value": 0.9671682710417471
+  },
+  {
+    "use_case": "anomaly_type_data_exfiltration",
+    "recommended_approach": "CatBoost",
+    "family": "tabular_anomaly",
+    "selection_metric": "auc_vs_rest",
+    "metric_value": 0.8935430676679671
+  },
+  {
+    "use_case": "anomaly_type_off_hours_compromise",
+    "recommended_approach": "OneClassSVM RBF",
+    "family": "tabular_anomaly",
+    "selection_metric": "auc_vs_rest",
+    "metric_value": 0.8895304571928759
+  },
+  {
+    "use_case": "anomaly_type_session_hijacking",
+    "recommended_approach": "Deeper Transformer MH (3-layer)",
+    "family": "deep_sequence",
+    "selection_metric": "auc_vs_rest",
+    "metric_value": 0.9711671383171063
+  },
+  {
+    "use_case": "persona_clustering",
+    "recommended_approach": "Behavioral_Transformer_MH_2-head_embedding_plus_profile + KMeans k=7",
+    "family": "clustering",
+    "selection_metric": "ARI",
+    "metric_value": 0.746751274364381
+  },
+  {
+    "use_case": "churn_ranking_auc",
+    "recommended_approach": "profile_only + ExtraTrees",
+    "family": "churn_classifier",
+    "selection_metric": "AUC",
+    "metric_value": 0.9533569581457715
+  },
+  {
+    "use_case": "churn_ranking_pr_auc",
+    "recommended_approach": "profile_only + ExtraTrees",
+    "family": "churn_classifier",
+    "selection_metric": "PR_AUC",
+    "metric_value": 0.8875139527986651
+  },
+  {
+    "use_case": "churn_operational_f1",
+    "recommended_approach": "profile_only + ExtraTrees",
+    "family": "churn_classifier",
+    "selection_metric": "F1",
+    "metric_value": 0.8
+  },
+  {
+    "use_case": "forecast_anomaly_rate",
+    "recommended_approach": "Ridge",
+    "family": "forecasting_regressor",
+    "selection_metric": "RMSE",
+    "metric_value": 0.051724400544232
+  },
+  {
+    "use_case": "forecast_total_events",
+    "recommended_approach": "XGBoost",
+    "family": "forecasting_regressor",
+    "selection_metric": "RMSE",
+    "metric_value": 1468.5155387906652
+  }
+]

@@ -1,0 +1,58 @@
+{
+  "model_name": "Behavioral Transformer MH (2-head)",
+  "model_file": "transformer_sequence_engine.onnx",
+  "fallback_model_file": "tcn_sequence_engine.onnx",
+  "window_size": 10,
+  "cat_cols": [
+    "page",
+    "frontend_action_name",
+    "api_template",
+    "action_value",
+    "action_type",
+    "action_subtype",
+    "http_method",
+    "status",
+    "device",
+    "browser",
+    "os",
+    "ip_country",
+    "controller",
+    "api_family",
+    "environment_id"
+  ],
+  "cont_cols": [
+    "time_since_prev_action_ms",
+    "request_data_size_bytes",
+    "response_data_size_bytes",
+    "is_business_hours",
+    "is_weekend",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos"
+  ],
+  "vocab_sizes": [
+    15,
+    53,
+    51,
+    53,
+    6,
+    20,
+    4,
+    2,
+    3,
+    4,
+    4,
+    5,
+    15,
+    14,
+    4
+  ],
+  "input_contract": {
+    "x_cat": "int64[batch,10,15] 1-based ids, 0=PAD/UNK",
+    "x_cont": "float32[batch,10,9]",
+    "mask": "bool[batch,10]"
+  },
+  "onnx_packaging": "self_contained_preferred",
+  "external_data_required": false
+}

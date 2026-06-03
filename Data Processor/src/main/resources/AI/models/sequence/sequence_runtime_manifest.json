@@ -1,0 +1,53 @@
+{
+  "mode": "self_contained_onnx",
+  "primary_model_file": "transformer_sequence_engine.onnx",
+  "fallback_model_file": "tcn_sequence_engine.onnx",
+  "conversions": [
+    {
+      "source": "/content/transformer_sequence_engine.onnx",
+      "output": "/content/springboot_runtime_v3_6_3_selfcontained/AI/models/sequence/transformer_sequence_engine.onnx",
+      "source_external_refs": [
+        "winning_sequence_engine.onnx.data"
+      ],
+      "output_external_refs": [],
+      "self_contained": true,
+      "size_bytes": 1660538
+    },
+    {
+      "source": "/content/tcn_sequence_engine.onnx",
+      "output": "/content/springboot_runtime_v3_6_3_selfcontained/AI/models/sequence/tcn_sequence_engine.onnx",
+      "source_external_refs": [
+        "tcn_sequence_engine.onnx.data"
+      ],
+      "output_external_refs": [],
+      "self_contained": true,
+      "size_bytes": 958327
+    },
+    {
+      "source": "transformer_sequence_engine.onnx",
+      "output": "winning_sequence_engine.onnx",
+      "self_contained": true,
+      "alias": true
+    }
+  ],
+  "external_refs_in_output": {},
+  "external_fallback_files": [],
+  "onnxruntime_validation": [
+    {
+      "model": "tcn_sequence_engine.onnx",
+      "onnxruntime_load": "SKIPPED",
+      "reason": "onnxruntime not installed or validation disabled"
+    },
+    {
+      "model": "transformer_sequence_engine.onnx",
+      "onnxruntime_load": "SKIPPED",
+      "reason": "onnxruntime not installed or validation disabled"
+    },
+    {
+      "model": "winning_sequence_engine.onnx",
+      "onnxruntime_load": "SKIPPED",
+      "reason": "onnxruntime not installed or validation disabled"
+    }
+  ],
+  "package_valid": true
+}

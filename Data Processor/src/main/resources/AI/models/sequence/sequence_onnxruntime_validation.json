@@ -1,0 +1,17 @@
+[
+  {
+    "model": "tcn_sequence_engine.onnx",
+    "onnxruntime_load": "SKIPPED",
+    "reason": "onnxruntime not installed or validation disabled"
+  },
+  {
+    "model": "transformer_sequence_engine.onnx",
+    "onnxruntime_load": "SKIPPED",
+    "reason": "onnxruntime not installed or validation disabled"
+  },
+  {
+    "model": "winning_sequence_engine.onnx",
+    "onnxruntime_load": "SKIPPED",
+    "reason": "onnxruntime not installed or validation disabled"
+  }
+]

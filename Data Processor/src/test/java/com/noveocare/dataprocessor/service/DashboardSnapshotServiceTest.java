@@ -1,16 +1,17 @@
 package com.noveocare.dataprocessor.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.noveocare.dataprocessor.ai.forecast.ForecastRuntimeService;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RedisPubSubProperties;
 import com.noveocare.dataprocessor.dto.NextActionScore;
 import com.noveocare.dataprocessor.dto.PathDeviationResult;
 import com.noveocare.dataprocessor.dto.SessionInsight;
 import com.noveocare.dataprocessor.dto.SessionSummary;
+import com.noveocare.dataprocessor.inference.ModelHealthService;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.repository.AnomalyEventRepository;
 import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
-import com.noveocare.dataprocessor.ai.RuntimeArtifactService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
 class DashboardSnapshotServiceTest {
@@ -32,7 +34,8 @@ class DashboardSnapshotServiceTest {
     private final RedisCacheService redisCacheService = mock(RedisCacheService.class);
     private final SessionAnalysisRepository sessionAnalysisRepository = mock(SessionAnalysisRepository.class);
     private final AnomalyEventRepository anomalyEventRepository = mock(AnomalyEventRepository.class);
-    private final RuntimeArtifactService runtimeArtifactService = mock(RuntimeArtifactService.class);
+    private final ForecastRuntimeService forecastRuntimeService = mock(ForecastRuntimeService.class);
+    private final ModelHealthService modelHealthService = mock(ModelHealthService.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     private final StatisticsService statisticsService = mock(StatisticsService.class);
 
@@ -48,7 +51,8 @@ class DashboardSnapshotServiceTest {
                 cacheProperties,
                 sessionAnalysisRepository,
                 anomalyEventRepository,
-                runtimeArtifactService,
+                forecastRuntimeService,
+                modelHealthService,
                 redisTemplate,
                 new ObjectMapper().findAndRegisterModules(),
                 statisticsService,
@@ -95,12 +99,18 @@ class DashboardSnapshotServiceTest {
                 .anomaly(true)
                 .anomalyScore(0.91)
                 .anomalyProbability(0.88)
-                .binaryDetectorArtifact("xgb_binary")
+                .binaryDetectorArtifact("transformer_sequence_engine.onnx")
                 .anomalyType("geo_jump")
+                .anomalyTypeSource("heuristic")
                 .anomalyTypeConfidence(0.83)
                 .churnProbability(0.12)
+                .aiRiskScore(72.0)
+                .ruleRiskScore(55.0)
+                .finalRiskScore(66.05)
                 .ensembleRiskScore(77.0)
                 .personaCluster(2)
+                .personaLabel("regular_user")
+                .personaSource("kmeans")
                 .riskLevel("HIGH")
                 .pathDeviation(PathDeviationResult.builder()
                         .deviated(true)
@@ -115,13 +125,17 @@ class DashboardSnapshotServiceTest {
         service.cacheSessionInsight(summary, insight);
 
         ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(redisCacheService).setJson(anyString(), payloadCaptor.capture(), any(Duration.class));
+        verify(redisCacheService, atLeastOnce()).setJson(anyString(), payloadCaptor.capture(), any(Duration.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) payloadCaptor.getValue();
+        Map<String, Object> payload = (Map<String, Object>) payloadCaptor.getAllValues().get(0);
         assertThat(payload)
-                .containsEntry("binaryDetectorArtifact", "xgb_binary")
+                .containsEntry("binaryDetectorArtifact", "transformer_sequence_engine.onnx")
                 .containsEntry("typeConfidence", 0.83)
-                .containsEntry("ensembleRiskScore", 77.0)
+                .containsEntry("ensembleRiskScore", 66.05)
+                .containsEntry("finalRiskScore", 66.05)
+                .containsEntry("aiRiskScore", 72.0)
+                .containsEntry("ruleRiskScore", 55.0)
+                .containsEntry("personaLabel", "regular_user")
                 .containsEntry("pathDeviationFlag", true)
                 .containsEntry("transitionFromAction", "LOGIN")
                 .containsEntry("totalKOs", 2)

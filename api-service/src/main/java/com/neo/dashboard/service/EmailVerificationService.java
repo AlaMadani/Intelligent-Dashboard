@@ -1,6 +1,7 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.entity.User;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@RequiredArgsConstructor
 public class EmailVerificationService {
 
     private static final String CODE_PREFIX = "auth:email-verification:code:";
@@ -37,14 +39,6 @@ public class EmailVerificationService {
 
     @Value("${jwt.secret}")
     private String jwtSecret;
-
-    public EmailVerificationService(
-            StringRedisTemplate redisTemplate,
-            VerificationEmailService verificationEmailService
-    ) {
-        this.redisTemplate = redisTemplate;
-        this.verificationEmailService = verificationEmailService;
-    }
 
     public DispatchResult issueCode(User user, boolean enforceCooldown) {
         String email = normalizeEmail(user.getEmail());

@@ -1,0 +1,21 @@
+{
+  "primary_recommendations": {
+    "anomaly_ranking": "XGBoost JSON/UBJ",
+    "anomaly_alerting": "LightGBM TXT",
+    "sequence_foundation": "Self-contained Transformer ONNX",
+    "sequence_fallback": "Self-contained TCN ONNX",
+    "persona": "disabled/skipped for now; persona_runtime_best.json optional",
+    "churn": "ExtraTrees JSON",
+    "forecast_anomaly_rate": "Ridge JSON",
+    "forecast_total_events": "XGBoost JSON/UBJ"
+  },
+  "springboot_notes": {
+    "onnx": "Recommended package uses self-contained ONNX files. Load from filesystem path with ONNX Runtime Java. No .onnx.data should be required when manifest onnx_mode=self_contained_onnx.",
+    "xgboost": "Use XGBoost4J or compatible JSON/UBJ loader.",
+    "lightgbm": "Use Java LightGBM predictor compatible with text model.",
+    "catboost": "Use CatBoost Java runtime for CBM if enabled.",
+    "oneclasssvm": "Use provided JSON and RBF formula.",
+    "extratrees": "Use provided JSON manual tree traversal.",
+    "ridge": "Use provided JSON linear formula."
+  }
+}

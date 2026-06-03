@@ -12,18 +12,14 @@ import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RuleProperties;
 import com.noveocare.dataprocessor.dto.AnomalyAlert;
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
-import com.noveocare.dataprocessor.dto.NextActionScore;
 import com.noveocare.dataprocessor.dto.SessionInsight;
 import com.noveocare.dataprocessor.dto.SessionSummary;
-import com.noveocare.dataprocessor.entity.NextActionPrediction;
 import com.noveocare.dataprocessor.entity.SessionAnalysis;
 import com.noveocare.dataprocessor.inference.GeoJumpDetector;
 import com.noveocare.dataprocessor.inference.ModelInferenceService;
-import com.noveocare.dataprocessor.inference.TransitionMatrixService;
 import com.noveocare.dataprocessor.inference.VelocityDetector;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
-import com.noveocare.dataprocessor.repository.NextActionPredictionRepository;
 import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
 import com.noveocare.dataprocessor.service.DashboardSnapshotService;
 import com.noveocare.dataprocessor.service.StatisticsService;
@@ -61,11 +57,9 @@ public class AuditTrailConsumer {
     private final FeatureEngineeringProperties featureEngineeringProperties;
     private final StatisticsService statisticsService;
     private final SessionAnalysisRepository sessionAnalysisRepository;
-    private final NextActionPredictionRepository nextActionPredictionRepository;
     private final AlertPublisher alertPublisher;
     private final VelocityDetector velocityDetector;
     private final GeoJumpDetector geoJumpDetector;
-    private final TransitionMatrixService transitionMatrixService;
     private final DashboardSnapshotService dashboardSnapshotService;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final KafkaTopicProperties kafkaTopicProperties;
@@ -108,46 +102,26 @@ public class AuditTrailConsumer {
             List<String> triggeredRules = evaluateSessionRules(enrichedEvents);
 
             boolean isEnd = isSessionEnd(event);
-            SessionInsight insight;
+            long lag = estimatePartitionLag(record, consumer);
+            SessionInsight insight = modelInferenceService.infer(summary, enrichedEvents, triggeredRules, lag);
 
             if (isEnd) {
-                long lag = estimatePartitionLag(record, consumer);
-                boolean heavyInferenceEnabled = lag < kafkaConsumerProperties.getLoadSheddingLagThreshold();
-                insight = heavyInferenceEnabled
-                        ? modelInferenceService.infer(summary, enrichedEvents, triggeredRules)
-                        : modelInferenceService.inferLightweight(
-                        summary,
-                        enrichedEvents,
-                        triggeredRules,
-                        "heavy_inference_disabled_due_to_kafka_lag_" + lag);
-
                 if (shouldAlert(insight) && !hasDetectedAnomaly(summary.getInsuredId(), summary.getSessionId())) {
                     publishAlert(summary, insight, enrichedEvents);
                 }
                 persistSessionAnalysis(summary, insight, triggeredRules);
-                persistNextActions(summary, insight.getNextActions());
                 statisticsService.updateUserRiskProfile(summary.getInsuredId());
                 dashboardSnapshotService.refreshAll();
                 dashboardSnapshotService.removeSessionInsight(summary.getInsuredId(), summary.getSessionId());
                 sessionBufferService.deleteSession(summary.getInsuredId(), summary.getSessionId());
                 redisCacheService.deleteKey(CacheKeys.detectedAnomalyKey(summary.getInsuredId(), summary.getSessionId()));
             } else {
-                insight = modelInferenceService.inferLightweight(
-                        summary,
-                        enrichedEvents,
-                        triggeredRules,
-                        "mid_session_lightweight");
-
                 if (shouldAlert(insight) && !hasDetectedAnomaly(summary.getInsuredId(), summary.getSessionId())) {
                     publishAlert(summary, insight, enrichedEvents);
                 }
             }
 
             dashboardSnapshotService.cacheSessionInsight(summary, insight);
-            redisCacheService.setJson(
-                    CacheKeys.nextActionsKey(summary.getInsuredId()),
-                    insight.getNextActions(),
-                    redisCacheProperties.getNextActions());
         } catch (Exception ex) {
             log.error("Processing failed for topic={} partition={} offset={}",
                     record.topic(), record.partition(), record.offset(), ex);
@@ -196,85 +170,77 @@ public class AuditTrailConsumer {
         }
     }
 
-    private void persistSessionAnalysis(SessionSummary summary, SessionInsight insight, List<String> triggeredRules) {
+private void persistSessionAnalysis(SessionSummary summary, SessionInsight insight, List<String> triggeredRules) {
         SessionAnalysis entity = new SessionAnalysis();
         entity.setInsuredId(summary.getInsuredId());
         entity.setSessionId(summary.getSessionId());
-        entity.setPersona(summary.getPersona());
         entity.setCountryCode(summary.getCountryCode());
-        entity.setCity(summary.getCity());
-        entity.setMonth(summary.getMonth());
-        entity.setSessionNumber(summary.getSessionNumber());
         entity.setStartTime(summary.getSessionStart());
         entity.setEndTime(summary.getSessionEnd());
-        entity.setFirstAction(summary.getFirstAction());
-        entity.setLastAction(summary.getLastAction());
-        entity.setFirstRoute(summary.getFirstRoute());
-        entity.setLastRoute(summary.getLastRoute());
         entity.setTotalEvents(summary.getTotalEvents());
         entity.setSessionDurationSeconds(summary.getTotalDurationSeconds());
         entity.setUniqueActions(summary.getUniqueActions());
-        entity.setUniqueRoutes(summary.getUniqueRoutes());
-        entity.setUniqueIpsUsed(summary.getUniqueIpsUsed());
-        entity.setUniqueDevicesUsed(summary.getUniqueDevicesUsed());
-        entity.setTotalKOs(summary.getTotalKOs());
-        entity.setTotalOKs(summary.getTotalOKs());
-        entity.setLongestKoStreak(summary.getLongestKoStreak());
-        entity.setKoRate(summary.getTotalEvents() == null || summary.getTotalEvents() == 0
-                ? 0.0
-                : (double) defaultInt(summary.getTotalKOs()) / summary.getTotalEvents());
-        entity.setAvgInterActionSeconds(summary.getAvgInterActionSeconds());
-        entity.setMinInterActionSeconds(summary.getMinInterActionSeconds());
-        entity.setMaxInterActionSeconds(summary.getMaxInterActionSeconds());
-        entity.setActionDiversity(shannonEntropy(summary.getActionCounts(), summary.getTotalEvents()));
-        entity.setHasLogin(defaultInt(summary.getHasLogin()) == 1);
-        entity.setHasLogout(defaultInt(summary.getHasLogout()) == 1);
-        entity.setIpChanged(defaultInt(summary.getIpChanged()) == 1);
-        entity.setDeviceChanged(defaultInt(summary.getDeviceChanged()) == 1);
-        entity.setTotalDownloadActions(summary.getTotalDownloadActions());
-        entity.setMaxDownloadsIn2Minutes(summary.getMaxDownloadsIn2Minutes());
-        entity.setPingPongCount(summary.getPingPongCount());
-        entity.setRiskScoreMax(summary.getRiskScoreMax());
-        entity.setRiskScoreAvg(summary.getRiskScoreAvg());
-        entity.setEndedAbruptly(defaultInt(summary.getEndedAbruptly()) == 1);
-        entity.setAnomalyEventCount(summary.getAnomalyEventCount());
-        entity.setIsoScore(insight.getAnomalyScore());
-        entity.setIsAnomaly(insight.isAnomaly());
-        entity.setAnomalyType(insight.getAnomalyType());
-        entity.setTypeConfidence(insight.getAnomalyTypeConfidence());
-        entity.setAnomalyProbability(insight.getAnomalyProbability());
         entity.setChurnProbability(insight.getChurnProbability());
-        entity.setEnsembleRiskScore(insight.getEnsembleRiskScore());
         entity.setPersonaCluster(insight.getPersonaCluster());
-        entity.setBinaryDetectorArtifact(insight.getBinaryDetectorArtifact());
-        entity.setExplainabilityText(insight.getExplainabilityText());
-        entity.setPathDeviation(insight.getPathDeviation() != null && insight.getPathDeviation().isDeviated());
-        entity.setTransitionProbability(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getTransitionProbability());
-        entity.setTransitionFromAction(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getFromAction());
-        entity.setTransitionToAction(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getToAction());
-        entity.setRuleTriggered(!triggeredRules.isEmpty());
-        entity.setRuleType(triggeredRules.isEmpty() ? null : String.join(",", triggeredRules));
+        entity.setV36RuntimeVersion("v3.6.1");
+        entity.setXgboostAnomalyScore(insight.getXgboostAnomalyScore());
+        entity.setXgboostAnomalyScore100(insight.getXgboostAnomalyScore100());
+        entity.setLightgbmAlertScore(insight.getLightgbmAlertScore());
+        entity.setLightgbmAlertScore100(insight.getLightgbmAlertScore100());
+        entity.setCatboostAnomalyScore(insight.getCatboostAnomalyScore());
+        entity.setCatboostAnomalyScore100(insight.getCatboostAnomalyScore100());
+        entity.setOneClassSvmNoveltyScore(insight.getOneClassSvmNoveltyScoreRaw());
+        entity.setOneClassSvmNoveltyScore100(insight.getOneClassSvmNoveltyScore100());
+        entity.setSequenceModelArtifact(insight.getSequenceModelArtifact());
+        entity.setSelectedSequenceModel(insight.getSelectedSequenceModel());
+        entity.setSequenceAnomalyScore(insight.getSequenceAnomalyScore());
+        entity.setSequenceCatScore(insight.getSequenceCategoricalScore());
+        entity.setSequenceContScore(insight.getSequenceContinuousScore());
+        entity.setSequenceCtxScore(insight.getSequenceContextScore());
+        entity.setAiRiskScore(insight.getAiRiskScore());
+        entity.setRuleRiskScore(insight.getRuleRiskScore());
+        entity.setFinalRiskScore(insight.getFinalRiskScore());
+        entity.setTransformerSurpriseScore(insight.getTransformerScore());
+        entity.setTransformerRiskScore100(insight.getTransformerRiskScore100());
+        entity.setTransformerArtifact("transformer_sequence_engine.onnx");
+        entity.setFallbackMode(insight.getFallbackMode());
+        entity.setTcnSurpriseScore(insight.getTcnScore());
+        entity.setTcnRiskScore100(insight.getTcnRiskScore100());
+        entity.setTcnArtifact("tcn_sequence_engine.onnx");
+        entity.setBusinessContextScore(insight.getBusinessContextScore());
+        entity.setAggregationBoost(insight.getAggregationBoost());
+        entity.setRiskLevel(insight.getRiskLevel());
+        entity.setAnomalyTypeSource(insight.getAnomalyTypeSource());
+        entity.setAnomalyTypeConfidence(insight.getAnomalyTypeConfidence());
+        entity.setPersonaLabel(insight.getPersonaLabel());
+        entity.setPersonaSource(insight.getPersonaSource());
+        entity.setPersonaConfidence(insight.getPersonaConfidence());
+        entity.setChurnRiskLevel(insight.getChurnRiskLevel());
+        entity.setChurnModelName(insight.getChurnModelName());
+        entity.setChurnModelArtifact(insight.getChurnModelArtifact());
+        entity.setForecastTotalEventsModel(insight.getForecastTotalEventsModel());
+        entity.setForecastAnomalyRateModel(insight.getForecastAnomalyRateModel());
         entity.setCreatedAt(Instant.now());
-        entity.setUpdatedAt(Instant.now());
 
         try {
             entity.setActionCountsJson(objectMapper.writeValueAsString(summary.getActionCounts()));
-            entity.setAnomalyTypesJson(objectMapper.writeValueAsString(summary.getAnomalyTypes()));
-            entity.setCampaignIdsJson(objectMapper.writeValueAsString(summary.getCampaignIds()));
             entity.setActionSequenceJson(objectMapper.writeValueAsString(summary.getActionSequence()));
             entity.setRouteSequenceJson(objectMapper.writeValueAsString(summary.getRouteSequence()));
-            entity.setTop3NextActions(objectMapper.writeValueAsString(
-                    insight.getNextActions().stream().map(NextActionScore::getAction).toList()));
-            entity.setFeatureContributionsJson(objectMapper.writeValueAsString(insight.getTopContributingFeatures()));
             entity.setWarningsJson(objectMapper.writeValueAsString(insight.getWarnings()));
             entity.setTriggeredRulesJson(objectMapper.writeValueAsString(insight.getTriggeredRules()));
-            entity.setContextTagsJson(objectMapper.writeValueAsString(insight.getContextTags()));
-            entity.setRareTransitionsJson(objectMapper.writeValueAsString(insight.getRareTransitions()));
+            entity.setModelArtifactsJson(objectMapper.writeValueAsString(insight.getModelArtifacts()));
+            entity.setTopSequenceSurpriseFieldsJson(objectMapper.writeValueAsString(insight.getSequenceTopContributions()));
+            entity.setRuleContributionsJson(objectMapper.writeValueAsString(insight.getRuleContributions()));
+            entity.setModelContributionsJson(objectMapper.writeValueAsString(insight.getModelContributions()));
+            entity.setAnomalyTypeEvidenceJson(objectMapper.writeValueAsString(insight.getAnomalyTypeEvidence()));
+            entity.setChurnFeatureWarningsJson(objectMapper.writeValueAsString(insight.getChurnFeatureWarnings()));
+            entity.setForecastContextJson(objectMapper.writeValueAsString(insight.getForecastContext()));
+            entity.setLlmExplanationEvidencePayloadJson(objectMapper.writeValueAsString(insight.getLlmExplanationEvidencePayload()));
+            entity.setTopContributingFeaturesJson(objectMapper.writeValueAsString(insight.getTopContributingFeatures()));
+            entity.setInvestigationPayloadJson(objectMapper.writeValueAsString(insight.getInvestigationPayload()));
         } catch (JsonProcessingException ex) {
             log.warn("Failed to serialize JSON fields for session {}", summary.getSessionId(), ex);
         }
-        entity.setActionSequenceSignature(summary.getActionSequenceSignature());
-        entity.setRouteSequenceSignature(summary.getRouteSequenceSignature());
         sessionAnalysisRepository.save(entity);
         redisCacheService.setJson(
                 CacheKeys.sessionAnalysisKey(summary.getInsuredId(), summary.getSessionId()),
@@ -282,44 +248,57 @@ public class AuditTrailConsumer {
                 redisCacheProperties.getLiveStats());
     }
 
-    private void persistNextActions(SessionSummary summary, List<NextActionScore> nextActions) {
-        NextActionPrediction prediction = nextActionPredictionRepository.findByInsuredId(summary.getInsuredId())
-                .orElseGet(NextActionPrediction::new);
-        prediction.setInsuredId(summary.getInsuredId());
-        prediction.setSessionId(summary.getSessionId());
-        prediction.setPredictedAt(Instant.now());
-        try {
-            prediction.setTop3ActionsJson(objectMapper.writeValueAsString(
-                    nextActions.stream().map(NextActionScore::getAction).toList()));
-        } catch (JsonProcessingException ex) {
-            prediction.setTop3ActionsJson(null);
-        }
-        nextActionPredictionRepository.save(prediction);
-    }
-
     private void publishAlert(SessionSummary summary, SessionInsight insight, List<AuditTrailEvent> enrichedEvents) {
         AuditTrailEvent lastEvent = enrichedEvents.get(enrichedEvents.size() - 1);
         AnomalyAlert alert = AnomalyAlert.builder()
+                .schemaVersion("v3.6.1")
+                .recordId(lastEvent.getId())
                 .insuredId(summary.getInsuredId())
                 .sessionId(summary.getSessionId())
                 .eventId(lastEvent.getId())
                 .eventTime(lastEvent.getCreatedAt())
                 .anomalyTier("SESSION_RUNTIME")
                 .anomalyType(insight.getAnomalyType())
+                .anomalyTypeConfidence(insight.getAnomalyTypeConfidence())
                 .anomalyScore(insight.getAnomalyScore())
                 .anomalyProbability(insight.getAnomalyProbability())
                 .typeConfidence(insight.getAnomalyTypeConfidence())
                 .ruleType(insight.getTriggeredRules().isEmpty() ? null : String.join(",", insight.getTriggeredRules()))
                 .anomalyFlag(insight.isAnomaly())
                 .churnProbability(insight.getChurnProbability())
-                .riskScore(insight.getEnsembleRiskScore())
+                .riskScore(insight.getFinalRiskScore() == null ? insight.getEnsembleRiskScore() : insight.getFinalRiskScore())
+                .riskLevel(insight.getRiskLevel())
                 .personaCluster(insight.getPersonaCluster())
+                .personaLabel(insight.getPersonaLabel())
                 .pathDeviation(insight.getPathDeviation() != null && insight.getPathDeviation().isDeviated())
                 .transitionProbability(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getTransitionProbability())
                 .transitionFromAction(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getFromAction())
                 .transitionToAction(insight.getPathDeviation() == null ? null : insight.getPathDeviation().getToAction())
                 .modelArtifact(insight.getBinaryDetectorArtifact())
-                .nextActions(insight.getNextActions())
+                .aiRiskScore(insight.getAiRiskScore())
+                .ruleRiskScore(insight.getRuleRiskScore())
+                .finalRiskScore(insight.getFinalRiskScore())
+                .anomalyTypeSource(insight.getAnomalyTypeSource())
+                .modelScores(insight.getModelScores())
+                .modelContributions(insight.getModelContributions())
+                .triggeredRules(insight.getTriggeredRules())
+                .churn(buildChurnPayload(insight))
+                .persona(buildPersonaPayload(insight))
+                .llmEvidencePayloadAvailable(insight.getLlmExplanationEvidencePayload() != null)
+                .llmEvidencePayloadRedisKey(CacheKeys.alertLlmEvidenceKey(lastEvent.getId()))
+                .artifactNames(insight.getModelArtifacts())
+                .eventAction(lastEvent.getAction())
+                .apiTemplate(lastEvent.getApiTemplate())
+                .apiFamily(lastEvent.getApiFamily())
+                .controller(lastEvent.getController())
+                .page(lastEvent.getPage())
+                .country(firstNonBlank(lastEvent.getIpCountry(), lastEvent.getCountryCode()))
+                .device(lastEvent.getDevice())
+                .browser(lastEvent.getBrowser())
+                .os(lastEvent.getOs())
+                .httpMethod(lastEvent.getHttpMethod())
+                .status(lastEvent.getStatus())
+                .nextActions(insight.getNextActions() == null ? List.of() : insight.getNextActions())
                 .detectedAt(Instant.now())
                 .build();
 
@@ -332,10 +311,89 @@ public class AuditTrailConsumer {
                 CacheKeys.detectedAnomalyKey(summary.getInsuredId(), summary.getSessionId()),
                 Boolean.TRUE,
                 redisCacheProperties.getSessionBuffer());
+        cacheV36Alert(alert, insight);
+    }
+
+    private Map<String, Object> buildChurnPayload(SessionInsight insight) {
+        Map<String, Object> churn = new LinkedHashMap<>();
+        churn.put("probability", insight.getChurnProbability());
+        churn.put("riskLevel", insight.getChurnRiskLevel());
+        churn.put("modelName", insight.getChurnModelName());
+        churn.put("artifact", insight.getChurnModelArtifact());
+        return churn;
+    }
+
+    private Map<String, Object> buildPersonaPayload(SessionInsight insight) {
+        Map<String, Object> persona = new LinkedHashMap<>();
+        persona.put("enabled", false);
+        persona.put("label", insight.getPersonaLabel());
+        persona.put("source", insight.getPersonaSource());
+        persona.put("confidence", insight.getPersonaConfidence());
+        persona.put("warnings", insight.getPersonaWarnings());
+        return persona;
+    }
+
+    private void cacheV36Alert(AnomalyAlert alert, SessionInsight insight) {
+        Map<String, Object> liveAlert = new LinkedHashMap<>();
+        liveAlert.put("schemaVersion", "v3.6.1");
+        liveAlert.put("eventId", alert.getEventId());
+        liveAlert.put("recordId", alert.getRecordId());
+        liveAlert.put("insuredId", alert.getInsuredId());
+        liveAlert.put("sessionId", alert.getSessionId());
+        liveAlert.put("timestamp", alert.getEventTime());
+        liveAlert.put("eventAction", alert.getEventAction());
+        liveAlert.put("apiTemplate", alert.getApiTemplate());
+        liveAlert.put("apiFamily", alert.getApiFamily());
+        liveAlert.put("controller", alert.getController());
+        liveAlert.put("page", alert.getPage());
+        liveAlert.put("country", alert.getCountry());
+        liveAlert.put("device", alert.getDevice());
+        liveAlert.put("browser", alert.getBrowser());
+        liveAlert.put("os", alert.getOs());
+        liveAlert.put("httpMethod", alert.getHttpMethod());
+        liveAlert.put("status", alert.getStatus());
+        liveAlert.put("riskLevel", alert.getRiskLevel());
+        liveAlert.put("finalRiskScore", alert.getFinalRiskScore());
+liveAlert.put("xgboostAnomalyScore", insight.getXgboostAnomalyScore());
+        liveAlert.put("xgboostAnomalyScore100", insight.getXgboostAnomalyScore100());
+        liveAlert.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
+        liveAlert.put("lightgbmAlertScore100", insight.getLightgbmAlertScore100());
+        liveAlert.put("transformerRiskScore100", insight.getTransformerRiskScore100());
+        liveAlert.put("tcnRiskScore100", insight.getTcnRiskScore100());
+        liveAlert.put("ruleRiskScore", insight.getRuleRiskScore());
+        liveAlert.put("modelScores", insight.getModelScores());
+        liveAlert.put("modelContributions", insight.getModelContributions());
+        liveAlert.put("triggeredRuleCodes", alert.getTriggeredRules());
+        liveAlert.put("anomalyType", alert.getAnomalyType());
+        liveAlert.put("anomalyTypeConfidence", alert.getAnomalyTypeConfidence());
+        liveAlert.put("churnProbability", insight.getChurnProbability());
+        liveAlert.put("churnRiskLevel", insight.getChurnRiskLevel());
+        liveAlert.put("llmEvidencePayloadAvailable", alert.getLlmEvidencePayloadAvailable());
+        liveAlert.put("llmEvidencePayloadRedisKey", alert.getLlmEvidencePayloadRedisKey());
+        liveAlert.put("alertStatus", "OPEN");
+        liveAlert.put("createdAt", alert.getDetectedAt());
+
+        redisCacheService.addToJsonList(CacheKeys.liveAlertsV36Key(), liveAlert, redisCacheProperties.getLiveStats());
+        redisCacheService.addToJsonList(CacheKeys.userAlertsKey(alert.getInsuredId()), liveAlert, redisCacheProperties.getLiveStats());
+        if ("CRITICAL".equalsIgnoreCase(alert.getRiskLevel())) {
+            redisCacheService.addToJsonList(CacheKeys.criticalAlertsV36Key(), liveAlert, redisCacheProperties.getLiveStats());
+        }
+        if (insight.getLlmExplanationEvidencePayload() != null) {
+            redisCacheService.setJson(CacheKeys.alertLlmEvidenceKey(alert.getEventId()),
+                    insight.getLlmExplanationEvidencePayload(),
+                    redisCacheProperties.getSessionInsight());
+        }
+        if (insight.getInvestigationPayload() != null) {
+            redisCacheService.setJson(CacheKeys.alertInvestigationKey(alert.getEventId()),
+                    insight.getInvestigationPayload(),
+                    redisCacheProperties.getSessionInsight());
+        }
     }
 
     private boolean shouldAlert(SessionInsight insight) {
         return insight.isAnomaly()
+                || (insight.getFinalRiskScore() != null
+                && insight.getFinalRiskScore() >= featureEngineeringProperties.getSessionAlertRiskThreshold())
                 || (insight.getEnsembleRiskScore() != null
                 && insight.getEnsembleRiskScore() >= featureEngineeringProperties.getSessionAlertRiskThreshold());
     }
@@ -374,11 +432,17 @@ public class AuditTrailConsumer {
         if (geoJumpDetector.isGeoJump(ordered)) {
             rules.add("geo_jump");
         }
+        if (ordered.stream().anyMatch(event -> defaultInt(event.getIsDeviceChanged()) == 1)) {
+            rules.add("device_switch");
+        }
+        if (ordered.stream().anyMatch(event -> defaultInt(event.getDownloadsLast2Minutes()) >= 10)) {
+            rules.add("download_spike");
+        }
+        if (ordered.stream().anyMatch(event -> defaultInt(event.getPingPongCount()) >= 2)) {
+            rules.add("api_scraping");
+        }
         if (velocityDetector.isSessionTimeout(ordered)) {
             rules.add("session_timeout");
-        }
-        if (transitionMatrixService.isImpossibleTransition(ordered)) {
-            rules.add("impossible_seq");
         }
         return rules;
     }
@@ -424,9 +488,14 @@ public class AuditTrailConsumer {
                 .anyMatch(allowed -> allowed.equalsIgnoreCase(type));
     }
 
+    private String firstNonBlank(String first, String second) {
+        return first != null && !first.isBlank() ? first : second;
+    }
+
     private String buildAlertContextJson(SessionSummary summary, SessionInsight insight, AuditTrailEvent lastEvent)
             throws JsonProcessingException {
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaVersion", "v3.6.1");
         payload.put("sessionId", summary.getSessionId());
         payload.put("insuredId", summary.getInsuredId());
         payload.put("lastEventId", lastEvent == null ? null : lastEvent.getId());
@@ -444,6 +513,12 @@ public class AuditTrailConsumer {
         payload.put("contextTags", insight.getContextTags());
         payload.put("triggeredRules", insight.getTriggeredRules());
         payload.put("topContributingFeatures", insight.getTopContributingFeatures());
+        payload.put("sequenceTopContributions", insight.getSequenceTopContributions());
+        payload.put("aiRiskScore", insight.getAiRiskScore());
+        payload.put("ruleRiskScore", insight.getRuleRiskScore());
+        payload.put("finalRiskScore", insight.getFinalRiskScore());
+        payload.put("personaLabel", insight.getPersonaLabel());
+        payload.put("personaSource", insight.getPersonaSource());
         payload.put("pathDeviation", insight.getPathDeviation());
         payload.put("rareTransitions", insight.getRareTransitions());
         payload.put("explainabilityText", insight.getExplainabilityText());
@@ -452,17 +527,5 @@ public class AuditTrailConsumer {
 
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
-    }
-
-    private double shannonEntropy(Map<String, Long> counts, Integer total) {
-        if (counts == null || counts.isEmpty() || total == null || total == 0) {
-            return 0.0;
-        }
-        double entropy = 0.0;
-        for (long count : counts.values()) {
-            double p = (double) count / total;
-            entropy -= p * Math.log(p);
-        }
-        return entropy;
     }
 }

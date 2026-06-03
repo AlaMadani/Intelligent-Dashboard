@@ -25,18 +25,29 @@ public class RedisDashboardRefreshListener implements MessageListener {
     private final LiveStatsStreamService liveStatsStreamService;
     private final StatsService statsService;
 
-    @Override
+@Override
     public void onMessage(Message message, byte[] pattern) {
         String payload = new String(message.getBody(), StandardCharsets.UTF_8);
-        String refresh = resolveRefreshTarget(payload);
-        if (refresh == null) {
+        String originalRefresh = resolveRefreshTarget(payload);
+        String refresh = normalizeRefreshTarget(originalRefresh);
+        if (originalRefresh == null && refresh == null) {
             return;
         }
 
-        if ("stats".equalsIgnoreCase(refresh)) {
-            liveStatsStreamService.broadcastStats(statsService.getLiveStats(LocalDate.now(ZoneOffset.UTC)));
+        try {
+            if ("stats".equalsIgnoreCase(originalRefresh) || "stats".equalsIgnoreCase(refresh)) {
+                liveStatsStreamService.broadcastStats(statsService.getLiveStats(LocalDate.now(ZoneOffset.UTC)));
+            }
+            if (originalRefresh != null) {
+                liveStatsStreamService.broadcastRefresh(originalRefresh);
+            }
+            if (refresh == null || refresh.equals(originalRefresh)) {
+                return;
+            }
+            liveStatsStreamService.broadcastRefresh(refresh);
+        } catch (Exception ex) {
+            log.warn("Dashboard refresh broadcast failed", ex);
         }
-        liveStatsStreamService.broadcastRefresh(refresh);
     }
 
     private String resolveRefreshTarget(String payload) {
@@ -53,5 +64,18 @@ public class RedisDashboardRefreshListener implements MessageListener {
             log.warn("Failed to parse dashboard refresh payload {}", payload, ex);
         }
         return null;
+    }
+
+    private String normalizeRefreshTarget(String refresh) {
+        if (refresh == null || refresh.isBlank()) {
+            return null;
+        }
+        return switch (refresh.toLowerCase()) {
+            case "forecasts", "forecast-series" -> "forecast";
+            case "security", "security_overview", "security-overview" -> "security-overview";
+            case "runtime", "runtime_health", "runtime-health", "ai-runtime-health" -> "runtime-health";
+            case "critical-alerts", "live-alerts" -> "alerts";
+            default -> refresh;
+        };
     }
 }

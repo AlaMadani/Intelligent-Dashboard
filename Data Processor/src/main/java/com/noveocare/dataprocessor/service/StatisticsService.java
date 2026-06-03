@@ -105,33 +105,33 @@ public class StatisticsService {
                 .filter(session -> session.getEndTime() != null && session.getEndTime().isAfter(since7))
                 .count();
         long anomalies30Count = sessions30.stream()
-                .filter(session -> Boolean.TRUE.equals(session.getIsAnomaly()))
+                .filter(session -> session.getFinalRiskScore() != null && session.getFinalRiskScore() >= riskProperties.getMediumThreshold())
                 .count();
 
         double anomalyRate = sessions30Count == 0 ? 0.0 : (double) anomalies30Count / sessions30Count;
         double averageRisk = sessions30.stream()
-                .map(SessionAnalysis::getEnsembleRiskScore)
+                .map(SessionAnalysis::getFinalRiskScore)
                 .filter(score -> score != null)
                 .mapToDouble(Double::doubleValue)
                 .average()
                 .orElse(0.0);
         double maxRisk = sessions30.stream()
-                .map(SessionAnalysis::getEnsembleRiskScore)
+                .map(SessionAnalysis::getFinalRiskScore)
                 .filter(score -> score != null)
                 .mapToDouble(Double::doubleValue)
                 .max()
                 .orElse(0.0);
 
         String lastAnomalyType = sessions30.stream()
-                .filter(session -> Boolean.TRUE.equals(session.getIsAnomaly()))
-                .map(SessionAnalysis::getAnomalyType)
+                .filter(session -> session.getFinalRiskScore() != null && session.getFinalRiskScore() >= riskProperties.getMediumThreshold())
+                .map(SessionAnalysis::getAnomalyTypeSource)
                 .filter(type -> type != null && !type.isBlank())
                 .findFirst()
                 .orElse(null);
 
         int consecutiveClean = 0;
         for (SessionAnalysis session : sessionAnalysisRepository.findTop200ByInsuredIdOrderByEndTimeDesc(insuredId)) {
-            if (Boolean.TRUE.equals(session.getIsAnomaly())) {
+            if (session.getFinalRiskScore() != null && session.getFinalRiskScore() >= riskProperties.getMediumThreshold()) {
                 break;
             }
             consecutiveClean++;
@@ -164,7 +164,7 @@ public class StatisticsService {
         double avgSessionDuration = durationCount == 0 ? 0.0 : durationSum / durationCount;
 
         boolean highRiskTypeSeen = sessions30.stream()
-                .map(SessionAnalysis::getAnomalyType)
+                .map(SessionAnalysis::getAnomalyTypeSource)
                 .anyMatch(type -> type != null && isHighRiskType(type));
 
         UserRiskProfile profile = userRiskProfileRepository.findByInsuredId(insuredId)
@@ -173,7 +173,7 @@ public class StatisticsService {
         profile.setLastUpdated(now);
         profile.setAnomalyCount7d((int) sessions30.stream()
                 .filter(session -> session.getEndTime() != null && session.getEndTime().isAfter(since7))
-                .filter(session -> Boolean.TRUE.equals(session.getIsAnomaly()))
+                .filter(session -> session.getFinalRiskScore() != null && session.getFinalRiskScore() >= riskProperties.getMediumThreshold())
                 .count());
         profile.setAnomalyCount30d((int) anomalies30Count);
         profile.setLastAnomalyType(lastAnomalyType);

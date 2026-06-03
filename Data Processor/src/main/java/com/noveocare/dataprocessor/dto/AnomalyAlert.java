@@ -16,7 +16,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AnomalyAlert {
+    private String schemaVersion;
     // Event and session identifiers that let consumers correlate the alert back to source data.
+    private String recordId;
     private String insuredId;
     private String sessionId;
     private String eventId;
@@ -32,11 +34,38 @@ public class AnomalyAlert {
     private Double churnProbability;
     private Double riskScore;
     private Integer personaCluster;
+    private String personaLabel;
     private Boolean pathDeviation;
     private Double transitionProbability;
     private String transitionFromAction;
     private String transitionToAction;
     private String modelArtifact;
+    private Double aiRiskScore;
+    private Double ruleRiskScore;
+    private Double finalRiskScore;
+    private String riskLevel;
+    private String anomalyTypeSource;
+private Double anomalyTypeConfidence;
+    private java.util.Map<String, Object> anomalyTypeEvidence;
+    private java.util.Map<String, Object> modelScores;
+    private java.util.Map<String, Object> modelContributions;
+    private java.util.List<String> triggeredRules;
+    private java.util.Map<String, Object> churn;
+    private java.util.Map<String, Object> persona;
+    private Boolean llmEvidencePayloadAvailable;
+    private String llmEvidencePayloadRedisKey;
+    private java.util.Map<String, String> artifactNames;
+    private String eventAction;
+    private String apiTemplate;
+    private String apiFamily;
+    private String controller;
+    private String page;
+    private String country;
+    private String device;
+    private String browser;
+    private String os;
+    private String httpMethod;
+    private String status;
     private List<NextActionScore> nextActions;
 
     // Timestamps for the triggering event and the actual detection moment.

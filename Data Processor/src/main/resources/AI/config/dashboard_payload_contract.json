@@ -1,0 +1,42 @@
+{
+  "version": "v3.6.3",
+  "live_alert_fields": [
+    "eventId",
+    "recordId",
+    "insuredId",
+    "sessionId",
+    "timestamp",
+    "eventAction",
+    "apiTemplate",
+    "apiFamily",
+    "country",
+    "device",
+    "riskLevel",
+    "finalRiskScore",
+    "xgboostAnomalyScore",
+    "lightgbmAlertScore",
+    "transformerSurpriseScore",
+    "tcnSurpriseScore",
+    "ruleRiskScore",
+    "triggeredRuleCodes",
+    "anomalyType",
+    "personaLabel",
+    "churnProbability",
+    "churnRiskLevel",
+    "llmEvidencePayloadAvailable"
+  ],
+  "alert_investigation_key": "alert:investigation:{eventId}",
+  "user_360_key": "user:360:{insuredId}",
+  "dashboard_keys": [
+    "dashboard:security-overview:v3_6",
+    "dashboard:churn:v3_6",
+    "dashboard:forecast:v3_6"
+  ],
+  "model_score_sources": {
+    "xgboostAnomalyScore": "models/tabular_anomaly/anomaly_xgboost.json",
+    "lightgbmAlertScore": "models/tabular_anomaly/anomaly_lightgbm.txt",
+    "transformerSurpriseScore": "models/sequence/transformer_sequence_engine.onnx",
+    "tcnSurpriseScore": "models/sequence/tcn_sequence_engine.onnx",
+    "ruleRiskScore": "RuleRiskScoringServiceV36"
+  }
+}

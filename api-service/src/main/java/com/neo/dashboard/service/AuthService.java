@@ -6,14 +6,17 @@ import com.neo.dashboard.dto.EmailVerificationRequest;
 import com.neo.dashboard.dto.ForgotPasswordRequest;
 import com.neo.dashboard.dto.PasswordResetConfirmRequest;
 import com.neo.dashboard.dto.PasswordResetVerifyRequest;
-import com.neo.dashboard.dto.ResendVerificationRequest;
 import com.neo.dashboard.dto.SignInRequest;
 import com.neo.dashboard.dto.SignUpRequest;
 import com.neo.dashboard.entity.User;
+import com.neo.dashboard.entity.UserRole;
+import com.neo.dashboard.exception.AuthException;
 import com.neo.dashboard.repository.UserRepository;
 import com.neo.dashboard.security.JwtTokenProvider;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +27,7 @@ import java.util.Optional;
 @Service
 @Slf4j
 @Transactional
+@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -35,29 +39,16 @@ public class AuthService {
     @Value("${app.auth.allowed-domain:@noveocare.com}")
     private String allowedDomain;
 
-    public AuthService(
-            UserRepository userRepository,
-            PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider,
-            EmailVerificationService emailVerificationService,
-            PasswordResetService passwordResetService
-    ) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtTokenProvider = jwtTokenProvider;
-        this.emailVerificationService = emailVerificationService;
-        this.passwordResetService = passwordResetService;
-    }
-
     public AuthResponse signUp(SignUpRequest request) {
         String email = normalizeEmail(request.getEmail());
         String signUpDomain = normalizeAllowedDomain();
 
         if (!email.endsWith(signUpDomain)) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Sign up is only allowed with " + signUpDomain + " email addresses")
-                    .build();
+            throw authException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_EMAIL_DOMAIN",
+                    "Sign up is only allowed with " + signUpDomain + " email addresses"
+            );
         }
 
         Optional<User> existingUser = userRepository.findByEmail(email);
@@ -70,24 +61,18 @@ public class AuthService {
                         true
                 );
             }
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Email already registered")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "EMAIL_ALREADY_REGISTERED", "Email already registered");
         }
 
         if (!request.getPassword().equals(request.getPasswordConfirm())) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Passwords do not match")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "PASSWORD_MISMATCH", "Passwords do not match");
         }
 
         User user = User.builder()
                 .email(email)
                 .fullName(request.getFullName())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(User.UserRole.ANALYST)
+                .role(UserRole.ANALYST)
                 .enabled(true)
                 .emailVerified(false)
                 .build();
@@ -110,17 +95,18 @@ public class AuthService {
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null || !user.isEnabled() || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             log.warn("Sign in failed for email: {}", email);
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Invalid email or password")
-                    .build();
+            throw authException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Invalid email or password");
         }
 
         if (!user.isEmailVerified()) {
-            return pendingVerificationResponseWithAvailableCode(
-                    user,
-                    "Please verify your email before signing in.",
-                    false
+            throw authException(
+                    HttpStatus.FORBIDDEN,
+                    "EMAIL_VERIFICATION_REQUIRED",
+                    pendingVerificationResponseWithAvailableCode(
+                            user,
+                            "Please verify your email before signing in.",
+                            false
+                    )
             );
         }
 
@@ -135,10 +121,7 @@ public class AuthService {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Invalid verification request")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "INVALID_VERIFICATION_REQUEST", "Invalid verification request");
         }
 
         if (user.isEmailVerified()) {
@@ -148,15 +131,19 @@ public class AuthService {
         EmailVerificationService.VerificationCheckResult check = emailVerificationService.verifyCode(email, request.getCode());
         if (!check.valid()) {
             EmailVerificationService.VerificationStatus status = emailVerificationService.status(email);
-            return AuthResponse.builder()
-                    .success(false)
-                    .message(check.message())
-                    .emailVerificationRequired(true)
-                    .email(email)
-                    .remainingAttempts(check.remainingAttempts())
-                    .resendAvailableInSeconds(status.resendAvailableInSeconds())
-                    .verificationExpiresInSeconds(status.verificationExpiresInSeconds())
-                    .build();
+            throw authException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_VERIFICATION_CODE",
+                    AuthResponse.builder()
+                            .success(false)
+                            .message(check.message())
+                            .emailVerificationRequired(true)
+                            .email(email)
+                            .remainingAttempts(check.remainingAttempts())
+                            .resendAvailableInSeconds(status.resendAvailableInSeconds())
+                            .verificationExpiresInSeconds(status.verificationExpiresInSeconds())
+                            .build()
+            );
         }
 
         user.setEmailVerified(true);
@@ -167,14 +154,11 @@ public class AuthService {
         return issueTokens(user, "Email verified successfully");
     }
 
-    public AuthResponse resendVerificationCode(ResendVerificationRequest request) {
+    public AuthResponse resendVerificationCode(ForgotPasswordRequest request) {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("User not found")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "USER_NOT_FOUND", "User not found");
         }
 
         if (user.isEmailVerified()) {
@@ -186,7 +170,7 @@ public class AuthService {
         }
 
         EmailVerificationService.DispatchResult dispatch = emailVerificationService.issueCode(user, true);
-        return AuthResponse.builder()
+        AuthResponse response = AuthResponse.builder()
                 .success(dispatch.accepted())
                 .message(dispatch.message())
                 .emailVerificationRequired(true)
@@ -194,27 +178,25 @@ public class AuthService {
                 .resendAvailableInSeconds(dispatch.resendAvailableInSeconds())
                 .verificationExpiresInSeconds(dispatch.verificationExpiresInSeconds())
                 .build();
+        if (!dispatch.accepted()) {
+            throw authException(HttpStatus.TOO_MANY_REQUESTS, "VERIFICATION_CODE_COOLDOWN", response);
+        }
+        return response;
     }
 
     public AuthResponse forgotPassword(ForgotPasswordRequest request) {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("No account found with this email")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "ACCOUNT_NOT_FOUND", "No account found with this email");
         }
 
         if (!user.isEnabled()) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("This account is disabled")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "ACCOUNT_DISABLED", "This account is disabled");
         }
 
         PasswordResetService.DispatchResult dispatch = passwordResetService.issueCode(user, true);
-        return AuthResponse.builder()
+        AuthResponse response = AuthResponse.builder()
                 .success(dispatch.accepted())
                 .message(dispatch.message())
                 .passwordResetRequired(true)
@@ -222,30 +204,35 @@ public class AuthService {
                 .resendAvailableInSeconds(dispatch.resendAvailableInSeconds())
                 .verificationExpiresInSeconds(dispatch.verificationExpiresInSeconds())
                 .build();
+        if (!dispatch.accepted()) {
+            throw authException(HttpStatus.TOO_MANY_REQUESTS, "PASSWORD_RESET_CODE_COOLDOWN", response);
+        }
+        return response;
     }
 
     public AuthResponse verifyPasswordResetCode(PasswordResetVerifyRequest request) {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("No account found with this email")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "ACCOUNT_NOT_FOUND", "No account found with this email");
         }
 
         PasswordResetService.ResetCodeResult check = passwordResetService.verifyCode(email, request.getCode());
         if (!check.valid()) {
             PasswordResetService.ResetStatus status = passwordResetService.status(email);
-            return AuthResponse.builder()
-                    .success(false)
-                    .message(check.message())
-                    .passwordResetRequired(true)
-                    .email(email)
-                    .remainingAttempts(check.remainingAttempts())
-                    .resendAvailableInSeconds(status.resendAvailableInSeconds())
-                    .verificationExpiresInSeconds(status.verificationExpiresInSeconds())
-                    .build();
+            throw authException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_PASSWORD_RESET_CODE",
+                    AuthResponse.builder()
+                            .success(false)
+                            .message(check.message())
+                            .passwordResetRequired(true)
+                            .email(email)
+                            .remainingAttempts(check.remainingAttempts())
+                            .resendAvailableInSeconds(status.resendAvailableInSeconds())
+                            .verificationExpiresInSeconds(status.verificationExpiresInSeconds())
+                            .build()
+            );
         }
 
         return AuthResponse.builder()
@@ -261,24 +248,19 @@ public class AuthService {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("No account found with this email")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "ACCOUNT_NOT_FOUND", "No account found with this email");
         }
 
         if (!request.getPassword().equals(request.getPasswordConfirm())) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Passwords do not match")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "PASSWORD_MISMATCH", "Passwords do not match");
         }
 
         if (!passwordResetService.consumeResetToken(email, request.getResetToken())) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Password reset session expired. Request a new code.")
-                    .build();
+            throw authException(
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_RESET_SESSION_EXPIRED",
+                    "Password reset session expired. Request a new code."
+            );
         }
 
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -296,24 +278,15 @@ public class AuthService {
         String normalizedEmail = normalizeEmail(email);
         User user = userRepository.findByEmail(normalizedEmail).orElse(null);
         if (user == null) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("User not found")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "USER_NOT_FOUND", "User not found");
         }
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Current password is incorrect")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "CURRENT_PASSWORD_INCORRECT", "Current password is incorrect");
         }
 
         if (!request.getNewPassword().equals(request.getPasswordConfirm())) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Passwords do not match")
-                    .build();
+            throw authException(HttpStatus.BAD_REQUEST, "PASSWORD_MISMATCH", "Passwords do not match");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
@@ -328,22 +301,27 @@ public class AuthService {
 
     public AuthResponse refreshToken(String refreshToken) {
         if (!jwtTokenProvider.validateToken(refreshToken) || !jwtTokenProvider.isRefreshToken(refreshToken)) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("Invalid or expired refresh token")
-                    .build();
+            throw authException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN", "Invalid or expired refresh token");
         }
 
         String email = jwtTokenProvider.getEmailFromToken(refreshToken);
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null || !user.isEnabled() || !user.isEmailVerified()) {
-            return AuthResponse.builder()
-                    .success(false)
-                    .message("User not found or not verified")
-                    .build();
+            throw authException(HttpStatus.UNAUTHORIZED, "USER_NOT_FOUND_OR_NOT_VERIFIED", "User not found or not verified");
         }
 
         return issueTokens(user, "Token refreshed successfully");
+    }
+
+    private AuthException authException(HttpStatus status, String error, String message) {
+        return authException(status, error, AuthResponse.builder()
+                .success(false)
+                .message(message)
+                .build());
+    }
+
+    private AuthException authException(HttpStatus status, String error, AuthResponse response) {
+        return new AuthException(status, error, response);
     }
 
     private AuthResponse issueTokens(User user, String message) {

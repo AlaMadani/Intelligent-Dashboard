@@ -1,0 +1,234 @@
+{
+  "package_type": "springboot_dataprocessor_runtime_artifacts_v3_6_3_self_contained_onnx",
+  "created_by": "v3_6_3_selfcontained_dataprocessor_exporter.py",
+  "created_at_epoch": 1779971969,
+  "compatible_only": true,
+  "onnx_mode": "self_contained_onnx",
+  "recommended_sequence_runtime": "self-contained ONNX loaded from filesystem path; no .onnx.data needed when mode=self_contained_onnx",
+  "excluded_formats": [
+    ".ipynb",
+    ".joblib",
+    ".npz",
+    ".pkl",
+    ".pt",
+    ".pyc"
+  ],
+  "included_runtime_formats": [
+    ".cbm",
+    ".csv",
+    ".json",
+    ".md",
+    ".onnx",
+    ".txt",
+    ".ubj"
+  ],
+  "sequence": {
+    "mode": "self_contained_onnx",
+    "primary_model_file": "transformer_sequence_engine.onnx",
+    "fallback_model_file": "tcn_sequence_engine.onnx",
+    "conversions": [
+      {
+        "source": "/content/transformer_sequence_engine.onnx",
+        "output": "/content/springboot_runtime_v3_6_3_selfcontained/AI/models/sequence/transformer_sequence_engine.onnx",
+        "source_external_refs": [
+          "winning_sequence_engine.onnx.data"
+        ],
+        "output_external_refs": [],
+        "self_contained": true,
+        "size_bytes": 1660538
+      },
+      {
+        "source": "/content/tcn_sequence_engine.onnx",
+        "output": "/content/springboot_runtime_v3_6_3_selfcontained/AI/models/sequence/tcn_sequence_engine.onnx",
+        "source_external_refs": [
+          "tcn_sequence_engine.onnx.data"
+        ],
+        "output_external_refs": [],
+        "self_contained": true,
+        "size_bytes": 958327
+      },
+      {
+        "source": "transformer_sequence_engine.onnx",
+        "output": "winning_sequence_engine.onnx",
+        "self_contained": true,
+        "alias": true
+      }
+    ],
+    "external_refs_in_output": {},
+    "external_fallback_files": [],
+    "onnxruntime_validation": [
+      {
+        "model": "tcn_sequence_engine.onnx",
+        "onnxruntime_load": "SKIPPED",
+        "reason": "onnxruntime not installed or validation disabled"
+      },
+      {
+        "model": "transformer_sequence_engine.onnx",
+        "onnxruntime_load": "SKIPPED",
+        "reason": "onnxruntime not installed or validation disabled"
+      },
+      {
+        "model": "winning_sequence_engine.onnx",
+        "onnxruntime_load": "SKIPPED",
+        "reason": "onnxruntime not installed or validation disabled"
+      }
+    ],
+    "package_valid": true
+  },
+  "models": {
+    "tabular_anomaly": [
+      {
+        "model_name": "XGBoost",
+        "artifact": "anomaly_xgboost.json",
+        "AUC": 0.9087463307487849,
+        "PR_AUC": 0.5158066864165053,
+        "best_f1": 0.5677546983184966,
+        "threshold": {
+          "threshold_percentile": 99.0,
+          "threshold_value": 0.16355200037360262,
+          "f1": 0.5677546983184966,
+          "accuracy": 0.99126,
+          "balanced_accuracy": 0.7786699244359546,
+          "precision": 0.574,
+          "recall": 0.5616438356164384,
+          "mcc": 0.5633746264200621,
+          "alerts": 500,
+          "captured_anomalies": 287
+        }
+      },
+      {
+        "model_name": "LightGBM",
+        "artifact": "anomaly_lightgbm.txt",
+        "AUC": 0.9073643398744564,
+        "PR_AUC": 0.48019737900591103,
+        "best_f1": 0.56973293768546,
+        "threshold": {
+          "threshold_percentile": 99.0,
+          "threshold_value": 0.8494120307708773,
+          "f1": 0.56973293768546,
+          "accuracy": 0.9913,
+          "balanced_accuracy": 0.7796585012724369,
+          "precision": 0.576,
+          "recall": 0.5636007827788649,
+          "mcc": 0.565373188364154,
+          "alerts": 500,
+          "captured_anomalies": 288
+        }
+      },
+      {
+        "model_name": "CatBoost",
+        "artifact": "anomaly_catboost.cbm",
+        "AUC": 0.904272664676042,
+        "PR_AUC": 0.4201984051736368,
+        "best_f1": 0.5539070227497527,
+        "threshold": {
+          "threshold_percentile": 99.0,
+          "threshold_value": 0.8370166169243564,
+          "f1": 0.5539070227497527,
+          "accuracy": 0.99098,
+          "balanced_accuracy": 0.7717498865805795,
+          "precision": 0.56,
+          "recall": 0.547945205479452,
+          "mcc": 0.5493846928114189,
+          "alerts": 500,
+          "captured_anomalies": 280
+        }
+      },
+      {
+        "model_name": "OneClassSVM RBF",
+        "artifact": "anomaly_oneclasssvm.json",
+        "AUC": 0.7135174121399371,
+        "PR_AUC": 0.16669053240393394,
+        "best_f1": 0.2733245729303548,
+        "threshold": {
+          "threshold_percentile": 99.5,
+          "threshold_value": -1.4871558749773666,
+          "f1": 0.2733245729303548,
+          "accuracy": 0.98894,
+          "balanced_accuracy": 0.6002861771769321,
+          "precision": 0.416,
+          "recall": 0.2035225048923679,
+          "mcc": 0.28600216105890336,
+          "alerts": 250,
+          "captured_anomalies": 104
+        }
+      }
+    ],
+    "churn": [
+      {
+        "input": "profile_only",
+        "algo": "ExtraTrees",
+        "artifact": "churn_profile_only_ExtraTrees.json",
+        "AUC": 0.9201225936213007,
+        "PR_AUC": 0.8395155005907854,
+        "accuracy": 0.896,
+        "balanced_accuracy": 0.8098841107173642,
+        "precision": 0.813953488372093,
+        "recall": 0.660377358490566,
+        "mcc": 0.6712448264221884,
+        "alerts": 43,
+        "captured_anomalies": 35,
+        "train_s": 1.2030920710003556
+      }
+    ],
+    "forecast": [
+      {
+        "target": "anomaly_rate",
+        "algo": "Ridge",
+        "RMSE": 0.051724400622210176,
+        "MAE": 0.015339628793299198
+      },
+      {
+        "target": "total_events",
+        "algo": "XGBoost",
+        "RMSE": 1468.5155770368933,
+        "MAE": 715.8628540039062
+      }
+    ]
+  },
+  "files": [
+    "config/anomaly_score_config.json",
+    "config/categorical_vocabularies.json",
+    "config/churn_profile_feature_schema.json",
+    "config/churn_runtime_config.json",
+    "config/dashboard_payload_contract.json",
+    "config/forecast_config.json",
+    "config/llm_explanation_config.json",
+    "config/risk_fusion_config.json",
+    "config/scaler_params.json",
+    "config/sequence_metadata.json",
+    "config/tabular_anomaly_feature_contract.json",
+    "config/tabular_feature_contract.json",
+    "config/tabular_feature_scaler.json",
+    "models/churn/churn_profile_only_ExtraTrees.json",
+    "models/forecast/macro_forecaster_anomaly_rate_Ridge.json",
+    "models/forecast/macro_forecaster_total_events_XGBoost.json",
+    "models/forecast/macro_forecaster_total_events_XGBoost.ubj",
+    "models/forecast/macro_forecaster_total_events_XGBoost_feature_contract.json",
+    "models/persona/persona_runtime_best.json",
+    "models/sequence/sequence_onnxruntime_validation.json",
+    "models/sequence/sequence_runtime_manifest.json",
+    "models/sequence/tcn_sequence_engine.onnx",
+    "models/sequence/transformer_sequence_engine.onnx",
+    "models/sequence/winning_sequence_engine.onnx",
+    "models/tabular_anomaly/anomaly_catboost.cbm",
+    "models/tabular_anomaly/anomaly_lightgbm.txt",
+    "models/tabular_anomaly/anomaly_oneclasssvm.json",
+    "models/tabular_anomaly/anomaly_xgboost.json",
+    "models/tabular_anomaly/anomaly_xgboost.ubj",
+    "models/tabular_anomaly/tabular_anomaly_runtime_manifest.json",
+    "models/tabular_anomaly/tabular_feature_scaler.json",
+    "reports/all_anomaly_detection_benchmarks.csv",
+    "reports/churn_benchmarks.csv",
+    "reports/churn_benchmarks.md",
+    "reports/final_use_case_winners.csv",
+    "reports/final_use_case_winners.json",
+    "reports/final_use_case_winners.md",
+    "reports/macro_forecast_benchmarks.csv",
+    "reports/macro_forecast_benchmarks.md",
+    "reports/model_benchmarks.md",
+    "reports/persona_benchmarks.csv",
+    "reports/persona_benchmarks.md",
+    "reports/tabular_anomaly_benchmarks.csv"
+  ]
+}

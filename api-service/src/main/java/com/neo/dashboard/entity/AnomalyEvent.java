@@ -63,23 +63,68 @@ public class AnomalyEvent {
     @Column(name = "persona_cluster")
     private Integer personaCluster;
 
-    @Column(name = "path_deviation")
-    private Boolean pathDeviation;
+    @Column(name = "persona_label")
+    private String personaLabel;
 
-    @Column(name = "transition_probability")
-    private Double transitionProbability;
+    @Column(name = "ai_risk_score")
+    private Double aiRiskScore;
 
-    @Column(name = "transition_from_action", columnDefinition = "NVARCHAR(512)")
-    private String transitionFromAction;
+    @Column(name = "rule_risk_score")
+    private Double ruleRiskScore;
 
-    @Column(name = "transition_to_action", columnDefinition = "NVARCHAR(512)")
-    private String transitionToAction;
+    @Column(name = "final_risk_score")
+    private Double finalRiskScore;
 
-    @Column(name = "model_artifact", columnDefinition = "NVARCHAR(128)")
-    private String modelArtifact;
+    @Column(name = "risk_level")
+    private String riskLevel;
 
-    @Column(name = "next_actions_json", columnDefinition = "NVARCHAR(MAX)")
-    private String nextActionsJson;
+    @Column(name = "v36_runtime_version")
+    private String v36RuntimeVersion;
+
+    @Column(name = "xgboost_anomaly_score")
+    private Double xgboostAnomalyScore;
+
+    @Column(name = "xgboost_anomaly_score_100")
+    private Double xgboostAnomalyScore100;
+
+    @Column(name = "lightgbm_alert_score")
+    private Double lightgbmAlertScore;
+
+    @Column(name = "lightgbm_alert_score_100")
+    private Double lightgbmAlertScore100;
+
+    @Column(name = "transformer_risk_score_100")
+    private Double transformerRiskScore100;
+
+    @Column(name = "tcn_risk_score_100")
+    private Double tcnRiskScore100;
+
+    @Column(name = "triggered_rules_json", columnDefinition = "NVARCHAR(MAX)")
+    private String triggeredRulesJson;
+
+    @Column(name = "model_contributions_json", columnDefinition = "NVARCHAR(MAX)")
+    private String modelContributionsJson;
+
+    @Column(name = "anomaly_type_confidence")
+    private Double anomalyTypeConfidence;
+
+    @Column(name = "anomaly_type_source")
+    private String anomalyTypeSource;
+
+    @Column(name = "anomaly_type_evidence_json", columnDefinition = "NVARCHAR(MAX)")
+    private String anomalyTypeEvidenceJson;
+
+    @Column(name = "churn_risk_level")
+    private String churnRiskLevel;
+
+    @Column(name = "investigation_payload_json", columnDefinition = "NVARCHAR(MAX)")
+    private String investigationPayloadJson;
+
+    @Column(name = "llm_explanation_evidence_payload_json", columnDefinition = "NVARCHAR(MAX)")
+    private String llmExplanationEvidencePayloadJson;
+
+    @Column(name = "runtime_warnings_json", columnDefinition = "NVARCHAR(MAX)")
+    private String runtimeWarningsJson;
 
     @Column(name = "event_json", columnDefinition = "NVARCHAR(MAX)")
     private String eventJson;

@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   # Application identity reused in logs, metrics, and dashboards.
   application:
     name: ${SPRING_APPLICATION_NAME:api-service}
@@ -7,8 +9,8 @@ spring:
   # SQL Server connection for read-side analytics snapshots.
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=NoveoCareDB;encrypt=true;trustServerCertificate=true}
-    username: ${SPRING_DATASOURCE_USERNAME:app_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:securePass123!}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
     hikari:
       maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
@@ -42,8 +44,8 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:alemedeni0@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:xnsw ngei djrq vgvc}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -68,13 +70,31 @@ spring:
   ai:
     google:
       genai:
-        api-key: ${GEMINI_API_KEY:AIzaSyAOQlxOSkImNVmxAzFWvo-5hzBWUa291Hw}
+        api-key: ${GEMINI_API_KEY:}
         base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
         chat:
           options:
             model: ${GEMINI_MODEL:gemini-2.5-flash}
 
 app:
+  api:
+    schema-version: ${APP_API_SCHEMA_VERSION:v3.6.1}
+  v36:
+    redis:
+      prefer-v36-keys: ${APP_V36_REDIS_PREFER_V36_KEYS:true}
+      fallback-to-legacy: ${APP_V36_REDIS_FALLBACK_TO_LEGACY:true}
+    explanations:
+      enabled: ${APP_V36_EXPLANATIONS_ENABLED:true}
+      provider: ${APP_V36_EXPLANATIONS_PROVIDER:gemini}
+      cache-enabled: ${APP_V36_EXPLANATIONS_CACHE_ENABLED:true}
+      cache-ttl-hours: ${APP_V36_EXPLANATIONS_CACHE_TTL_HOURS:24}
+      max-evidence-size-kb: ${APP_V36_EXPLANATIONS_MAX_EVIDENCE_SIZE_KB:128}
+      generate-on-get: ${APP_V36_EXPLANATIONS_GENERATE_ON_GET:false}
+      default-style: ${APP_V36_EXPLANATIONS_DEFAULT_STYLE:security_analyst}
+      default-language: ${APP_V36_EXPLANATIONS_DEFAULT_LANGUAGE:en}
+    endpoints:
+      expose-reports: ${APP_V36_ENDPOINTS_EXPOSE_REPORTS:true}
+      expose-diagnostics: ${APP_V36_ENDPOINTS_EXPOSE_DIAGNOSTICS:true}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:9008}
   redis:
@@ -90,14 +110,14 @@ app:
       code-ttl-seconds: ${APP_AUTH_VERIFICATION_CODE_TTL_SECONDS:300}
       resend-cooldown-seconds: ${APP_AUTH_VERIFICATION_RESEND_COOLDOWN_SECONDS:120}
       max-attempts: ${APP_AUTH_VERIFICATION_MAX_ATTEMPTS:5}
-      mail-enabled: ${APP_AUTH_VERIFICATION_MAIL_ENABLED:true}
-      from: ${APP_AUTH_VERIFICATION_FROM:alemedeni0@gmail.com}
-      logo-url: ${APP_AUTH_VERIFICATION_LOGO_URL:https://static.wixstatic.com/media/a0887f_2cc2a114359747b1aaa96bc842fa93ea~mv2.png/v1/fill/w_938,h_360,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo-NOVEOCARE-CMJN-2021_-_CHEVALIER_Rodolphe-removebg.png}
+      mail-enabled: ${APP_AUTH_VERIFICATION_MAIL_ENABLED:false}
+      from: ${APP_AUTH_VERIFICATION_FROM:${SPRING_MAIL_USERNAME:}}
+      logo-url: ${APP_AUTH_VERIFICATION_LOGO_URL:}
     password-reset:
       token-ttl-seconds: ${APP_AUTH_PASSWORD_RESET_TOKEN_TTL_SECONDS:600}
 
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-must-be-at-least-32-characters-long-for-hs256}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:900000}
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 

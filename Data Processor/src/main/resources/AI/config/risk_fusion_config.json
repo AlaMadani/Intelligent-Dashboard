@@ -1,0 +1,26 @@
+{
+  "version": "v3.6.3",
+  "score_scale": "all model scores normalized to 0..100 before weighted sum",
+  "renormalize_missing_model_weights": true,
+  "weights": {
+    "xgboost": 0.3,
+    "lightgbm": 0.25,
+    "transformer": 0.2,
+    "tcn": 0.1,
+    "rules": 0.15,
+    "business_context": 0.0
+  },
+  "thresholds": {
+    "LOW_MIN": 0,
+    "MEDIUM": 35,
+    "HIGH": 60,
+    "CRITICAL": 80
+  },
+  "fallbacks": {
+    "all_ml_unavailable": "finalRiskScore = ruleRiskScore",
+    "transformer_unavailable": "use TCN",
+    "high_kafka_lag": "prefer TCN",
+    "extreme_kafka_lag": "rules only"
+  },
+  "formula": "clamp(0,100, weighted available score sum + aggregationBoost)"
+}

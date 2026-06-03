@@ -5,9 +5,6 @@ import lombok.Data;
 
 import java.time.Instant;
 
-/**
- * Durable anomaly-event record written whenever the pipeline emits an alert.
- */
 @Entity
 @Table(name = "anomaly_events")
 @Data
@@ -16,7 +13,6 @@ public class AnomalyEvent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Source identifiers copied from the alert payload.
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
@@ -32,7 +28,6 @@ public class AnomalyEvent {
     @Column(name = "anomaly_tier")
     private String anomalyTier;
 
-    // Detection metadata kept for investigation and downstream reporting.
     @Column(name = "anomaly_type")
     private String anomalyType;
 
@@ -60,29 +55,81 @@ public class AnomalyEvent {
     @Column(name = "persona_cluster")
     private Integer personaCluster;
 
-    @Column(name = "path_deviation")
-    private Boolean pathDeviation;
+    @Column(name = "persona_label")
+    private String personaLabel;
 
-    @Column(name = "transition_probability")
-    private Double transitionProbability;
+    @Column(name = "ai_risk_score")
+    private Double aiRiskScore;
 
-    @Column(name = "transition_from_action", columnDefinition = "NVARCHAR(512)")
-    private String transitionFromAction;
+    @Column(name = "rule_risk_score")
+    private Double ruleRiskScore;
 
-    @Column(name = "transition_to_action", columnDefinition = "NVARCHAR(512)")
-    private String transitionToAction;
+    @Column(name = "final_risk_score")
+    private Double finalRiskScore;
 
-    @Column(name = "model_artifact", columnDefinition = "NVARCHAR(128)")
-    private String modelArtifact;
+    @Column(name = "risk_level", columnDefinition = "NVARCHAR(32)")
+    private String riskLevel;
 
-    @Column(name = "next_actions_json", columnDefinition = "NVARCHAR(MAX)")
-    private String nextActionsJson;
+    @Column(name = "anomaly_type_source")
+    private String anomalyTypeSource;
 
-    // Stores compact derived alert context; raw event logs stay in Kafka/ELK.
+    @Column(name = "anomaly_type_confidence")
+    private Double anomalyTypeConfidence;
+
+    @Column(name = "anomaly_type_evidence_json", columnDefinition = "NVARCHAR(MAX)")
+    private String anomalyTypeEvidenceJson;
+
+    @Column(name = "v36_runtime_version", columnDefinition = "NVARCHAR(32)")
+    private String v36RuntimeVersion;
+
+    @Column(name = "xgboost_anomaly_score")
+    private Double xgboostAnomalyScore;
+
+    @Column(name = "xgboost_anomaly_score_100")
+    private Double xgboostAnomalyScore100;
+
+    @Column(name = "lightgbm_alert_score")
+    private Double lightgbmAlertScore;
+
+    @Column(name = "lightgbm_alert_score_100")
+    private Double lightgbmAlertScore100;
+
+    @Column(name = "transformer_risk_score_100")
+    private Double transformerRiskScore100;
+
+    @Column(name = "tcn_risk_score_100")
+    private Double tcnRiskScore100;
+
+    @Column(name = "churn_risk_level", columnDefinition = "NVARCHAR(32)")
+    private String churnRiskLevel;
+
+    @Column(name = "model_scores_json", columnDefinition = "NVARCHAR(MAX)")
+    private String modelScoresJson;
+
+    @Column(name = "model_contributions_json", columnDefinition = "NVARCHAR(MAX)")
+    private String modelContributionsJson;
+
+    @Column(name = "triggered_rules_json", columnDefinition = "NVARCHAR(MAX)")
+    private String triggeredRulesJson;
+
+    @Column(name = "churn_context_json", columnDefinition = "NVARCHAR(MAX)")
+    private String churnContextJson;
+
+    @Column(name = "persona_context_json", columnDefinition = "NVARCHAR(MAX)")
+    private String personaContextJson;
+
+    @Column(name = "artifact_names_json", columnDefinition = "NVARCHAR(MAX)")
+    private String artifactNamesJson;
+
+    @Column(name = "llm_evidence_payload_available")
+    private Boolean llmEvidencePayloadAvailable;
+
+    @Column(name = "llm_evidence_payload_redis_key", columnDefinition = "NVARCHAR(256)")
+    private String llmEvidencePayloadRedisKey;
+
     @Column(name = "event_json", columnDefinition = "NVARCHAR(MAX)")
     private String eventJson;
 
-    // Time at which the processor decided to surface the anomaly.
     @Column(name = "detected_at")
     private Instant detectedAt;
 }

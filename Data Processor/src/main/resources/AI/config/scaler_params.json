@@ -1,0 +1,26 @@
+{
+  "type": "RobustScaler",
+  "scaled_columns": [
+    "time_since_prev_action_ms",
+    "request_data_size_bytes",
+    "response_data_size_bytes"
+  ],
+  "center": [
+    41000.0,
+    594.0,
+    3838.0
+  ],
+  "scale": [
+    145000.0,
+    2177.0,
+    4262851.25
+  ],
+  "unscaled_context_columns": [
+    "is_business_hours",
+    "is_weekend",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos"
+  ]
+}

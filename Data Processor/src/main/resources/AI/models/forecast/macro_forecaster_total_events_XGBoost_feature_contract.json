@@ -1,0 +1,28 @@
+{
+  "feature_order": [
+    "total_events_lag_1",
+    "total_events_lag_2",
+    "total_events_lag_3",
+    "total_events_lag_7",
+    "total_events_lag_14",
+    "total_events_roll_mean_7",
+    "total_events_roll_std_7",
+    "anomaly_rate_lag_1",
+    "anomaly_rate_lag_2",
+    "anomaly_rate_lag_3",
+    "anomaly_rate_lag_7",
+    "anomaly_rate_lag_14",
+    "anomaly_rate_roll_mean_7",
+    "anomaly_rate_roll_std_7",
+    "dow",
+    "month",
+    "week",
+    "day_sin",
+    "day_cos",
+    "dow_sin",
+    "dow_cos",
+    "is_weekend"
+  ],
+  "target": "total_events",
+  "model": "XGBoost"
+}

@@ -1,0 +1,80 @@
+{
+  "enabled": true,
+  "models": {
+    "anomaly_rate": {
+      "preferred_model": "Ridge",
+      "artifact": "models/forecast/macro_forecaster_anomaly_rate_Ridge.json",
+      "feature_order": [
+        "total_events_lag_1",
+        "total_events_lag_2",
+        "total_events_lag_3",
+        "total_events_lag_7",
+        "total_events_lag_14",
+        "total_events_roll_mean_7",
+        "total_events_roll_std_7",
+        "anomaly_rate_lag_1",
+        "anomaly_rate_lag_2",
+        "anomaly_rate_lag_3",
+        "anomaly_rate_lag_7",
+        "anomaly_rate_lag_14",
+        "anomaly_rate_roll_mean_7",
+        "anomaly_rate_roll_std_7",
+        "dow",
+        "month",
+        "week",
+        "day_sin",
+        "day_cos",
+        "dow_sin",
+        "dow_cos",
+        "is_weekend"
+      ],
+      "RMSE": 0.051724400622210176,
+      "MAE": 0.015339628793299198,
+      "java_runtime": "ridge_json"
+    },
+    "total_events": {
+      "preferred_model": "XGBoost",
+      "artifact": "models/forecast/macro_forecaster_total_events_XGBoost.json",
+      "feature_order": [
+        "total_events_lag_1",
+        "total_events_lag_2",
+        "total_events_lag_3",
+        "total_events_lag_7",
+        "total_events_lag_14",
+        "total_events_roll_mean_7",
+        "total_events_roll_std_7",
+        "anomaly_rate_lag_1",
+        "anomaly_rate_lag_2",
+        "anomaly_rate_lag_3",
+        "anomaly_rate_lag_7",
+        "anomaly_rate_lag_14",
+        "anomaly_rate_roll_mean_7",
+        "anomaly_rate_roll_std_7",
+        "dow",
+        "month",
+        "week",
+        "day_sin",
+        "day_cos",
+        "dow_sin",
+        "dow_cos",
+        "is_weekend"
+      ],
+      "RMSE": 1468.5155770368933,
+      "MAE": 715.8628540039062,
+      "java_runtime": "xgboost4j_json_or_ubj"
+    }
+  },
+  "fallbacks": {
+    "anomaly_rate": {
+      "primary": "naive_lag_7 if available",
+      "secondary": "rolling_mean_7",
+      "final": 0.0
+    },
+    "total_events": {
+      "primary": "naive_lag_7 if available",
+      "secondary": "rolling_mean_7",
+      "final": 0.0
+    }
+  },
+  "expected_alert_volume_formula": "predictedTotalEvents * predictedAnomalyRate"
+}

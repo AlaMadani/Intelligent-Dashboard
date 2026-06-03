@@ -31,6 +31,72 @@ public final class CacheKeys {
         return "session:insight:" + insuredId + ":" + sessionId;
     }
 
+    public static String sequenceWindowKey(String sessionId) {
+        return "session:sequence:v3_6:" + sessionId;
+    }
+
+    public static String sequenceScoresKey(String sessionId) {
+        return "session:scores:v3_6:" + sessionId;
+    }
+
+
+
+    public static String sessionRiskV36Key(String insuredId, String sessionId) {
+        return "session:risk:v3_6:" + insuredId + ":" + sessionId;
+    }
+
+    public static String aiRuntimeHealthKey() {
+        return "ai:runtime:health:v3_6";
+    }
+
+    public static String sequenceFieldCoverageKey() {
+        return "ai:sequence:field-coverage:v3_6";
+    }
+
+    public static String tabularFieldCoverageKey() {
+        return "ai:tabular:field-coverage:v3_6";
+    }
+
+    public static String modelLatencyKey() {
+        return "ai:model-latency:v3_6";
+    }
+
+    public static String alertInvestigationKey(String eventId) {
+        return "alert:investigation:" + eventId;
+    }
+
+    public static String alertLlmEvidenceKey(String eventId) {
+        return "alert:llm-evidence:" + eventId;
+    }
+
+    public static String liveAlertsV36Key() {
+        return "alerts:live:v3_6";
+    }
+
+    public static String criticalAlertsV36Key() {
+        return "alerts:critical:v3_6";
+    }
+
+    public static String userAlertsKey(String insuredId) {
+        return "alerts:user:" + insuredId;
+    }
+
+    public static String user360Key(String insuredId) {
+        return "user:360:" + insuredId;
+    }
+
+    public static String securityOverviewDashboardKey() {
+        return "dashboard:security-overview:v3_6";
+    }
+
+    public static String churnDashboardKey() {
+        return "dashboard:churn:v3_6";
+    }
+
+    public static String forecastDashboardV36Key() {
+        return "dashboard:forecast:v3_6";
+    }
+
     public static String sessionInsightPattern() {
         return "session:insight:*";
     }

@@ -11,7 +11,7 @@ import java.time.Instant;
 
 /**
  * Read-only mapping of {@code session_analysis} as produced by the Data Processor
- * observability pipeline (tabular ML scores, Markov path context, session aggregates).
+ * V3.4 sequence runtime and session aggregation pipeline.
  */
 @Entity
 @Table(name = "session_analysis")
@@ -28,38 +28,14 @@ public class SessionAnalysis {
     @Column(name = "session_id")
     private String sessionId;
 
-    @Column(name = "persona")
-    private String persona;
-
     @Column(name = "country_code")
     private String countryCode;
-
-    @Column(name = "city")
-    private String city;
-
-    @Column(name = "month")
-    private String month;
-
-    @Column(name = "session_number")
-    private Integer sessionNumber;
 
     @Column(name = "start_time")
     private Instant startTime;
 
     @Column(name = "end_time")
     private Instant endTime;
-
-    @Column(name = "first_action", columnDefinition = "NVARCHAR(512)")
-    private String firstAction;
-
-    @Column(name = "last_action", columnDefinition = "NVARCHAR(512)")
-    private String lastAction;
-
-    @Column(name = "first_route")
-    private String firstRoute;
-
-    @Column(name = "last_route")
-    private String lastRoute;
 
     @Column(name = "session_length")
     private Integer totalEvents;
@@ -70,125 +46,125 @@ public class SessionAnalysis {
     @Column(name = "unique_action_count")
     private Integer uniqueActions;
 
-    @Column(name = "unique_routes")
-    private Integer uniqueRoutes;
-
-    @Column(name = "unique_ips_used")
-    private Integer uniqueIpsUsed;
-
-    @Column(name = "unique_devices_used")
-    private Integer uniqueDevicesUsed;
-
-    @Column(name = "total_kos")
-    private Integer totalKOs;
-
-    @Column(name = "total_oks")
-    private Integer totalOKs;
-
-    @Column(name = "longest_ko_streak")
-    private Integer longestKoStreak;
-
-    @Column(name = "ko_rate")
-    private Double koRate;
-
-    @Column(name = "mean_delta_seconds")
-    private Double avgInterActionSeconds;
-
-    @Column(name = "min_inter_action_seconds")
-    private Double minInterActionSeconds;
-
-    @Column(name = "max_inter_action_seconds")
-    private Double maxInterActionSeconds;
-
-    @Column(name = "action_diversity")
-    private Double actionDiversity;
-
-    @Column(name = "has_login")
-    private Boolean hasLogin;
-
-    @Column(name = "has_logout")
-    private Boolean hasLogout;
-
-    @Column(name = "ip_changed")
-    private Boolean ipChanged;
-
-    @Column(name = "device_changed")
-    private Boolean deviceChanged;
-
-    @Column(name = "total_download_actions")
-    private Integer totalDownloadActions;
-
-    @Column(name = "max_downloads_in_2_minutes")
-    private Integer maxDownloadsIn2Minutes;
-
-    @Column(name = "ping_pong_count")
-    private Integer pingPongCount;
-
-    @Column(name = "risk_score_max")
-    private Double riskScoreMax;
-
-    @Column(name = "risk_score_avg")
-    private Double riskScoreAvg;
-
-    @Column(name = "ended_abruptly")
-    private Boolean endedAbruptly;
-
-    @Column(name = "anomaly_event_count")
-    private Integer anomalyEventCount;
-
-    @Column(name = "anomaly_types_json", columnDefinition = "NVARCHAR(MAX)")
-    private String anomalyTypesJson;
-
-    @Column(name = "campaign_ids_json", columnDefinition = "NVARCHAR(MAX)")
-    private String campaignIdsJson;
-
     @Column(name = "action_sequence_json", columnDefinition = "NVARCHAR(MAX)")
     private String actionSequenceJson;
 
     @Column(name = "route_sequence_json", columnDefinition = "NVARCHAR(MAX)")
     private String routeSequenceJson;
 
-    @Column(name = "action_sequence_signature", columnDefinition = "NVARCHAR(MAX)")
-    private String actionSequenceSignature;
-
-    @Column(name = "route_sequence_signature", columnDefinition = "NVARCHAR(MAX)")
-    private String routeSequenceSignature;
-
     @Column(name = "action_counts_json", columnDefinition = "NVARCHAR(MAX)")
     private String actionCountsJson;
-
-    @Column(name = "iso_score")
-    private Double isoScore;
-
-    @Column(name = "is_anomaly")
-    private Boolean isAnomaly;
-
-    @Column(name = "anomaly_type")
-    private String anomalyType;
-
-    @Column(name = "type_confidence")
-    private Double typeConfidence;
-
-    @Column(name = "anomaly_probability")
-    private Double anomalyProbability;
 
     @Column(name = "churn_probability")
     private Double churnProbability;
 
-    @Column(name = "ensemble_risk_score")
-    private Double ensembleRiskScore;
-
     @Column(name = "persona_cluster")
     private Integer personaCluster;
 
-    @Column(name = "binary_detector_artifact")
-    private String binaryDetectorArtifact;
+    @Column(name = "sequence_model_artifact")
+    private String sequenceModelArtifact;
 
-    @Column(name = "feature_contributions_json", columnDefinition = "NVARCHAR(MAX)")
-    private String featureContributionsJson;
+    @Column(name = "sequence_anomaly_score")
+    private Double sequenceAnomalyScore;
 
-    @Column(name = "explainability_text", columnDefinition = "NVARCHAR(MAX)")
-    private String explainabilityText;
+    @Column(name = "sequence_cat_score")
+    private Double sequenceCatScore;
+
+    @Column(name = "sequence_cont_score")
+    private Double sequenceContScore;
+
+    @Column(name = "sequence_ctx_score")
+    private Double sequenceCtxScore;
+
+    @Column(name = "ai_risk_score")
+    private Double aiRiskScore;
+
+    @Column(name = "rule_risk_score")
+    private Double ruleRiskScore;
+
+    @Column(name = "final_risk_score")
+    private Double finalRiskScore;
+
+    @Column(name = "v36_runtime_version")
+    private String v36RuntimeVersion;
+
+    @Column(name = "xgboost_anomaly_score")
+    private Double xgboostAnomalyScore;
+
+    @Column(name = "xgboost_anomaly_score_100")
+    private Double xgboostAnomalyScore100;
+
+    @Column(name = "lightgbm_alert_score")
+    private Double lightgbmAlertScore;
+
+    @Column(name = "lightgbm_alert_score_100")
+    private Double lightgbmAlertScore100;
+
+    @Column(name = "catboost_anomaly_score")
+    private Double catboostAnomalyScore;
+
+    @Column(name = "catboost_anomaly_score_100")
+    private Double catboostAnomalyScore100;
+
+    @Column(name = "oneclasssvm_novelty_score")
+    private Double oneclasssvmNoveltyScore;
+
+    @Column(name = "oneclasssvm_novelty_score_100")
+    private Double oneclasssvmNoveltyScore100;
+
+    @Column(name = "transformer_surprise_score")
+    private Double transformerSurpriseScore;
+
+    @Column(name = "transformer_risk_score_100")
+    private Double transformerRiskScore100;
+
+    @Column(name = "transformer_artifact")
+    private String transformerArtifact;
+
+    @Column(name = "fallback_mode")
+    private String fallbackMode;
+
+    @Column(name = "tcn_surprise_score")
+    private Double tcnSurpriseScore;
+
+    @Column(name = "tcn_risk_score_100")
+    private Double tcnRiskScore100;
+
+    @Column(name = "tcn_artifact")
+    private String tcnArtifact;
+
+    @Column(name = "persona_label")
+    private String personaLabel;
+
+    @Column(name = "persona_source")
+    private String personaSource;
+
+    @Column(name = "persona_confidence")
+    private Double personaConfidence;
+
+    @Column(name = "churn_risk_level")
+    private String churnRiskLevel;
+
+    @Column(name = "churn_model_name")
+    private String churnModelName;
+
+    @Column(name = "churn_model_artifact")
+    private String churnModelArtifact;
+
+    @Column(name = "churn_feature_warnings_json", columnDefinition = "NVARCHAR(MAX)")
+    private String churnFeatureWarningsJson;
+
+    @Column(name = "model_artifacts_json", columnDefinition = "NVARCHAR(MAX)")
+    private String modelArtifactsJson;
+
+    @Column(name = "anomaly_type_source")
+    private String anomalyTypeSource;
+
+    @Column(name = "anomaly_type_confidence")
+    private Double anomalyTypeConfidence;
+
+    @Column(name = "anomaly_type_evidence_json", columnDefinition = "NVARCHAR(MAX)")
+    private String anomalyTypeEvidenceJson;
 
     @Column(name = "warnings_json", columnDefinition = "NVARCHAR(MAX)")
     private String warningsJson;
@@ -196,36 +172,45 @@ public class SessionAnalysis {
     @Column(name = "triggered_rules_json", columnDefinition = "NVARCHAR(MAX)")
     private String triggeredRulesJson;
 
-    @Column(name = "context_tags_json", columnDefinition = "NVARCHAR(MAX)")
-    private String contextTagsJson;
+    @Column(name = "rule_contributions_json", columnDefinition = "NVARCHAR(MAX)")
+    private String ruleContributionsJson;
 
-    @Column(name = "rare_transitions_json", columnDefinition = "NVARCHAR(MAX)")
-    private String rareTransitionsJson;
+    @Column(name = "business_context_score")
+    private Double businessContextScore;
 
-    @Column(name = "path_deviation")
-    private Boolean pathDeviation;
+    @Column(name = "aggregation_boost")
+    private Double aggregationBoost;
 
-    @Column(name = "transition_probability")
-    private Double transitionProbability;
+    @Column(name = "model_contributions_json", columnDefinition = "NVARCHAR(MAX)")
+    private String modelContributionsJson;
 
-    @Column(name = "transition_from_action", columnDefinition = "NVARCHAR(512)")
-    private String transitionFromAction;
+    @Column(name = "risk_level")
+    private String riskLevel;
 
-    @Column(name = "transition_to_action", columnDefinition = "NVARCHAR(512)")
-    private String transitionToAction;
+    @Column(name = "top_sequence_surprise_fields_json", columnDefinition = "NVARCHAR(MAX)")
+    private String topSequenceSurpriseFieldsJson;
 
-    @Column(name = "top3_next_actions", columnDefinition = "NVARCHAR(MAX)")
-    private String top3NextActions;
+    @Column(name = "selected_sequence_model")
+    private String selectedSequenceModel;
 
-    @Column(name = "rule_triggered")
-    private Boolean ruleTriggered;
+    @Column(name = "forecast_total_events_model")
+    private String forecastTotalEventsModel;
 
-    @Column(name = "rule_type", columnDefinition = "NVARCHAR(MAX)")
-    private String ruleType;
+    @Column(name = "forecast_anomaly_rate_model")
+    private String forecastAnomalyRateModel;
+
+    @Column(name = "forecast_context_json", columnDefinition = "NVARCHAR(MAX)")
+    private String forecastContextJson;
+
+    @Column(name = "llm_explanation_evidence_payload_json", columnDefinition = "NVARCHAR(MAX)")
+    private String llmExplanationEvidencePayloadJson;
+
+    @Column(name = "top_contributing_features_json", columnDefinition = "NVARCHAR(MAX)")
+    private String topContributingFeaturesJson;
+
+    @Column(name = "investigation_payload_json", columnDefinition = "NVARCHAR(MAX)")
+    private String investigationPayloadJson;
 
     @Column(name = "created_at")
     private Instant createdAt;
-
-    @Column(name = "updated_at")
-    private Instant updatedAt;
 }

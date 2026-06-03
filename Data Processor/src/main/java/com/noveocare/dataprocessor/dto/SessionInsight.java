@@ -1,10 +1,12 @@
 package com.noveocare.dataprocessor.dto;
 
+import com.noveocare.dataprocessor.ai.sequence.SequenceFieldContribution;
 import lombok.Builder;
 import lombok.Value;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Value
 @Builder(toBuilder = true)
@@ -31,4 +33,63 @@ public class SessionInsight {
     List<String> warnings;
     List<FeatureContribution> topContributingFeatures;
     String explainabilityText;
+    String sequenceModelPrimary;
+    String sequenceModelFast;
+    String selectedSequenceModel;
+    String sequenceModelArtifact;
+    Double transformerScore;
+    Double transformerRiskScore100;
+    Double tcnScore;
+    Double tcnRiskScore100;
+    Double sequenceAnomalyScore;
+    Double sequenceCategoricalScore;
+    Double sequenceContinuousScore;
+    Double sequenceContextScore;
+    Long sequenceLatencyMs;
+    Boolean sequenceContextAvailable;
+    Double aiRiskScore;
+    Double ruleRiskScore;
+    List<?> ruleContributions;
+    Map<String, Object> ruleEvidence;
+    Double finalRiskScore;
+    List<SequenceFieldContribution> sequenceTopContributions;
+    String anomalyTypeSource;
+    Map<String, Object> anomalyTypeEvidence;
+    String personaLabel;
+    String personaSource;
+    Double personaConfidence;
+    List<String> personaWarnings;
+    String churnRiskLevel;
+    String churnModelName;
+    String churnModelArtifact;
+    List<String> churnFeatureWarnings;
+    Double forecastTotalEvents;
+    Double forecastAnomalyRate;
+    Double forecastExpectedAlertVolume;
+    String forecastTotalEventsModel;
+    String forecastAnomalyRateModel;
+    Map<String, Object> forecastContext;
+    Double xgboostAnomalyScore;
+    Double xgboostAnomalyScore100;
+    String xgboostArtifact;
+    Double lightgbmAlertScore;
+    Double lightgbmAlertScore100;
+    String lightgbmArtifact;
+    Double catboostAnomalyScore;
+    Double catboostAnomalyScore100;
+    Double oneClassSvmNoveltyScoreRaw;
+    Double oneClassSvmNoveltyScore100;
+    List<String> availableTabularModels;
+    List<String> unavailableTabularModels;
+    List<String> tabularWarnings;
+    Double businessContextScore;
+    Double aggregationBoost;
+    Map<String, Double> riskFusionWeights;
+    Map<String, Double> unavailableModelWeights;
+    Map<String, Object> modelScores;
+    Map<String, Object> modelContributions;
+    String fallbackMode;
+    Map<String, Object> llmExplanationEvidencePayload;
+    Map<String, Object> investigationPayload;
+    Map<String, String> modelArtifacts;
 }

@@ -114,9 +114,67 @@ app:
     trend-cron: "0/30 * * * * *"
 
   ai:
+    runtime-version: "v3.6.1"
     base-path: "classpath:/AI/"
-    manifest: deployment_manifest.json
-    feature-bundle: feature_bundle.json
+    models-path: "models/"
+    config-path: "config/"
+    reports-path: "reports/"
+    tabular-anomaly:
+      enabled: true
+      xgboost-enabled: true
+      lightgbm-enabled: true
+      catboost-enabled: true
+      oneclasssvm-enabled: true
+      fail-open: true
+      timeout-ms: 150
+    sequence:
+      enabled: true
+      strict-schema: true
+      allow-legacy-fallback: false
+      min-context-events: 3
+      primary-model: transformer
+      fast-model: tcn
+      load-shedding-model: tcn
+      run-both: false
+    load-shedding:
+      tcn-lag-threshold: 5000
+      rules-only-lag-threshold: 20000
+    risk-fusion:
+      enabled: true
+      renormalize-missing-model-weights: true
+      xgboost-weight: 0.30
+      lightgbm-weight: 0.25
+      transformer-weight: 0.20
+      tcn-weight: 0.10
+      rules-weight: 0.15
+      business-context-weight: 0.00
+      medium-threshold: 35.0
+      high-threshold: 60.0
+      critical-threshold: 80.0
+    persona:
+      enabled: false
+      skipped-reason: "Persona intentionally skipped in V3.6.1 dataprocessor refactor"
+    churn:
+      enabled: true
+      preferred-model: "profile_only_ExtraTrees"
+      high-threshold: 0.70
+      medium-threshold: 0.30
+    forecast:
+      enabled: true
+      anomaly-rate-preferred-model: "Ridge"
+      total-events-preferred-model: "XGBoost"
+      fallback-enabled: true
+    llm-explanation:
+      enabled: false
+      generate-evidence-payload: true
+      handled-by: "api-service"
+      include-raw-evidence: true
+      do-not-invent-evidence: true
+    risk:
+      ai-score-scale: 5.0
+      medium-threshold: 35.0
+      high-threshold: 60.0
+      critical-threshold: 80.0
   features:
     download-window-seconds: 120
     rapid-action-seconds: 7

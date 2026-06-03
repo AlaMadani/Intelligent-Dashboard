@@ -83,6 +83,14 @@ public class StatsService {
     }
 
     private StatsResponseDto getForecastSnapshot(LocalDate date) {
+        String v36Forecast = redisTemplate.opsForValue().get(com.neo.dashboard.redis.CacheKeys.DASHBOARD_FORECAST_V36);
+        if (v36Forecast != null && !v36Forecast.isBlank()) {
+            try {
+                return new StatsResponseDto(date, "redis-v3.6.1", objectMapper.readTree(v36Forecast));
+            } catch (Exception e) {
+                log.warn("Failed to parse V3.6.1 forecast snapshot", e);
+            }
+        }
         for (String view : Arrays.asList("forecast-series", "forecasts")) {
             String cached = redisTemplate.opsForValue().get(com.neo.dashboard.redis.CacheKeys.dashboardKey(view));
             if (cached == null || cached.isBlank()) {

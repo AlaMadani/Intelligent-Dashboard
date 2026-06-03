@@ -2,6 +2,101 @@
 
 A **Spring Boot 4.0.3** read-side REST API that serves real-time analytics, session data, anomaly events, risk profiles, and AI-powered explanations to the Quasar frontend dashboard. Reads from Redis (written by the **Data Processor** worker) and SQL Server, with optional Gemini AI integration for natural-language anomaly explanations.
 
+## V3.6.1 Role and Boundary
+
+`api-service` is the read/expose/orchestrate service in the three-project architecture:
+
+- `dataprocessor` consumes raw Kafka audit events, runs the V3.6.1 hybrid AI runtime, persists processed SQL rows, writes Redis snapshots, and creates LLM evidence payloads only.
+- `api-service` reads SQL Server and Redis, exposes REST/SSE endpoints, and calls Gemini only when the frontend explicitly requests an explanation.
+- `frontend` calls `api-service` only.
+
+`api-service` remains read-only. It does not run ONNX, XGBoost, LightGBM, CatBoost, ExtraTrees, Ridge, sequence models, feature-vector builders, risk fusion, or raw Kafka scoring consumers. Schema migrations remain owned by `dataprocessor`; Liquibase stays disabled by default.
+
+### V3.6.1 Redis Keys Read
+
+The service now prefers these versioned keys and falls back to SQL or legacy keys where appropriate:
+
+| Area | Redis keys |
+|------|------------|
+| Runtime | `ai:runtime:health:v3_6`, `ai:sequence:field-coverage:v3_6`, `ai:tabular:field-coverage:v3_6`, `ai:model-latency:v3_6` |
+| Dashboards | `dashboard:security-overview:v3_6`, `dashboard:churn:v3_6`, `dashboard:forecast:v3_6` |
+| Alerts | `alerts:live:v3_6`, `alerts:critical:v3_6`, `alerts:user:{insuredId}` |
+| Investigation | `alert:investigation:{eventId}` |
+| LLM evidence | `alert:llm-evidence:{eventId}` |
+| User 360 | `user:360:{insuredId}` |
+| Session V3.6 | `session:sequence:v3_6:{sessionId}`, `session:scores:v3_6:{sessionId}`, `session:risk:v3_6:{insuredId}:{sessionId}` |
+
+Legacy keys such as `stats:live:{date}`, `dashboard:forecasts`, `dashboard:forecast-series`, `session:insight:{insuredId}:{sessionId}`, `risk:{insuredId}`, `next_actions:{insuredId}`, `anomaly:active:{insuredId}`, and `dashboard:{view}` remain supported for compatibility.
+
+### New V3.6.1 Endpoints
+
+All endpoints remain under `/api/v1` and return the existing `ApiResponse<T>` envelope unless otherwise noted. V3.6.1 payloads include `schemaVersion: "v3.6.1"`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/ai/runtime-health` | V3.6.1 runtime health from Redis with UNKNOWN fallback |
+| GET | `/security/overview` | Security overview snapshot with SQL/legacy fallback |
+| GET | `/security/diagnostics` | Runtime health, field coverage, latency, warnings |
+| GET | `/alerts/live` | V3.6.1 live alerts with filters and SQL fallback |
+| GET | `/alerts/critical` | Critical alerts from Redis or SQL fallback |
+| GET | `/alerts/{eventId}` | Alert investigation detail from Redis or SQL payload fallback |
+| GET | `/explanations/alerts/{eventId}/evidence` | Raw V3.6.1 LLM evidence payload |
+| GET | `/explanations/alerts/{eventId}` | Cached explanation only |
+| POST | `/explanations/alerts/{eventId}` | Explicit on-demand Gemini/fallback explanation generation |
+| GET | `/users/{insuredId}/360` | User 360 from Redis or existing user dashboard fallback |
+| GET | `/users/{insuredId}/alerts` | User alerts from Redis or SQL fallback |
+| GET | `/churn/dashboard` | Churn dashboard from Redis or stored SQL fields |
+| GET | `/churn/users` | Stored churn-risk users |
+| GET | `/forecast/dashboard` | Forecast dashboard from Redis or legacy trend fallback |
+| GET | `/ai/final-winners` | Classpath report if copied into api-service |
+| GET | `/ai/reports` | Report metadata |
+
+The existing `GET /api/v1/anomalies/{id}/explain` route is preserved. It now attempts to resolve the anomaly's `eventId`, use V3.6.1 evidence when available, and otherwise falls back to the previous multi-source explanation behavior.
+
+### LLM Explanation Flow
+
+Preferred generation is:
+
+1. Frontend calls `POST /api/v1/explanations/alerts/{eventId}`.
+2. `api-service` checks the V3.6.1 explanation cache.
+3. It reads `alert:llm-evidence:{eventId}` from Redis.
+4. It falls back to SQL `llm_explanation_evidence_payload_json`.
+5. It validates `schemaVersion = "v3.6.1"`.
+6. It builds a grounded prompt from evidence only.
+7. It calls Gemini only when configured and explicitly requested by POST.
+8. If Gemini is unavailable, it returns a deterministic fallback explanation from the evidence.
+9. It caches the response under `ai:explanation:v3_6:alert:{eventId}:...`.
+
+`GET /api/v1/explanations/alerts/{eventId}` is cache-only and does not call Gemini.
+
+### V3.6.1 Configuration
+
+```yaml
+app:
+  api:
+    schema-version: "v3.6.1"
+  v36:
+    redis:
+      prefer-v36-keys: true
+      fallback-to-legacy: true
+    explanations:
+      enabled: true
+      provider: gemini
+      cache-enabled: true
+      cache-ttl-hours: 24
+      max-evidence-size-kb: 128
+      generate-on-get: false
+      default-style: security_analyst
+      default-language: en
+    endpoints:
+      expose-reports: true
+      expose-diagnostics: true
+```
+
+`GEMINI_API_KEY` defaults to empty. When absent, explanation generation returns deterministic fallback text rather than calling an LLM.
+
+See [docs/api-service-v36-endpoints.md](docs/api-service-v36-endpoints.md) for endpoint examples.
+
 ---
 
 ## Table of Contents

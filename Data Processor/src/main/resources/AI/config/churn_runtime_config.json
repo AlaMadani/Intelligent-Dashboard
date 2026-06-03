@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "preferred_model": "profile_only_ExtraTrees",
+  "artifact": "models/churn/churn_profile_only_ExtraTrees.json",
+  "schema": "config/churn_profile_feature_schema.json",
+  "risk_thresholds": {
+    "HIGH": 0.7,
+    "MEDIUM": 0.3,
+    "LOW": 0.0
+  },
+  "metrics": {
+    "AUC": 0.9201225936213007,
+    "PR_AUC": 0.8395155005907854,
+    "accuracy": 0.896,
+    "balanced_accuracy": 0.8098841107173642,
+    "precision": 0.813953488372093,
+    "recall": 0.660377358490566,
+    "mcc": 0.6712448264221884,
+    "alerts": 43,
+    "captured_anomalies": 35,
+    "train_s": 1.2030920710003556
+  },
+  "java_prediction": "Manual tree traversal JSON ensemble."
+}

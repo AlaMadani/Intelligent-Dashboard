@@ -1,0 +1,82 @@
+{
+  "models": [
+    {
+      "model_name": "XGBoost",
+      "artifact": "anomaly_xgboost.json",
+      "AUC": 0.9087463307487849,
+      "PR_AUC": 0.5158066864165053,
+      "best_f1": 0.5677546983184966,
+      "threshold": {
+        "threshold_percentile": 99.0,
+        "threshold_value": 0.16355200037360262,
+        "f1": 0.5677546983184966,
+        "accuracy": 0.99126,
+        "balanced_accuracy": 0.7786699244359546,
+        "precision": 0.574,
+        "recall": 0.5616438356164384,
+        "mcc": 0.5633746264200621,
+        "alerts": 500,
+        "captured_anomalies": 287
+      }
+    },
+    {
+      "model_name": "LightGBM",
+      "artifact": "anomaly_lightgbm.txt",
+      "AUC": 0.9073643398744564,
+      "PR_AUC": 0.48019737900591103,
+      "best_f1": 0.56973293768546,
+      "threshold": {
+        "threshold_percentile": 99.0,
+        "threshold_value": 0.8494120307708773,
+        "f1": 0.56973293768546,
+        "accuracy": 0.9913,
+        "balanced_accuracy": 0.7796585012724369,
+        "precision": 0.576,
+        "recall": 0.5636007827788649,
+        "mcc": 0.565373188364154,
+        "alerts": 500,
+        "captured_anomalies": 288
+      }
+    },
+    {
+      "model_name": "CatBoost",
+      "artifact": "anomaly_catboost.cbm",
+      "AUC": 0.904272664676042,
+      "PR_AUC": 0.4201984051736368,
+      "best_f1": 0.5539070227497527,
+      "threshold": {
+        "threshold_percentile": 99.0,
+        "threshold_value": 0.8370166169243564,
+        "f1": 0.5539070227497527,
+        "accuracy": 0.99098,
+        "balanced_accuracy": 0.7717498865805795,
+        "precision": 0.56,
+        "recall": 0.547945205479452,
+        "mcc": 0.5493846928114189,
+        "alerts": 500,
+        "captured_anomalies": 280
+      }
+    },
+    {
+      "model_name": "OneClassSVM RBF",
+      "artifact": "anomaly_oneclasssvm.json",
+      "AUC": 0.7135174121399371,
+      "PR_AUC": 0.16669053240393394,
+      "best_f1": 0.2733245729303548,
+      "threshold": {
+        "threshold_percentile": 99.5,
+        "threshold_value": -1.4871558749773666,
+        "f1": 0.2733245729303548,
+        "accuracy": 0.98894,
+        "balanced_accuracy": 0.6002861771769321,
+        "precision": 0.416,
+        "recall": 0.2035225048923679,
+        "mcc": 0.28600216105890336,
+        "alerts": 250,
+        "captured_anomalies": 104
+      }
+    }
+  ],
+  "feature_contract": "config/tabular_anomaly_feature_contract.json",
+  "scaler": "models/tabular_anomaly/tabular_feature_scaler.json"
+}

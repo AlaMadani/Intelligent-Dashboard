@@ -52,11 +52,10 @@
             <version>1.24.2</version>
             <scope>compile</scope>
         </dependency>
-        <!-- Source: https://mvnrepository.com/artifact/ml.dmlc/xgboost4j -->
         <dependency>
-            <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j_2.13</artifactId>
-            <version>3.2.0</version>
+            <groupId>ai.catboost</groupId>
+            <artifactId>catboost-prediction</artifactId>
+            <version>1.2.10</version>
         </dependency>
 
         <dependency>

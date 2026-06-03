@@ -35,7 +35,6 @@ public class FeatureEngineeringService {
     };
 
     private final FeatureEngineeringProperties properties;
-    private final RuntimeArtifactService runtimeArtifactService;
 
     public List<AuditTrailEvent> enrichSessionEvents(List<AuditTrailEvent> events) {
         if (events == null || events.isEmpty()) {
@@ -287,48 +286,6 @@ public class FeatureEngineeringService {
                 .build();
     }
 
-    public float[] buildTabularFeatures(SessionSummary summary,
-                                        List<String> featureColumns,
-                                        Map<String, Double> numericMedians) {
-        Map<String, Object> values = summaryValueMap(summary);
-        List<String> categoricalFeatures = runtimeArtifactService.getFeatureBundle().getSessionCategoricalFeatures();
-        Map<String, String> categoricalValues = new LinkedHashMap<>();
-        for (String categoricalFeature : categoricalFeatures) {
-            Object value = values.get(categoricalFeature);
-            categoricalValues.put(categoricalFeature, value == null ? "UNKNOWN" : safeString(String.valueOf(value)));
-        }
-
-        float[] vector = new float[featureColumns.size()];
-        for (int i = 0; i < featureColumns.size(); i++) {
-            String column = featureColumns.get(i);
-            if (numericMedians.containsKey(column)) {
-                vector[i] = numericValue(values.get(column), numericMedians.get(column));
-                continue;
-            }
-            vector[i] = categoricalMatch(column, categoricalValues) ? 1.0f : 0.0f;
-        }
-        return vector;
-    }
-
-    public float[] buildClusterFeatures(SessionSummary summary, List<String> clusterFeatures) {
-        Map<String, Object> values = summaryValueMap(summary);
-        float[] vector = new float[clusterFeatures.size()];
-        for (int i = 0; i < clusterFeatures.size(); i++) {
-            vector[i] = numericValue(values.get(clusterFeatures.get(i)), 0.0);
-        }
-        return vector;
-    }
-
-    private boolean categoricalMatch(String column, Map<String, String> categoricalValues) {
-        for (Map.Entry<String, String> entry : categoricalValues.entrySet()) {
-            String prefix = entry.getKey() + "_";
-            if (column.startsWith(prefix)) {
-                return column.substring(prefix.length()).equals(entry.getValue());
-            }
-        }
-        return false;
-    }
-
     private Map<String, Object> summaryValueMap(SessionSummary summary) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("totalEvents", summary.getTotalEvents());
@@ -473,6 +430,24 @@ public class FeatureEngineeringService {
         if (event == null) {
             return;
         }
+        if (!notBlank(event.getAction())) {
+            event.setAction(firstNonBlank(event.getActionValue(), event.getFrontendActionName()));
+        }
+        if (!notBlank(event.getRoute())) {
+            event.setRoute(firstNonBlank(event.getPage(), event.getApiTemplate()));
+        }
+        if (!notBlank(event.getType())) {
+            event.setType(event.getActionType());
+        }
+        if (!notBlank(event.getSubType())) {
+            event.setSubType(event.getActionSubtype());
+        }
+        if (!notBlank(event.getCountryCode())) {
+            event.setCountryCode(event.getIpCountry());
+        }
+        if (event.getSequenceInSession() == null) {
+            event.setSequenceInSession(event.getSessionActionSeq());
+        }
         event.setAction(TextNormalization.normalizeLabel(event.getAction()));
         event.setPrevAction(TextNormalization.normalizeLabel(event.getPrevAction()));
         event.setNextAction(TextNormalization.normalizeLabel(event.getNextAction()));
@@ -485,5 +460,9 @@ public class FeatureEngineeringService {
         event.setSubType(TextNormalization.normalizeLabel(event.getSubType()));
         event.setAnomalyType(TextNormalization.normalizeLabel(event.getAnomalyType()));
         event.setCampaignId(TextNormalization.normalizeLabel(event.getCampaignId()));
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return notBlank(first) ? first : second;
     }
 }

@@ -2,9 +2,8 @@ package com.noveocare.dataprocessor.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.noveocare.dataprocessor.ai.DeploymentManifest;
-import com.noveocare.dataprocessor.ai.ForecastSeriesPoint;
-import com.noveocare.dataprocessor.ai.RuntimeArtifactService;
+import com.noveocare.dataprocessor.ai.forecast.ForecastPrediction;
+import com.noveocare.dataprocessor.ai.forecast.ForecastRuntimeService;
 import com.noveocare.dataprocessor.config.CacheKeys;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RedisPubSubProperties;
@@ -12,6 +11,7 @@ import com.noveocare.dataprocessor.dto.SessionInsight;
 import com.noveocare.dataprocessor.dto.SessionSummary;
 import com.noveocare.dataprocessor.entity.AnomalyEvent;
 import com.noveocare.dataprocessor.entity.SessionAnalysis;
+import com.noveocare.dataprocessor.inference.ModelHealthService;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.repository.AnomalyEventRepository;
 import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.MonthDay;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -40,7 +39,8 @@ public class DashboardSnapshotService {
     private final RedisCacheProperties cacheProperties;
     private final SessionAnalysisRepository sessionAnalysisRepository;
     private final AnomalyEventRepository anomalyEventRepository;
-    private final RuntimeArtifactService runtimeArtifactService;
+    private final ForecastRuntimeService forecastRuntimeService;
+    private final ModelHealthService modelHealthService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final StatisticsService statisticsService;
@@ -48,6 +48,7 @@ public class DashboardSnapshotService {
 
     public void cacheSessionInsight(SessionSummary summary, SessionInsight insight) {
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaVersion", "v3.6.1");
         payload.put("sessionId", summary.getSessionId());
         payload.put("insuredId", summary.getInsuredId());
         payload.put("persona", summary.getPersona());
@@ -101,9 +102,12 @@ public class DashboardSnapshotService {
         payload.put("anomalyTypeConfidence", insight.getAnomalyTypeConfidence());
         payload.put("typeConfidence", insight.getAnomalyTypeConfidence());
         payload.put("churnProbability", insight.getChurnProbability());
-        payload.put("riskScore", insight.getEnsembleRiskScore());
-        payload.put("ensembleRiskScore", insight.getEnsembleRiskScore());
+        payload.put("riskScore", insight.getFinalRiskScore() == null ? insight.getEnsembleRiskScore() : insight.getFinalRiskScore());
+        payload.put("ensembleRiskScore", insight.getFinalRiskScore() == null ? insight.getEnsembleRiskScore() : insight.getFinalRiskScore());
         payload.put("personaCluster", insight.getPersonaCluster());
+        payload.put("personaLabel", insight.getPersonaLabel());
+        payload.put("personaSource", insight.getPersonaSource());
+        payload.put("personaConfidence", insight.getPersonaConfidence());
         payload.put("riskLevel", insight.getRiskLevel());
         payload.put("pathDeviation", insight.getPathDeviation());
         payload.put("pathDeviationFlag", insight.getPathDeviation() != null && insight.getPathDeviation().isDeviated());
@@ -111,12 +115,48 @@ public class DashboardSnapshotService {
         payload.put("transitionFromAction", insight.getPathDeviation() == null ? null : insight.getPathDeviation().getFromAction());
         payload.put("transitionToAction", insight.getPathDeviation() == null ? null : insight.getPathDeviation().getToAction());
         payload.put("rareTransitions", insight.getRareTransitions());
-        payload.put("nextActions", insight.getNextActions());
-        payload.put("top3NextActions", insight.getNextActions());
+        payload.put("nextActions", insight.getNextActions() == null ? List.of() : insight.getNextActions());
+        payload.put("top3NextActions", insight.getNextActions() == null ? List.of() : insight.getNextActions());
         payload.put("contextTags", insight.getContextTags());
         payload.put("triggeredRules", insight.getTriggeredRules());
         payload.put("warnings", insight.getWarnings());
         payload.put("topContributingFeatures", insight.getTopContributingFeatures());
+        payload.put("sequenceModelPrimary", insight.getSequenceModelPrimary());
+        payload.put("sequenceModelFast", insight.getSequenceModelFast());
+        payload.put("transformerScore", insight.getTransformerScore());
+        payload.put("tcnScore", insight.getTcnScore());
+        payload.put("sequenceAnomalyScore", insight.getSequenceAnomalyScore());
+        payload.put("sequenceCategoricalScore", insight.getSequenceCategoricalScore());
+        payload.put("sequenceContinuousScore", insight.getSequenceContinuousScore());
+        payload.put("sequenceContextScore", insight.getSequenceContextScore());
+        payload.put("aiRiskScore", insight.getAiRiskScore());
+        payload.put("ruleRiskScore", insight.getRuleRiskScore());
+        payload.put("finalRiskScore", insight.getFinalRiskScore());
+        payload.put("xgboostAnomalyScore", insight.getXgboostAnomalyScore());
+        payload.put("xgboostAnomalyScore100", insight.getXgboostAnomalyScore100());
+payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
+        payload.put("lightgbmAlertScore100", insight.getLightgbmAlertScore100());
+        payload.put("catboostAnomalyScore", insight.getCatboostAnomalyScore());
+        payload.put("catboostAnomalyScore100", insight.getCatboostAnomalyScore100());
+        payload.put("oneClassSvmNoveltyScoreRaw", insight.getOneClassSvmNoveltyScoreRaw());
+        payload.put("oneClassSvmNoveltyScore100", insight.getOneClassSvmNoveltyScore100());
+        payload.put("transformerRiskScore100", insight.getTransformerRiskScore100());
+        payload.put("tcnRiskScore100", insight.getTcnRiskScore100());
+        payload.put("modelScores", insight.getModelScores());
+        payload.put("modelContributions", insight.getModelContributions());
+        payload.put("riskFusionWeights", insight.getRiskFusionWeights());
+        payload.put("fallbackMode", insight.getFallbackMode());
+        payload.put("sequenceTopContributions", insight.getSequenceTopContributions());
+        payload.put("anomalyTypeSource", insight.getAnomalyTypeSource());
+        payload.put("anomalyTypeEvidence", insight.getAnomalyTypeEvidence());
+        payload.put("churnRiskLevel", insight.getChurnRiskLevel());
+        payload.put("churnModelName", insight.getChurnModelName());
+        payload.put("forecastTotalEvents", insight.getForecastTotalEvents());
+        payload.put("forecastAnomalyRate", insight.getForecastAnomalyRate());
+        payload.put("forecastExpectedAlertVolume", insight.getForecastExpectedAlertVolume());
+        payload.put("forecastContext", insight.getForecastContext());
+        payload.put("modelArtifacts", insight.getModelArtifacts());
+        payload.put("llmEvidencePayloadAvailable", insight.getLlmExplanationEvidencePayload() != null);
         payload.put("explainabilityText", insight.getExplainabilityText());
         payload.put("actionSequence", summary.getActionSequence());
         payload.put("routeSequence", summary.getRouteSequence());
@@ -128,10 +168,44 @@ public class DashboardSnapshotService {
         String insightKey = CacheKeys.sessionInsightKey(summary.getInsuredId(), summary.getSessionId());
         redisCacheService.addSetMember(CacheKeys.activeSessionInsightsIndexKey(), insightKey);
         redisCacheService.addSetMember(CacheKeys.activeSessionInsightsIndexKey(summary.getInsuredId()), insightKey);
+        cacheUser360(summary, insight);
     }
 
     private boolean defaultBoolean(Integer value) {
         return value != null && value == 1;
+    }
+
+    private void cacheUser360(SessionSummary summary, SessionInsight insight) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaVersion", "v3.6.1");
+        payload.put("insuredId", summary.getInsuredId());
+        payload.put("personaEnabled", false);
+        payload.put("personaLabel", insight.getPersonaLabel());
+        payload.put("churnProbability", insight.getChurnProbability());
+        payload.put("churnRiskLevel", insight.getChurnRiskLevel());
+        payload.put("averageRiskScoreLast30d", insight.getFinalRiskScore());
+        payload.put("alertCountLast30d", insight.isAnomaly() ? 1 : 0);
+        payload.put("criticalAlertCountLast30d", "CRITICAL".equalsIgnoreCase(insight.getRiskLevel()) ? 1 : 0);
+        payload.put("usualCountry", summary.getCountryCode());
+        payload.put("usualDevice", null);
+        payload.put("usualBrowser", null);
+        List<Integer> activeHours = new ArrayList<>();
+        if (summary.getStartHour() != null) {
+            activeHours.add(summary.getStartHour());
+        }
+        if (summary.getEndHour() != null) {
+            activeHours.add(summary.getEndHour());
+        }
+        payload.put("usualActiveHours", activeHours);
+        payload.put("topApiFamilies", List.of());
+        payload.put("recentSessions", List.of(Map.of(
+                "sessionId", summary.getSessionId(),
+                "riskLevel", insight.getRiskLevel(),
+                "finalRiskScore", insight.getFinalRiskScore() == null ? 0.0 : insight.getFinalRiskScore())));
+        payload.put("riskTimeline", List.of(Map.of(
+                "timestamp", insight.getComputedAt(),
+                "finalRiskScore", insight.getFinalRiskScore() == null ? 0.0 : insight.getFinalRiskScore())));
+        redisCacheService.setJson(CacheKeys.user360Key(summary.getInsuredId()), payload, cacheProperties.getSessionInsight());
     }
 
     public void removeSessionInsight(String insuredId, String sessionId) {
@@ -148,6 +222,10 @@ public class DashboardSnapshotService {
         refreshDropOffs();
         refreshPathDeviations();
         refreshForecasts();
+        refreshSecurityOverview();
+        refreshChurnDashboard();
+        refreshForecastDashboardV36();
+        cacheDashboard("model-health", modelHealthService.snapshot());
     }
 
     public void refreshAlertsFeed() {
@@ -164,7 +242,7 @@ public class DashboardSnapshotService {
 
     public void refreshRiskySessions() {
         List<Map<String, Object>> rows = new ArrayList<>(activeSessionInsights());
-        sessionAnalysisRepository.findTop20ByOrderByEnsembleRiskScoreDescCreatedAtDesc().stream()
+        sessionAnalysisRepository.findTop20ByOrderByFinalRiskScoreDescCreatedAtDesc().stream()
                 .map(this::sessionRow)
                 .forEach(rows::add);
         rows = rows.stream()
@@ -206,49 +284,21 @@ public class DashboardSnapshotService {
 
     public void refreshDropOffs() {
         List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
-        List<Map<String, Object>> rows;
         if (sessions.isEmpty()) {
-            rows = runtimeExport("dropoff_actions.csv");
-        } else {
-            Map<String, Long> counts = new LinkedHashMap<>();
-            for (SessionAnalysis session : sessions) {
-                if (!Boolean.TRUE.equals(session.getEndedAbruptly()) || session.getLastAction() == null) {
-                    continue;
-                }
-                counts.put(session.getLastAction(), counts.getOrDefault(session.getLastAction(), 0L) + 1);
-            }
-            rows = counts.entrySet().stream()
-                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                    .map(entry -> Map.<String, Object>of(
-                            "step", entry.getKey(),
-                            "count", entry.getValue()))
-                    .toList();
+            cacheDashboard("drop-offs", Map.of(
+                    "items", runtimeExport("dropoff_actions.csv"),
+                    "generatedAt", Instant.now().toString()));
+            return;
         }
         cacheDashboard("drop-offs", Map.of(
-                "items", rows,
+                "items", List.of(),
                 "generatedAt", Instant.now().toString()));
     }
 
     public void refreshPathDeviations() {
-        List<SessionAnalysis> recentSessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
-        List<Map<String, Object>> rows = recentSessions.stream()
-                .filter(session -> Boolean.TRUE.equals(session.getPathDeviation()))
-                .map(session -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("sessionId", session.getSessionId());
-                    row.put("insuredId", session.getInsuredId());
-                    row.put("from_action", session.getTransitionFromAction());
-                    row.put("to_action", session.getTransitionToAction());
-                    row.put("transition_probability", session.getTransitionProbability());
-                    row.put("session_count", 1);
-                    return row;
-                })
-                .toList();
-        if (rows.isEmpty() && recentSessions.isEmpty()) {
-            rows = runtimeExport("path_deviations.csv");
-            if (rows.isEmpty()) {
-                rows = runtimeExport("path_summary.csv");
-            }
+        List<Map<String, Object>> rows = runtimeExport("path_deviations.csv");
+        if (rows.isEmpty()) {
+            rows = runtimeExport("path_summary.csv");
         }
         cacheDashboard("path-deviations", Map.of(
                 "items", rows,
@@ -256,7 +306,112 @@ public class DashboardSnapshotService {
     }
 
     public void refreshForecasts() {
-        cacheDashboard("forecasts", buildForecastSnapshot(LocalDate.now(ZoneOffset.UTC)));
+        Map<String, Object> payload = buildForecastSnapshot(LocalDate.now(ZoneOffset.UTC));
+        cacheDashboard("forecasts", payload);
+        redisCacheService.setJson(CacheKeys.forecastDashboardV36Key(), buildForecastDashboardPayload(LocalDate.now(ZoneOffset.UTC)), cacheProperties.getForecast());
+    }
+
+    public void refreshSecurityOverview() {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        long totalEvents = statisticsService.countEventsForDate(today);
+        long alerts = statisticsService.countAlertsForDate(today);
+        ForecastPrediction forecast = forecastRuntimeService.forecast(today);
+        List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
+
+Map<String, Long> topRules = new LinkedHashMap<>();
+        double riskTotal = 0.0;
+        int riskCount = 0;
+        long critical = 0L;
+        long high = 0L;
+        for (SessionAnalysis session : sessions) {
+            Object parsedRules = parseJsonValue(session.getTriggeredRulesJson());
+            if (parsedRules instanceof List<?> rules) {
+                for (Object rule : rules) {
+                    String code = String.valueOf(rule);
+                    topRules.put(code, topRules.getOrDefault(code, 0L) + 1L);
+                }
+            }
+            if (session.getFinalRiskScore() != null) {
+                riskTotal += session.getFinalRiskScore();
+                riskCount++;
+                if (session.getFinalRiskScore() >= 80.0) {
+                    critical++;
+                } else if (session.getFinalRiskScore() >= 60.0) {
+                    high++;
+                }
+            }
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaVersion", "v3.6.1");
+        payload.put("snapshotTimestamp", Instant.now().toString());
+        payload.put("totalEventsToday", totalEvents);
+        payload.put("activeUsersToday", activeSessionInsights().stream().map(row -> row.get("insuredId")).distinct().count());
+        payload.put("anomalyRateToday", totalEvents == 0 ? 0.0 : (double) alerts / totalEvents);
+        payload.put("criticalAlertsToday", critical);
+        payload.put("highRiskAlertsToday", high);
+        payload.put("averageRiskScoreToday", riskCount == 0 ? 0.0 : riskTotal / riskCount);
+        payload.put("predictedAnomalyRateTomorrow", forecast.getAnomalyRateForecast());
+        payload.put("predictedTotalEventsTomorrow", forecast.getTotalEventsForecast());
+        payload.put("expectedAlertVolumeTomorrow", forecast.getExpectedAlertVolume());
+        payload.put("topAnomalyTypes", Map.of());
+        payload.put("topTriggeredRules", topNMap(topRules, 5));
+        payload.put("modelHealthSummary", modelHealthService.snapshot());
+        payload.put("fieldCoverageWarnings", modelHealthService.snapshot().get("highUnknownFieldWarnings"));
+        redisCacheService.setJson(CacheKeys.securityOverviewDashboardKey(), payload, cacheProperties.getDashboard());
+    }
+
+    public void refreshChurnDashboard() {
+        List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
+        int high = 0;
+        int medium = 0;
+        int low = 0;
+        double total = 0.0;
+        int count = 0;
+        List<Map<String, Object>> users = new ArrayList<>();
+        for (SessionAnalysis session : sessions) {
+            Double probability = session.getChurnProbability();
+            if (probability != null) {
+                total += probability;
+                count++;
+            }
+            String risk = session.getChurnRiskLevel();
+            if ("HIGH".equalsIgnoreCase(risk)) {
+                high++;
+            } else if ("MEDIUM".equalsIgnoreCase(risk)) {
+                medium++;
+            } else if ("LOW".equalsIgnoreCase(risk)) {
+                low++;
+            }
+            Map<String, Object> user = new LinkedHashMap<>();
+            user.put("insuredId", session.getInsuredId());
+            user.put("sessionId", session.getSessionId());
+            user.put("churnProbability", probability);
+            user.put("churnRiskLevel", risk);
+            users.add(user);
+        }
+        users = users.stream()
+                .sorted(Comparator.comparing((Map<String, Object> row) -> numeric(row.get("churnProbability"))).reversed())
+                .limit(10)
+                .toList();
+        Map<String, Object> distribution = new LinkedHashMap<>();
+        distribution.put("HIGH", high);
+        distribution.put("MEDIUM", medium);
+        distribution.put("LOW", low);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaVersion", "v3.6.1");
+        payload.put("totalUsers", sessions.stream().map(SessionAnalysis::getInsuredId).distinct().count());
+        payload.put("highChurnRiskUsers", high);
+        payload.put("mediumChurnRiskUsers", medium);
+        payload.put("lowChurnRiskUsers", low);
+        payload.put("averageChurnProbability", count == 0 ? 0.0 : total / count);
+        payload.put("topChurnRiskUsers", users);
+        payload.put("churnRiskDistribution", distribution);
+        redisCacheService.setJson(CacheKeys.churnDashboardKey(), payload, cacheProperties.getDashboard());
+    }
+
+    public void refreshForecastDashboardV36() {
+        redisCacheService.setJson(CacheKeys.forecastDashboardV36Key(), buildForecastDashboardPayload(LocalDate.now(ZoneOffset.UTC)), cacheProperties.getForecast());
     }
 
     public Map<String, Object> buildForecastSnapshot(LocalDate referenceDate) {
@@ -264,41 +419,89 @@ public class DashboardSnapshotService {
         long totalEventsActual = statisticsService.countEventsForDate(effectiveDate);
         long anomalyEventsActual = statisticsService.countAlertsForDate(effectiveDate);
         long downloadEventsActual = statisticsService.countDownloadsForDate(effectiveDate);
+        ForecastPrediction forecast = forecastRuntimeService.forecast(effectiveDate);
 
         Map<String, Object> items = new LinkedHashMap<>();
-        for (Map.Entry<String, List<ForecastSeriesPoint>> entry : runtimeArtifactService.getForecastSeries().entrySet()) {
-            List<ForecastSeriesPoint> alignedPoints = alignForecastPoints(entry.getValue(), effectiveDate.getYear());
-            ForecastSeriesPoint baseline = resolveForecastPoint(alignedPoints, effectiveDate);
-            DeploymentManifest.ForecastArtifact metadata = runtimeArtifactService.getDeploymentManifest()
-                    .getForecasting()
-                    .get(entry.getKey());
+        Map<String, Object> totalEvents = new LinkedHashMap<>();
+        totalEvents.put("seriesKey", "total_events");
+        totalEvents.put("label", "Total events");
+        totalEvents.put("actualCount", totalEventsActual);
+        totalEvents.put("forecast", forecast.getTotalEventsForecast());
+        totalEvents.put("delta", forecast.getTotalEventsForecast() == null ? null : totalEventsActual - forecast.getTotalEventsForecast());
+        totalEvents.put("modelArtifact", forecast.getTotalEventsModelArtifact());
+        totalEvents.put("features", forecast.getTotalEventsFeatures());
+        items.put("total_events", totalEvents);
 
-            long actualCount = actualCountForSeries(entry.getKey(), totalEventsActual, anomalyEventsActual, downloadEventsActual);
-            Map<String, Object> seriesPayload = new LinkedHashMap<>();
-            seriesPayload.put("seriesKey", entry.getKey());
-            seriesPayload.put("label", labelForSeries(entry.getKey()));
-            seriesPayload.put("points", alignedPoints);
-            seriesPayload.put("baseline", baseline);
-            seriesPayload.put("actualCount", actualCount);
-            seriesPayload.put("delta", baseline == null || baseline.getYhat() == null ? null : actualCount - baseline.getYhat());
-            seriesPayload.put("status", resolveForecastStatus(actualCount, baseline, totalEventsActual > 0));
-            seriesPayload.put("mae", metadata == null ? null : metadata.getMae());
-            seriesPayload.put("rmse", metadata == null ? null : metadata.getRmse());
-            seriesPayload.put("prophet", summarizeProphetModel(runtimeArtifactService.getForecastModelJson().get(entry.getKey())));
-            items.put(entry.getKey(), seriesPayload);
-        }
+        Map<String, Object> anomalyRate = new LinkedHashMap<>();
+        anomalyRate.put("seriesKey", "anomaly_rate");
+        anomalyRate.put("label", "Anomaly rate");
+        anomalyRate.put("actualCount", anomalyEventsActual);
+        anomalyRate.put("actualRate", totalEventsActual == 0 ? 0.0 : (double) anomalyEventsActual / totalEventsActual);
+        anomalyRate.put("forecast", forecast.getAnomalyRateForecast());
+        anomalyRate.put("strategy", forecast.getAnomalyRateStrategy());
+        items.put("anomaly_rate", anomalyRate);
+
+        Map<String, Object> downloads = new LinkedHashMap<>();
+        downloads.put("seriesKey", "download_events");
+        downloads.put("label", "Download events");
+        downloads.put("actualCount", downloadEventsActual);
+        items.put("download_events", downloads);
 
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaVersion", "v3.6.1");
         payload.put("referenceDate", effectiveDate);
         payload.put("hasLiveTraffic", totalEventsActual > 0);
         payload.put("generatedAt", Instant.now().toString());
         payload.put("items", items);
+        payload.put("warnings", forecast.getWarnings());
         return payload;
     }
 
+    private Map<String, Object> buildForecastDashboardPayload(LocalDate referenceDate) {
+        LocalDate effectiveDate = referenceDate == null ? LocalDate.now(ZoneOffset.UTC) : referenceDate;
+        ForecastPrediction forecast = forecastRuntimeService.forecast(effectiveDate);
+        long historicalTotalEvents = statisticsService.countEventsForDate(effectiveDate);
+        long historicalAlerts = statisticsService.countAlertsForDate(effectiveDate);
+        Map<String, Object> modelNames = new LinkedHashMap<>();
+        modelNames.put("totalEvents", forecast.getTotalEventsModelName());
+        modelNames.put("anomalyRate", forecast.getAnomalyRateModelName());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaVersion", "v3.6.1");
+        payload.put("forecastDate", forecast.getForecastDate());
+        payload.put("predictedTotalEvents", forecast.getTotalEventsForecast());
+        payload.put("predictedAnomalyRate", forecast.getAnomalyRateForecast());
+        payload.put("expectedAlertVolume", forecast.getExpectedAlertVolume());
+        payload.put("historicalTotalEvents", historicalTotalEvents);
+        payload.put("historicalAnomalyRate", historicalTotalEvents == 0 ? 0.0 : (double) historicalAlerts / historicalTotalEvents);
+        payload.put("forecastModelNames", modelNames);
+        payload.put("forecastWarnings", forecast.getWarnings());
+        return payload;
+    }
+
+    private Map<String, Long> topNMap(Map<String, Long> counts, int limit) {
+        Map<String, Long> ordered = new LinkedHashMap<>();
+        counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(limit)
+                .forEach(entry -> ordered.put(entry.getKey(), entry.getValue()));
+        return ordered;
+    }
+
     private void cacheDashboard(String view, Object payload) {
-        redisCacheService.setJson(CacheKeys.dashboardKey(view), payload, cacheProperties.getDashboard());
+        redisCacheService.setJson(CacheKeys.dashboardKey(view), withSchemaVersion(payload), cacheProperties.getDashboard());
         redisCacheService.publishJson(pubSubProperties.getLiveStatsChannel(), Map.of("refresh", view));
+    }
+
+    private Object withSchemaVersion(Object payload) {
+        if (!(payload instanceof Map<?, ?> map) || map.containsKey("schemaVersion")) {
+            return payload;
+        }
+        Map<String, Object> versioned = new LinkedHashMap<>();
+        versioned.put("schemaVersion", "v3.6.1");
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            versioned.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+        return versioned;
     }
 
     private List<Map<String, Object>> activeSessionInsights() {
@@ -383,76 +586,52 @@ public class DashboardSnapshotService {
         row.put("churnProbability", event.getChurnProbability());
         row.put("riskScore", event.getRiskScore());
         row.put("personaCluster", event.getPersonaCluster());
-        row.put("pathDeviation", event.getPathDeviation());
-        row.put("transitionProbability", event.getTransitionProbability());
-        row.put("transitionFromAction", event.getTransitionFromAction());
-        row.put("transitionToAction", event.getTransitionToAction());
-        row.put("modelArtifact", event.getModelArtifact());
-        row.put("nextActions", parseJsonValue(event.getNextActionsJson()));
+row.put("personaLabel", event.getPersonaLabel());
+        row.put("aiRiskScore", event.getAiRiskScore());
+        row.put("ruleRiskScore", event.getRuleRiskScore());
+        row.put("finalRiskScore", event.getFinalRiskScore());
+        row.put("anomalyTypeSource", event.getAnomalyTypeSource());
         row.put("eventContext", parseJsonValue(event.getEventJson()));
         row.put("detectedAt", event.getDetectedAt());
         return row;
     }
 
-    private Map<String, Object> sessionRow(SessionAnalysis session) {
+private Map<String, Object> sessionRow(SessionAnalysis session) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("sessionId", session.getSessionId());
         row.put("insuredId", session.getInsuredId());
-        row.put("persona", session.getPersona());
         row.put("countryCode", session.getCountryCode());
-        row.put("anomalyFlag", session.getIsAnomaly());
-        row.put("anomalyType", session.getAnomalyType());
-        row.put("anomalyScore", session.getIsoScore());
-        row.put("anomalyProbability", session.getAnomalyProbability());
-        row.put("typeConfidence", session.getTypeConfidence());
         row.put("churnProbability", session.getChurnProbability());
-        row.put("riskScore", session.getEnsembleRiskScore());
-        row.put("ensembleRiskScore", session.getEnsembleRiskScore());
         row.put("personaCluster", session.getPersonaCluster());
-        row.put("binaryDetectorArtifact", session.getBinaryDetectorArtifact());
-        row.put("pathDeviation", session.getPathDeviation());
-        row.put("transitionProbability", session.getTransitionProbability());
-        row.put("transitionFromAction", session.getTransitionFromAction());
-        row.put("transitionToAction", session.getTransitionToAction());
-        row.put("rareTransitions", parseJsonValue(session.getRareTransitionsJson()));
-        row.put("contextTags", parseJsonValue(session.getContextTagsJson()));
-        row.put("topContributingFeatures", parseJsonValue(session.getFeatureContributionsJson()));
-        row.put("explainabilityText", session.getExplainabilityText());
+        row.put("personaLabel", session.getPersonaLabel());
+        row.put("personaSource", session.getPersonaSource());
+        row.put("personaConfidence", session.getPersonaConfidence());
+        row.put("sequenceModelArtifact", session.getSequenceModelArtifact());
+        row.put("sequenceAnomalyScore", session.getSequenceAnomalyScore());
+        row.put("sequenceCategoricalScore", session.getSequenceCatScore());
+        row.put("sequenceContinuousScore", session.getSequenceContScore());
+        row.put("sequenceContextScore", session.getSequenceCtxScore());
+        row.put("aiRiskScore", session.getAiRiskScore());
+        row.put("ruleRiskScore", session.getRuleRiskScore());
+        row.put("finalRiskScore", session.getFinalRiskScore());
+        row.put("churnRiskLevel", session.getChurnRiskLevel());
+        row.put("modelArtifacts", parseJsonValue(session.getModelArtifactsJson()));
+        row.put("topSequenceSurpriseFields", parseJsonValue(session.getTopSequenceSurpriseFieldsJson()));
         row.put("warnings", parseJsonValue(session.getWarningsJson()));
         row.put("triggeredRules", parseJsonValue(session.getTriggeredRulesJson()));
         row.put("actionSequence", parseJsonValue(session.getActionSequenceJson()));
         row.put("routeSequence", parseJsonValue(session.getRouteSequenceJson()));
-        row.put("actionSequenceSignature", session.getActionSequenceSignature());
-        row.put("routeSequenceSignature", session.getRouteSequenceSignature());
         row.put("actionCounts", parseJsonValue(session.getActionCountsJson()));
         row.put("sessionStart", session.getStartTime());
         row.put("sessionEnd", session.getEndTime());
         row.put("totalEvents", session.getTotalEvents());
         row.put("sessionDurationSeconds", session.getSessionDurationSeconds());
         row.put("uniqueActions", session.getUniqueActions());
-        row.put("uniqueRoutes", session.getUniqueRoutes());
-        row.put("uniqueIpsUsed", session.getUniqueIpsUsed());
-        row.put("uniqueDevicesUsed", session.getUniqueDevicesUsed());
-        row.put("totalKOs", session.getTotalKOs());
-        row.put("totalOKs", session.getTotalOKs());
-        row.put("longestKoStreak", session.getLongestKoStreak());
-        row.put("totalDownloadActions", session.getTotalDownloadActions());
-        row.put("maxDownloadsIn2Minutes", session.getMaxDownloadsIn2Minutes());
-        row.put("pingPongCount", session.getPingPongCount());
-        row.put("lastAction", session.getLastAction());
         return row;
     }
 
     private List<Map<String, Object>> runtimeExport(String name) {
-        List<Map<String, String>> rows = runtimeArtifactService.getDashboardExports().get(name);
-        if (rows == null || rows.isEmpty()) {
-            return List.of();
-        }
-        List<Map<String, Object>> converted = new ArrayList<>(rows.size());
-        for (Map<String, String> row : rows) {
-            converted.add(new LinkedHashMap<>(row));
-        }
-        return converted;
+        return List.of();
     }
 
     private double numeric(Object value) {
@@ -480,114 +659,4 @@ public class DashboardSnapshotService {
         }
     }
 
-    private List<ForecastSeriesPoint> alignForecastPoints(List<ForecastSeriesPoint> points, int targetYear) {
-        if (points == null || points.isEmpty()) {
-            return List.of();
-        }
-        List<ForecastSeriesPoint> aligned = new ArrayList<>(points.size());
-        for (ForecastSeriesPoint point : points) {
-            LocalDate originalDate = parseDate(point.getDs());
-            String alignedDate = originalDate == null
-                    ? point.getDs()
-                    : originalDate.withYear(targetYear).toString();
-            aligned.add(ForecastSeriesPoint.builder()
-                    .ds(alignedDate)
-                    .yhat(point.getYhat())
-                    .yhatLower(point.getYhatLower())
-                    .yhatUpper(point.getYhatUpper())
-                    .trend(point.getTrend())
-                    .build());
-        }
-        return aligned;
-    }
-
-    private ForecastSeriesPoint resolveForecastPoint(List<ForecastSeriesPoint> points, LocalDate referenceDate) {
-        if (points == null || points.isEmpty() || referenceDate == null) {
-            return null;
-        }
-        return points.stream()
-                .filter(point -> referenceDate.equals(parseDate(point.getDs())))
-                .findFirst()
-                .orElseGet(() -> points.stream()
-                        .filter(point -> {
-                            LocalDate date = parseDate(point.getDs());
-                            return date != null && MonthDay.from(date).equals(MonthDay.from(referenceDate));
-                        })
-                        .findFirst()
-                        .orElse(points.get(points.size() - 1)));
-    }
-
-    private Map<String, Object> summarizeProphetModel(String prophetJson) {
-        if (prophetJson == null || prophetJson.isBlank()) {
-            return Map.of();
-        }
-        try {
-            Map<String, Object> summary = new LinkedHashMap<>();
-            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(prophetJson);
-            copyIfPresent(node, summary, "growth");
-            copyIfPresent(node, summary, "seasonality_mode");
-            copyIfPresent(node, summary, "weekly_seasonality");
-            copyIfPresent(node, summary, "yearly_seasonality");
-            copyIfPresent(node, summary, "interval_width");
-            copyIfPresent(node, summary, "seasonality_prior_scale");
-            copyIfPresent(node, summary, "changepoint_prior_scale");
-            return summary;
-        } catch (Exception ex) {
-            return Map.of("raw", prophetJson);
-        }
-    }
-
-    private void copyIfPresent(com.fasterxml.jackson.databind.JsonNode node, Map<String, Object> target, String field) {
-        com.fasterxml.jackson.databind.JsonNode value = node.path(field);
-        if (!value.isMissingNode() && !value.isNull()) {
-            target.put(field, objectMapper.convertValue(value, Object.class));
-        }
-    }
-
-    private long actualCountForSeries(String seriesKey, long totalEventsActual, long anomalyEventsActual, long downloadEventsActual) {
-        return switch (seriesKey) {
-            case "anomaly_events" -> anomalyEventsActual;
-            case "download_events" -> downloadEventsActual;
-            case "total_events" -> totalEventsActual;
-            default -> 0L;
-        };
-    }
-
-    private String labelForSeries(String seriesKey) {
-        return switch (seriesKey) {
-            case "anomaly_events" -> "Anomaly events";
-            case "download_events" -> "Download events";
-            case "total_events" -> "Total events";
-            default -> seriesKey;
-        };
-    }
-
-    private String resolveForecastStatus(long actualCount, ForecastSeriesPoint baseline, boolean hasLiveTraffic) {
-        if (!hasLiveTraffic && actualCount == 0L) {
-            return "NO_ACTIVITY";
-        }
-        if (baseline == null) {
-            return "NO_BASELINE";
-        }
-        double lower = baseline.getYhatLower() == null ? 0.0 : Math.max(0.0, baseline.getYhatLower());
-        double upper = baseline.getYhatUpper() == null ? Double.MAX_VALUE : baseline.getYhatUpper();
-        if (actualCount > upper) {
-            return "ABOVE_FORECAST";
-        }
-        if (actualCount < lower) {
-            return "BELOW_FORECAST";
-        }
-        return "WITHIN_BOUNDS";
-    }
-
-    private LocalDate parseDate(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(value);
-        } catch (Exception ex) {
-            return null;
-        }
-    }
 }

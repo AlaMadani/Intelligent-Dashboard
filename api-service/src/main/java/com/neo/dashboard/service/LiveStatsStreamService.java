@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -28,6 +29,13 @@ public class LiveStatsStreamService {
     private final StatsService statsService;
     private final ObjectMapper objectMapper;
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+    private static final Set<String> V36_REFRESH_EVENTS = Set.of(
+            "alerts",
+            "security-overview",
+            "runtime-health",
+            "churn",
+            "forecast"
+    );
 
     /* Register a new subscriber and send the current snapshot immediately. */
     public SseEmitter subscribe() {
@@ -41,7 +49,11 @@ public class LiveStatsStreamService {
             this.emitters.remove(emitter);
         });
         emitter.onError(e -> {
-            log.error("Live stats SSE error", e);
+            if (isClientDisconnect(e)) {
+                log.debug("Live stats SSE client disconnected");
+            } else {
+                log.warn("Live stats SSE error", e);
+            }
             this.emitters.remove(emitter);
         });
 
@@ -51,7 +63,11 @@ public class LiveStatsStreamService {
                     .name("stats")
                     .data(toSafeStats(statsService.getLiveStats(LocalDate.now(ZoneOffset.UTC)))));
         } catch (IOException e) {
-            emitter.completeWithError(e);
+            if (isClientDisconnect(e)) {
+                emitter.complete();
+            } else {
+                emitter.completeWithError(e);
+            }
             this.emitters.remove(emitter);
         }
 
@@ -81,6 +97,9 @@ public class LiveStatsStreamService {
             return;
         }
         broadcast("refresh", java.util.Map.of("refresh", refresh));
+        if (V36_REFRESH_EVENTS.contains(refresh)) {
+            broadcast(refresh, java.util.Map.of("refresh", refresh));
+        }
     }
 
     private void broadcast(String eventName, Object payload) {
@@ -101,10 +120,36 @@ public class LiveStatsStreamService {
         emitters.removeAll(deadEmitters);
     }
 
-    private StatsApiResponseDto toSafeStats(StatsResponseDto stats) {
-        Object payload = stats.getPayload() == null
-                ? null
-                : objectMapper.convertValue(stats.getPayload(), Object.class);
+    private boolean isClientDisconnect(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String className = current.getClass().getName();
+            String message = current.getMessage();
+            if (className.contains("AsyncRequestNotUsableException")
+                    || className.contains("ClientAbortException")
+                    || current instanceof IOException
+                    || (message != null && (message.contains("aborted")
+                    || message.contains("disconnect")
+                    || message.contains("Broken pipe")
+                    || message.contains("Une connexion")
+                    || message.contains("client")))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+private StatsApiResponseDto toSafeStats(StatsResponseDto stats) {
+        Object payload = null;
+        if (stats.getPayload() != null) {
+            try {
+                payload = objectMapper.treeToValue(stats.getPayload(), Object.class);
+            } catch (Exception e) {
+                log.warn("Failed to convert stats payload to safe object", e);
+                payload = stats.getPayload();
+            }
+        }
         return new StatsApiResponseDto(stats.getDate(), stats.getSource(), payload);
     }
 }

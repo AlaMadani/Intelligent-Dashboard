@@ -16,23 +16,34 @@ import java.time.Instant;
 public class AuditTrailEvent {
 
     // Core identifiers used to group events into user sessions.
+    @JsonAlias("record_id")
     private String id;
 
     @JsonProperty("insuredId")
+    @JsonAlias("insured_id")
     private String insuredId;
 
     private String status;
 
     @JsonProperty("sessionId")
+    @JsonAlias("session_id")
     private String sessionId;
 
     private String action;
 
+    @JsonAlias("http_code")
     private Integer httpCode;
 
     private String ip;
 
+    @JsonAlias("user_agent")
     private String userAgent;
+
+    private String page;
+
+    private String browser;
+
+    private String os;
 
     // Request and response fragments retained for investigation and replay use cases.
     private JsonNode requestData;
@@ -40,12 +51,50 @@ public class AuditTrailEvent {
     private JsonNode requestReturn;
 
     @JsonProperty("createdAt")
-    @JsonAlias("created_at")
+    @JsonAlias({"created_at", "timestamp"})
     private Instant createdAt;
+
+    @JsonProperty("date")
+    private String eventDate;
+
+    private Integer hour;
+
+    @JsonProperty("day_of_week")
+    private Integer rawDayOfWeek;
+
+    @JsonProperty("is_business_hours")
+    private Integer isBusinessHours;
+
+    @JsonProperty("http_method")
+    private String httpMethod;
+
+    @JsonProperty("action_api")
+    private String actionApi;
+
+    @JsonProperty("api_template")
+    private String apiTemplate;
+
+    @JsonProperty("api_family")
+    private String apiFamily;
+
+    private String controller;
+
+    @JsonProperty("frontend_action_name")
+    private String frontendActionName;
+
+    @JsonProperty("action_value")
+    private String actionValue;
+
+    @JsonProperty("action_type")
+    private String actionType;
+
+    @JsonProperty("action_subtype")
+    private String actionSubtype;
 
     // Functional taxonomy and device dimensions consumed by feature engineering.
     private String type;
 
+    @JsonAlias("environment_id")
     private String environmentId;
 
     private String device;
@@ -62,7 +111,14 @@ public class AuditTrailEvent {
 
     private String subType;
 
+    @JsonAlias("country_code")
     private String countryCode;
+
+    @JsonProperty("ip_country")
+    private String ipCountry;
+
+    @JsonProperty("ip_region")
+    private String ipRegion;
 
     private String city;
 
@@ -71,7 +127,11 @@ public class AuditTrailEvent {
     private Integer sessionNumber;
 
     // Session-ordering metadata used to rebuild the event sequence.
+    @JsonAlias("sequence_in_session")
     private Integer sequenceInSession;
+
+    @JsonProperty("session_action_seq")
+    private Integer sessionActionSeq;
 
     private Integer sessionLength;
 
@@ -86,10 +146,23 @@ public class AuditTrailEvent {
 
     private Long timeDeltaSinceLastAction;
 
+    @JsonProperty("time_since_prev_action_ms")
+    private Long timeSincePrevActionMs;
+
+    @JsonProperty("session_duration_so_far_ms")
+    private Long sessionDurationSoFarMs;
+
+    @JsonProperty("request_data_size_bytes")
+    private Long requestDataSizeBytes;
+
+    @JsonProperty("response_data_size_bytes")
+    private Long responseDataSizeBytes;
+
     private Integer hourOfDay;
 
     private Integer dayOfWeek;
 
+    @JsonAlias("is_weekend")
     private Integer isWeekend;
 
     private Integer isIpChanged;

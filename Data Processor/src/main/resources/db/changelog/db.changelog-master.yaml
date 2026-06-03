@@ -116,3 +116,57 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+  - changeSet:
+      id: v34-sequence-runtime-fields-v13
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V13__v34_sequence_runtime_fields.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: v36-hybrid-runtime-fields-v14
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V14__v36_hybrid_runtime_fields.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: add-anomaly-events-v36-fields-v15
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V15__add_anomaly_events_v36_fields.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+  - changeSet:
+      id: remove-deprecated-v1-v2-fields-v16
+      author: data-processor
+      changes:
+        - sqlFile:
+             path: db/migration/V16__remove_deprecated_v1_v2_fields.sql
+             relativeToChangelogFile: false
+             splitStatements: true
+             stripComments: false
+  - changeSet:
+      id: add-session-analysis-v36-4-fields-v17
+      author: data-processor
+      changes:
+        - sqlFile:
+             path: db/migration/V17__add_session_analysis_v36_4_fields.sql
+             relativeToChangelogFile: false
+             splitStatements: true
+             stripComments: false
+  - changeSet:
+      id: recreate-anomaly-events-covering-index-v18
+      author: data-processor
+      changes:
+        - sqlFile:
+             path: db/migration/V18__recreate_covering_indexes.sql
+             relativeToChangelogFile: false
+             splitStatements: true
+             stripComments: false

@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "generate_payload_only": true,
+  "call_llm_directly": false,
+  "do_not_invent_evidence": true,
+  "task": "Explain suspicious events using only provided scores, rules, sequence evidence, user context, persona, churn, and forecast context.",
+  "required_sections": [
+    "summary",
+    "evidence_bullets",
+    "possible_interpretation",
+    "recommended_action",
+    "model_score_breakdown"
+  ],
+  "forbidden_claims": [
+    "Do not claim the LLM detected the anomaly",
+    "Do not invent facts not present in evidence payload"
+  ]
+}

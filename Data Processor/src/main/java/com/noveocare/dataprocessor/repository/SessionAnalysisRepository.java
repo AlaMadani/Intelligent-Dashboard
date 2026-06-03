@@ -24,6 +24,6 @@ public interface SessionAnalysisRepository extends JpaRepository<SessionAnalysis
     // Return the latest finalized sessions for dashboard cards.
     List<SessionAnalysis> findTop50ByOrderByCreatedAtDesc();
     // Return the highest-risk finalized sessions for the dashboard.
-    List<SessionAnalysis> findTop20ByOrderByEnsembleRiskScoreDescCreatedAtDesc();
+    List<SessionAnalysis> findTop20ByOrderByFinalRiskScoreDescCreatedAtDesc();
     Optional<SessionAnalysis> findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(String insuredId, String sessionId);
 }
