@@ -6,26 +6,25 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class VerificationEmailService {
 
-    private static final String EMAIL_TEMPLATE = "templates/email/auth-code-email.html";
-    private static final String EMAIL_STYLES = "templates/email/auth-code-email.css";
+    private static final String EMAIL_TEMPLATE = "email/auth-code-email";
 
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final SpringTemplateEngine templateEngine;
 
     @Value("${app.auth.verification.mail-enabled:false}")
     private boolean mailEnabled;
@@ -108,17 +107,16 @@ public class VerificationEmailService {
     }
 
     private String buildHtml(String fullName, String code, String title, String intro, String note) {
-        String safeName = escapeHtml(firstNonBlank(fullName, "there"));
-        String brandBlock = buildBrandBlock();
-
-        return loadResource(EMAIL_TEMPLATE)
-                .replace("{{styles}}", loadResource(EMAIL_STYLES))
-                .replace("{{brandBlock}}", brandBlock)
-                .replace("{{title}}", escapeHtml(title))
-                .replace("{{intro}}", escapeHtml(intro))
-                .replace("{{safeName}}", safeName)
-                .replace("{{code}}", code)
-                .replace("{{note}}", escapeHtml(note));
+        Context ctx = new Context();
+        ctx.setVariables(Map.of(
+                "safeName", escapeHtml(firstNonBlank(fullName, "there")),
+                "code", code,
+                "title", escapeHtml(title),
+                "intro", escapeHtml(intro),
+                "note", escapeHtml(note),
+                "brandBlock", buildBrandBlock()
+        ));
+        return templateEngine.process(EMAIL_TEMPLATE, ctx);
     }
 
     private String buildBrandBlock() {
@@ -129,14 +127,6 @@ public class VerificationEmailService {
                     + "\" alt=\"NoveoCare\" /></div>";
         }
         return "<div class=\"brand brand-text\">Noveo<span>Care</span></div>";
-    }
-
-    private String loadResource(String path) {
-        try (InputStream inputStream = new ClassPathResource(path).getInputStream()) {
-            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("Email resource not found: " + path, e);
-        }
     }
 
     private String firstNonBlank(String... values) {

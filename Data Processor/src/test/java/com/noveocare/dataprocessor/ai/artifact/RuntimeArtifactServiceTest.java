@@ -16,7 +16,7 @@ class RuntimeArtifactServiceTest {
 
         service.load();
 
-        assertThat(service.getManifest().getPackageType()).isEqualTo("springboot_runtime_artifacts_v3_6_1");
+        assertThat(service.getManifest().getPackageType()).isEqualTo("springboot_dataprocessor_runtime_artifacts_v3_6_3_self_contained_onnx");
         assertThat(service.getSequenceMetadata().getCatCols()).hasSize(15);
         assertThat(service.getSequenceMetadata().getContCols()).hasSize(9);
         assertThat(service.getSequenceMetadata().getWindowSize()).isEqualTo(10);

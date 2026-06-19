@@ -81,6 +81,7 @@ public class RiskFusionServiceV36 {
         return RiskFusionResult.builder()
                 .finalRiskScore(finalRisk)
                 .riskLevel(riskLevel(finalRisk))
+                .riskScale("ZERO_TO_ONE_HUNDRED")
                 .xgboostContribution(xgbContribution)
                 .lightgbmContribution(lgbmContribution)
                 .transformerContribution(transformerContribution)

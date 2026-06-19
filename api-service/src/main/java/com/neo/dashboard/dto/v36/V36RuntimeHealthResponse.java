@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,20 @@ public class V36RuntimeHealthResponse {
     private String message;
     private Map<String, V36ModelRuntimeStateDto> modelHealth;
     private List<String> warnings;
+    private Map<String, Object> sessionFinalization;
+    private Map<String, Object> kafka;
+    private Map<String, Object> idempotency;
+    private Map<String, Object> performance;
+    private Map<String, Object> modelLatency;
+    private Map<String, Object> stats;
+    private Map<String, Object> nextActionPrediction;
+    private String source;
+
+    public void ensureSessionFinalization(Map<String, Object> diag) {
+        if (diag != null && !diag.isEmpty()) {
+            this.sessionFinalization = diag;
+        }
+    }
 
     public static V36RuntimeHealthResponse unknown() {
         V36RuntimeHealthResponse response = new V36RuntimeHealthResponse();

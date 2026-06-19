@@ -24,15 +24,25 @@ import com.noveocare.dataprocessor.ai.tabular.TabularAnomalyFeatureService;
 import com.noveocare.dataprocessor.ai.tabular.TabularAnomalyFeatureVector;
 import com.noveocare.dataprocessor.ai.tabular.TabularAnomalyInferenceService;
 import com.noveocare.dataprocessor.ai.tabular.TabularAnomalyResult;
+import com.noveocare.dataprocessor.config.AiChurnProperties;
+import com.noveocare.dataprocessor.config.AiDiagnosticsProperties;
+import com.noveocare.dataprocessor.config.AiForecastProperties;
 import com.noveocare.dataprocessor.config.AiLlmExplanationProperties;
 import com.noveocare.dataprocessor.config.AiPersonaProperties;
 import com.noveocare.dataprocessor.config.AiRiskFusionProperties;
 import com.noveocare.dataprocessor.config.AiRiskScoringProperties;
 import com.noveocare.dataprocessor.config.AiSequenceProperties;
+import com.noveocare.dataprocessor.config.AiTabularAnomalyProperties;
+import com.noveocare.dataprocessor.config.InferenceConfigProperties;
+import com.noveocare.dataprocessor.inference.InferenceConfig;
+import com.noveocare.dataprocessor.inference.InferenceExecutorManager;
+import com.noveocare.dataprocessor.config.AiLiveSessionProperties;
 import com.noveocare.dataprocessor.config.CacheKeys;
 import com.noveocare.dataprocessor.config.FeatureEngineeringProperties;
+import com.noveocare.dataprocessor.config.InferenceConfigProperties;
 import com.noveocare.dataprocessor.config.KafkaConsumerProperties;
 import com.noveocare.dataprocessor.config.KafkaTopicProperties;
+import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RuleProperties;
 import com.noveocare.dataprocessor.dto.AnomalyAlert;
@@ -56,6 +66,11 @@ import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
 import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
 import com.noveocare.dataprocessor.service.DashboardSnapshotService;
+import com.noveocare.dataprocessor.service.EventIdempotencyService;
+import com.noveocare.dataprocessor.service.SessionRunningSummaryService;
+import com.noveocare.dataprocessor.service.SessionFinalizationOrchestrator;
+import com.noveocare.dataprocessor.service.SessionFinalizationService;
+import com.noveocare.dataprocessor.service.SessionRuleEvaluator;
 import com.noveocare.dataprocessor.service.StatisticsService;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -64,6 +79,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.Acknowledgment;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -78,6 +94,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -91,6 +108,8 @@ class DataprocessorV36SmokeTest {
     @Test
     void modelInferenceProcessesAuditEventThroughHybridPipelineWithoutLlmCall() {
         AiSequenceProperties sequenceProperties = new AiSequenceProperties();
+        sequenceProperties.setEnabled(true);
+        sequenceProperties.setTransformerEnabled(true);
         sequenceProperties.setMinContextEvents(1);
         AiRiskScoringProperties riskProperties = new AiRiskScoringProperties();
         SequencePreprocessingService preprocessingService = mock(SequencePreprocessingService.class);
@@ -107,9 +126,19 @@ class DataprocessorV36SmokeTest {
         ModelHealthService modelHealthService = mock(ModelHealthService.class);
         RedisCacheProperties redisProperties = redisProperties();
 
+        AiTabularAnomalyProperties tabularProps = new AiTabularAnomalyProperties();
+        AiChurnProperties churnProps = new AiChurnProperties();
+        AiForecastProperties forecastProps = new AiForecastProperties();
+
+        AiDiagnosticsProperties diagnosticsProps = new AiDiagnosticsProperties();
+
         ModelInferenceService service = new ModelInferenceService(
                 sequenceProperties,
                 riskProperties,
+                diagnosticsProps,
+                tabularProps,
+                churnProps,
+                forecastProps,
                 preprocessingService,
                 windowService,
                 onnxInferenceService,
@@ -123,10 +152,12 @@ class DataprocessorV36SmokeTest {
                 new PersonaRuntimeService(new AiPersonaProperties()),
                 churnInferenceService,
                 forecastRuntimeService,
-                new LlmEvidencePayloadService(new AiLlmExplanationProperties()),
+                new LlmEvidencePayloadService(new AiLlmExplanationProperties(), objectMapper),
                 redisCacheService,
                 redisProperties,
-                modelHealthService);
+                modelHealthService,
+                new InferenceConfig(new InferenceConfigProperties(), new AiTabularAnomalyProperties(), sequenceProperties, new AiChurnProperties(), new AiForecastProperties()),
+                new InferenceExecutorManager());
 
         SessionSummary summary = summary();
         AuditTrailEvent previousEvent = auditEvent("evt-prev", "VIEW_HOME", "/api/home", Instant.parse("2026-05-25T02:14:00Z"));
@@ -258,70 +289,66 @@ class DataprocessorV36SmokeTest {
         featureProperties.setSessionAlertRiskThreshold(60.0);
         KafkaTopicProperties topicProperties = new KafkaTopicProperties();
         KafkaConsumerProperties consumerProperties = new KafkaConsumerProperties();
+        SessionFinalizationService finalizationService = mock(SessionFinalizationService.class);
+        SessionFinalizationOrchestrator finalizationOrchestrator = mock(SessionFinalizationOrchestrator.class);
+        SessionRuleEvaluator ruleEvaluator = mock(SessionRuleEvaluator.class);
+        EventIdempotencyService idempotencyService = mock(EventIdempotencyService.class);
+        when(idempotencyService.tryMarkProcessing(any())).thenReturn(true);
+
+        AuditTrailEvent event = auditEvent("evt-current", "LOGOUT", "/api/documents/{id}/download", Instant.parse("2026-05-25T02:15:00Z"));
+        SessionSummary mockSummary = summary().toBuilder().lastAction("LOGOUT").build();
+        SessionInsight insight = persistedInsight();
+
+        SessionRunningSummaryService runningSummaryService = mock(SessionRunningSummaryService.class);
+        when(runningSummaryService.loadOrCreate(anyString(), anyString()))
+                .thenAnswer(inv -> new com.noveocare.dataprocessor.dto.SessionRunningSummary());
+        when(runningSummaryService.updateWithEvent(any(), any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(runningSummaryService.toLiveSessionSummary(any(), anyList()))
+                .thenReturn(mockSummary);
+
+        AiLiveSessionProperties liveSessionProps = new AiLiveSessionProperties();
+        liveSessionProps.setRecentEventsLimit(50);
         AuditTrailConsumer consumer = new AuditTrailConsumer(
                 objectMapper,
                 sessionBufferService,
                 featureEngineeringService,
                 modelInferenceService,
-                ruleProperties,
                 redisCacheService,
                 redisProperties(),
                 featureProperties,
                 statisticsService,
-                sessionAnalysisRepository,
-                alertPublisher,
-                velocityDetector,
-                geoJumpDetector,
                 dashboardSnapshotService,
                 kafkaTemplate,
                 topicProperties,
-                consumerProperties);
+                consumerProperties,
+                finalizationService,
+                finalizationOrchestrator,
+                ruleEvaluator,
+                idempotencyService,
+                new PerformanceProperties(),
+                runningSummaryService,
+                liveSessionProps);
 
-        AuditTrailEvent event = auditEvent("evt-current", "LOGOUT", "/api/documents/{id}/download", Instant.parse("2026-05-25T02:15:00Z"));
-        SessionSummary summary = summary().toBuilder().lastAction("LOGOUT").build();
-        SessionInsight insight = persistedInsight();
+        when(sessionBufferService.getRecentSessionEvents(event.getInsuredId(), event.getSessionId(), 50)).thenReturn(List.of(event));
         when(sessionBufferService.getSessionEvents(event.getInsuredId(), event.getSessionId())).thenReturn(List.of(event));
         when(featureEngineeringService.enrichSessionEvents(List.of(event))).thenReturn(List.of(event));
-        when(featureEngineeringService.buildSessionSummary(List.of(event))).thenReturn(summary);
-        when(modelInferenceService.infer(eq(summary), eq(List.of(event)), anyList(), anyLong())).thenReturn(insight);
+        when(featureEngineeringService.buildSessionSummary(List.of(event))).thenReturn(mockSummary);
+        when(modelInferenceService.infer(eq(mockSummary), eq(List.of(event)), anyList(), anyLong())).thenReturn(insight);
+        when(finalizationService.isExplicitSessionEnd(any(AuditTrailEvent.class))).thenReturn(true);
+        when(finalizationService.resolveEndReason(any(AuditTrailEvent.class))).thenReturn("explicit_logout");
         @SuppressWarnings("unchecked")
         Consumer<String, String> kafkaConsumer = mock(Consumer.class);
         when(kafkaConsumer.endOffsets(anySet())).thenReturn(Map.of(new TopicPartition("audit-trail", 0), 1L));
 
-        consumer.consume(new ConsumerRecord<>("audit-trail", 0, 0L, event.getInsuredId(), objectMapper.writeValueAsString(event)), kafkaConsumer);
+        Acknowledgment ack = mock(Acknowledgment.class);
+        consumer.consume(new ConsumerRecord<>("audit-trail", 0, 0L, event.getInsuredId(), objectMapper.writeValueAsString(event)), ack, kafkaConsumer);
 
         verify(sessionBufferService).appendEvent(any(AuditTrailEvent.class));
-        ArgumentCaptor<SessionAnalysis> analysisCaptor = ArgumentCaptor.forClass(SessionAnalysis.class);
-        verify(sessionAnalysisRepository).save(analysisCaptor.capture());
-        SessionAnalysis saved = analysisCaptor.getValue();
-        assertThat(saved.getV36RuntimeVersion()).isEqualTo("v3.6.1");
-        assertThat(saved.getFinalRiskScore()).isEqualTo(87.0);
-        assertThat(saved.getRiskLevel()).isEqualTo("CRITICAL");
-        assertThat(saved.getModelContributionsJson()).contains("\"xgboost\":27.3");
-        assertThat(saved.getInvestigationPayloadJson()).contains("\"schemaVersion\":\"v3.6.1\"");
-        assertThat(saved.getLlmExplanationEvidencePayloadJson()).contains("\"schemaVersion\":\"v3.6.1\"");
-
-        ArgumentCaptor<AnomalyAlert> alertCaptor = ArgumentCaptor.forClass(AnomalyAlert.class);
-        verify(alertPublisher).publish(alertCaptor.capture(), any());
-        AnomalyAlert alert = alertCaptor.getValue();
-        assertThat(alert.getSchemaVersion()).isEqualTo("v3.6.1");
-        assertThat(alert.getFinalRiskScore()).isEqualTo(87.0);
-        assertThat(alert.getModelScores()).containsEntry("xgboostAnomalyScore100", 91.0);
-        assertThat(alert.getModelContributions()).containsEntry("xgboost", 27.3);
-        assertThat(alert.getTriggeredRules()).contains("OFF_HOURS_ACCESS", "LARGE_DOWNLOAD");
-        assertThat(alert.getPersona()).containsEntry("enabled", false);
-        assertThat(alert.getLlmEvidencePayloadAvailable()).isTrue();
-        assertThat(alert.getLlmEvidencePayloadRedisKey()).isEqualTo(CacheKeys.alertLlmEvidenceKey("evt-current"));
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, Object>> liveAlertCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(redisCacheService).addToJsonList(eq(CacheKeys.liveAlertsV36Key()), liveAlertCaptor.capture(), any());
-        assertThat(liveAlertCaptor.getValue()).containsEntry("schemaVersion", "v3.6.1");
-        assertThat(liveAlertCaptor.getValue()).containsEntry("llmEvidencePayloadAvailable", true);
-        verify(redisCacheService).setJson(eq(CacheKeys.alertLlmEvidenceKey("evt-current")), any(), any());
-        verify(redisCacheService).setJson(eq(CacheKeys.alertInvestigationKey("evt-current")), any(), any());
-        verify(dashboardSnapshotService).refreshAll();
-        verify(dashboardSnapshotService).cacheSessionInsight(summary, insight);
+        verify(finalizationService).handleIncomingEvent(any(AuditTrailEvent.class));
+        verify(finalizationOrchestrator).completeFinalization(
+                eq(mockSummary), eq(insight), eq(List.of(event)), anyList(), eq("explicit_logout"), eq(true));
+        verify(dashboardSnapshotService).cacheSessionInsight(eq(mockSummary), eq(insight));
     }
 
     private RedisCacheProperties redisProperties() {

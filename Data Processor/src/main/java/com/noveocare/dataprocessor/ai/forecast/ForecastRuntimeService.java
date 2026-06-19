@@ -75,6 +75,13 @@ public class ForecastRuntimeService {
     }
 
     public ForecastPrediction forecast(LocalDate referenceDate) {
+        if (!forecastProperties.isEnabled()) {
+            return ForecastPrediction.builder()
+                    .referenceDate(referenceDate == null ? LocalDate.now(ZoneOffset.UTC) : referenceDate)
+                    .forecastDate(referenceDate == null ? LocalDate.now(ZoneOffset.UTC) : referenceDate)
+                    .warnings(List.of("forecast_disabled"))
+                    .build();
+        }
         LocalDate date = referenceDate == null ? LocalDate.now(ZoneOffset.UTC) : referenceDate;
         List<String> warnings = new ArrayList<>();
         warnings.addAll(loadWarnings);

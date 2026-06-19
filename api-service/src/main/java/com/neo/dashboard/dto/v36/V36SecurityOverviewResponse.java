@@ -30,4 +30,5 @@ public class V36SecurityOverviewResponse {
     private Map<String, Long> topTriggeredRules;
     private Map<String, Object> modelHealthSummary;
     private List<String> fieldCoverageWarnings;
+    private String source;
 }

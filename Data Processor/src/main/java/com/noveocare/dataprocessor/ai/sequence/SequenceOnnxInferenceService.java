@@ -8,6 +8,8 @@ import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 import ai.onnxruntime.TensorInfo;
 import com.noveocare.dataprocessor.ai.artifact.RuntimeArtifactService;
+import com.noveocare.dataprocessor.config.AiSequenceProperties;
+import com.noveocare.dataprocessor.inference.InferenceExecutorManager;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +29,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SequenceOnnxInferenceService {
 
+    private static final long MAX_SEQUENCE_INFERENCE_MS = 5000;
+
     private final RuntimeArtifactService artifactService;
+    private final AiSequenceProperties sequenceProperties;
+    private final InferenceExecutorManager executorManager;
 
     private OrtEnvironment environment;
     private LoadedSequenceSession transformer;
@@ -60,26 +67,58 @@ public class SequenceOnnxInferenceService {
         if (loaded == null || !loaded.available()) {
             throw new IllegalStateException("Sequence ONNX model unavailable: " + modelKind);
         }
+        try {
+            return runInference(loaded, window);
+        } catch (OrtException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public SequenceInferenceResult inferDirect(SequenceModelKind modelKind, SequenceWindow window) {
+        return infer(modelKind, window);
+    }
+
+    private SequenceInferenceResult runInference(LoadedSequenceSession loaded, SequenceWindow window) throws OrtException {
         long started = System.nanoTime();
-        try (OnnxTensor xCat = OnnxTensor.createTensor(environment, window.getXCat());
-             OnnxTensor xCont = OnnxTensor.createTensor(environment, window.getXCont());
-             OnnxTensor mask = OnnxTensor.createTensor(environment, window.getMask());
-             OrtSession.Result result = loaded.session().run(Map.of(
-                     "x_cat", xCat,
-                     "x_cont", xCont,
-                     "mask", mask))) {
+        OnnxTensor xCat = null;
+        OnnxTensor xCont = null;
+        OnnxTensor mask = null;
+        OrtSession.Result result = null;
+        try {
+            xCat = OnnxTensor.createTensor(environment, window.getXCat());
+            xCont = OnnxTensor.createTensor(environment, window.getXCont());
+            mask = OnnxTensor.createTensor(environment, window.getMask());
+            long tensorCreated = System.nanoTime();
+            long tensorCreateMs = (tensorCreated - started) / 1_000_000L;
+
+            result = loaded.session().run(Map.of("x_cat", xCat, "x_cont", xCont, "mask", mask));
+            long sessionRan = System.nanoTime();
+            long sessionRunMs = (sessionRan - tensorCreated) / 1_000_000L;
+
             ParsedOutputs parsedOutputs = parseOutputs(result);
-            long latencyMillis = (System.nanoTime() - started) / 1_000_000L;
+            long outputsExtracted = System.nanoTime();
+            long outputExtractMs = (outputsExtracted - sessionRan) / 1_000_000L;
+
+            long totalMs = (outputsExtracted - started) / 1_000_000L;
+
+            if (totalMs > 10) {
+                log.info("SEQUENCE_RUN_INFERENCE model={} tensorCreateMs={} sessionRunMs={} outputExtractMs={} totalMs={}",
+                        loaded.artifactName(), tensorCreateMs, sessionRunMs, outputExtractMs, totalMs);
+            }
+
             return SequenceInferenceResult.builder()
-                    .modelKind(modelKind)
+                    .modelKind(loaded.kind())
                     .modelArtifact(loaded.artifactName())
                     .categoricalLogits(parsedOutputs.categoricalLogits())
                     .continuousPrediction(parsedOutputs.continuousPrediction())
-                    .latencyMillis(latencyMillis)
+                    .latencyMillis(totalMs)
                     .outputMetadata(parsedOutputs.outputMetadata())
                     .build();
-        } catch (OrtException ex) {
-            throw new IllegalStateException("Sequence ONNX inference failed for " + loaded.artifactName(), ex);
+        } finally {
+            if (result != null) result.close();
+            if (xCat != null) xCat.close();
+            if (xCont != null) xCont.close();
+            if (mask != null) mask.close();
         }
     }
 
@@ -201,7 +240,7 @@ public class SequenceOnnxInferenceService {
         }
     }
 
-    private record LoadedSequenceSession(SequenceModelKind kind, String artifactName, OrtSession session, boolean available) {
+    record LoadedSequenceSession(SequenceModelKind kind, String artifactName, OrtSession session, boolean available) {
     }
 
     private record ParsedOutputs(List<float[]> categoricalLogits,

@@ -1,9 +1,119 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
-  <style>
-{{styles}}
+  <style th:inline="text">
+body {
+  margin: 0;
+  background: #f3f4f6;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  color: #111111;
+}
+.page {
+  background: #f3f4f6;
+  padding: 32px 12px;
+}
+.card {
+  max-width: 600px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+.header {
+  background: #ffffff;
+  padding: 40px 32px 30px;
+  border-bottom: 4px solid #e94b58;
+}
+.brand-wrap {
+  margin-bottom: 25px;
+}
+.brand {
+  display: inline-block;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.brand-logo img {
+  display: block;
+  max-width: 180px;
+  height: auto;
+  border: 0;
+}
+.brand-text {
+  font-size: 25px;
+  font-weight: 900;
+  color: #666666;
+}
+.brand-text span {
+  color: #e94b58;
+}
+.title {
+  color: #111111;
+  font-size: 35px;
+  font-weight: 200;
+  line-height: 1.2;
+}
+.intro {
+  margin-top: 10px;
+  color: #666666;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.content {
+  padding: 34px 32px 30px;
+}
+.content p {
+  margin: 0;
+  color: #666666;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.content strong {
+  color: #111111;
+}
+.copy {
+  margin-top: 12px;
+}
+.code-table {
+  margin: 30px 0 28px;
+}
+.code-cell {
+  padding: 24px 12px;
+  border: 2px dashed #e94b58;
+  border-radius: 10px;
+  background: #fff9f9;
+}
+.code {
+  display: inline-block;
+  color: #e94b58;
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: 10px;
+  line-height: 1;
+  font-family: "Courier New", Courier, monospace;
+}
+.note {
+  padding: 16px;
+  border-left: 4px solid #666666;
+  background: #f9f9f9;
+  color: #666666;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.footer {
+  padding: 24px 32px;
+  background: #ffffff;
+  border-top: 1px solid #f0f0f0;
+  color: #999999;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+.footer span {
+  color: #666666;
+}
   </style>
 </head>
 <body>
@@ -13,23 +123,23 @@
         <table role="presentation" class="card" width="100%" cellspacing="0" cellpadding="0">
           <tr>
             <td class="header">
-              <div class="brand-wrap">{{brandBlock}}</div>
-              <div class="title">{{title}}</div>
-              <div class="intro">{{intro}}</div>
+              <div class="brand-wrap" th:utext="${brandBlock}"/>
+              <div class="title" th:text="${title}">Verify your email</div>
+              <div class="intro" th:text="${intro}">Use the code below to verify.</div>
             </td>
           </tr>
           <tr>
             <td class="content">
-              <p>Hi <strong>{{safeName}}</strong>,</p>
+              <p>Hi <strong th:text="${safeName}">User</strong>,</p>
               <p class="copy">Enter this 6-digit code in the verification screen:</p>
               <table role="presentation" class="code-table" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td align="center" class="code-cell">
-                    <div class="code">{{code}}</div>
+                    <div class="code" th:text="${code}">000000</div>
                   </td>
                 </tr>
               </table>
-              <div class="note">{{note}}</div>
+              <div class="note" th:text="${note}">This code expires in 5 minutes.</div>
             </td>
           </tr>
           <tr>

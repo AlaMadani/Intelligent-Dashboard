@@ -20,4 +20,5 @@ public class RedisCacheProperties {
     private Duration sessionInsight;
     private Duration dashboard;
     private Duration forecast;
+    private Duration processedEvent;
 }

@@ -20,12 +20,14 @@ public class V36LlmEvidencePayloadDto {
     private String sessionId;
     private Map<String, Object> risk;
     private V36ModelScoresDto modelScores;
+    private V36ModelContributionsDto modelContributions;
     private V36SequenceEvidenceDto sequenceEvidence;
     private V36TabularEvidenceDto tabularEvidence;
     private V36RuleEvidenceDto ruleEvidence;
     private V36AnomalyTypeAttributionDto anomalyTypeAttribution;
     private V36ChurnContextDto churnContext;
     private V36ForecastContextDto forecastContext;
+    private Map<String, Object> eventMetadata;
     private Map<String, Object> llmInstruction;
     private Boolean llmExplanationInDataprocessor;
     private JsonNode rawPayload;

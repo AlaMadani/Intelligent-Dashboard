@@ -170,3 +170,32 @@ databaseChangeLog:
              relativeToChangelogFile: false
              splitStatements: true
              stripComments: false
+  - changeSet:
+      id: add_dashboard_refresh_indexes-v19
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V19__add_dashboard_refresh_indexes.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+
+  - changeSet:
+      id: add_dashboard_snapshots-v20
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V20__add_dashboard_snapshots.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false
+
+  - changeSet:
+      id: add_llm_explanations-v21
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V21__add_llm_explanations.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

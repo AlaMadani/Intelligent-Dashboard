@@ -1,0 +1,20 @@
+# Ignore build directories
+target/
+build/
+out/
+
+# Ignore IDE settings
+.idea/
+*.iml
+.settings/
+.classpath
+.project
+
+# Ignore Maven/Gradle wrappers
+.mvn/
+.gradle/
+gradlew
+gradlew.bat
+
+# Ignore logs
+*.log

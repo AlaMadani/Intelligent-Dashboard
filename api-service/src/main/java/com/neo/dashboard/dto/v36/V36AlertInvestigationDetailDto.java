@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -49,4 +50,20 @@ public class V36AlertInvestigationDetailDto {
     private String source;
     private List<String> warnings;
     private JsonNode rawPayload;
+    private String sessionEndReason;
+    private Boolean sessionEndedExplicitly;
+    private Instant sessionEndedAt;
+    private Long sessionDurationMs;
+    private Integer sessionEventCount;
+    private Map<String, Object> sessionLifecycle;
+
+    public void buildSessionLifecycle() {
+        Map<String, Object> lifecycle = new LinkedHashMap<>();
+        if (sessionEndReason != null) lifecycle.put("sessionEndReason", sessionEndReason);
+        if (sessionEndedExplicitly != null) lifecycle.put("sessionEndedExplicitly", sessionEndedExplicitly);
+        if (sessionEndedAt != null) lifecycle.put("sessionEndedAt", sessionEndedAt.toString());
+        if (sessionDurationMs != null) lifecycle.put("sessionDurationMs", sessionDurationMs);
+        if (sessionEventCount != null) lifecycle.put("sessionEventCount", sessionEventCount);
+        this.sessionLifecycle = lifecycle.isEmpty() ? null : lifecycle;
+    }
 }

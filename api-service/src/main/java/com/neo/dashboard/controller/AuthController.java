@@ -4,6 +4,7 @@ import com.neo.dashboard.dto.AuthResponse;
 import com.neo.dashboard.dto.EmailVerificationRequest;
 import com.neo.dashboard.dto.ForgotPasswordRequest;
 import com.neo.dashboard.dto.PasswordResetConfirmRequest;
+import com.neo.dashboard.dto.ResendVerificationRequest;
 import com.neo.dashboard.dto.PasswordResetVerifyRequest;
 import com.neo.dashboard.dto.SignInRequest;
 import com.neo.dashboard.dto.SignUpRequest;
@@ -44,7 +45,7 @@ public class AuthController {
     }
 
     @PostMapping("/resend-verification")
-    public AuthResponse resendVerificationCode(@Valid @RequestBody ForgotPasswordRequest request) {
+    public AuthResponse resendVerificationCode(@Valid @RequestBody ResendVerificationRequest request) {
         return authService.resendVerificationCode(request);
     }
 

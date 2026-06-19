@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -117,26 +118,37 @@ public class V36RedisReadService {
             return List.of();
         }
         int normalizedLimit = normalizeLimit(limit);
-        Set<String> ordered = new LinkedHashSet<>();
+        List<String> rawList = List.of();
         try {
             List<String> listItems = redisTemplate.opsForList().range(key, 0, normalizedLimit - 1);
             if (listItems != null) {
-                ordered.addAll(listItems.stream().filter(this::hasText).toList());
+                rawList = listItems.stream().filter(this::hasText).toList();
             }
         } catch (Exception e) {
             log.debug("Redis key={} is not readable as list", key, e);
         }
-        if (!ordered.isEmpty()) {
-            return List.copyOf(ordered);
-        }
-
-        try {
-            Set<String> zsetItems = redisTemplate.opsForZSet().reverseRange(key, 0, normalizedLimit - 1);
-            if (zsetItems != null) {
-                ordered.addAll(zsetItems.stream().filter(this::hasText).toList());
+        if (rawList.isEmpty()) {
+            try {
+                Set<String> zsetItems = redisTemplate.opsForZSet().reverseRange(key, 0, normalizedLimit - 1);
+                if (zsetItems != null) {
+                    rawList = List.copyOf(zsetItems.stream().filter(this::hasText).toList());
+                }
+            } catch (Exception e) {
+                log.debug("Redis key={} is not readable as sorted set", key, e);
             }
-        } catch (Exception e) {
-            log.debug("Redis key={} is not readable as sorted set", key, e);
+        }
+        if (rawList.isEmpty()) {
+            return List.of();
+        }
+        Set<String> ordered = new LinkedHashSet<>();
+        AtomicInteger duplicateCount = new AtomicInteger(0);
+        for (String item : rawList) {
+            if (!ordered.add(item)) {
+                duplicateCount.incrementAndGet();
+            }
+        }
+        if (duplicateCount.get() > 0) {
+            log.warn("Redis key={} contains {} duplicate items (read-side protection)", key, duplicateCount.get());
         }
         return List.copyOf(ordered);
     }

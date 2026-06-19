@@ -9,11 +9,17 @@ import com.neo.dashboard.repository.AnomalyEventRepository;
 import com.neo.dashboard.repository.SessionAnalysisRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class LlmEvidenceReadServiceTest {
@@ -28,6 +34,7 @@ class LlmEvidenceReadServiceTest {
     @BeforeEach
     void setUp() {
         service = new LlmEvidenceReadService(redisReadService, anomalyEventRepository, sessionAnalysisRepository, objectMapper);
+        ReflectionTestUtils.setField(service, "evidenceRehydrateTtlHours", 24L);
     }
 
     @Test
@@ -39,10 +46,11 @@ class LlmEvidenceReadServiceTest {
 
         assertThat(result).isPresent();
         assertThat(result.orElseThrow().path("eventId").asText()).isEqualTo("evt-1");
+        verify(redisReadService, never()).writeJson(any(), any(), any());
     }
 
     @Test
-    void evidenceFallsBackToSqlSessionPayload() {
+    void evidenceFallsBackToSqlSessionPayloadAndRehydratesRedis() {
         when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-2"))).thenReturn(Optional.empty());
         AnomalyEvent anomaly = new AnomalyEvent();
         anomaly.setEventId("evt-2");
@@ -58,6 +66,7 @@ class LlmEvidenceReadServiceTest {
 
         assertThat(result).isPresent();
         assertThat(result.orElseThrow().path("schemaVersion").asText()).isEqualTo("v3.6.1");
+        verify(redisReadService).writeJson(eq(CacheKeys.alertLlmEvidenceKey("evt-2")), any(JsonNode.class), any(Duration.class));
     }
 
     @Test
@@ -69,6 +78,35 @@ class LlmEvidenceReadServiceTest {
         when(anomalyEventRepository.findTopByEventIdOrderByDetectedAtDesc("evt-3")).thenReturn(Optional.of(anomaly));
 
         Optional<JsonNode> result = service.readEvidence("evt-3");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void evidenceHashUsesExistingFieldWhenPresent() throws Exception {
+        JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"evidenceHash\":\"abcdef1234567890abcdef1234567890\"}");
+
+        String hash = service.evidenceHash(evidence);
+
+        assertThat(hash).isEqualTo("abcdef1234567890abcdef1234567890");
+    }
+
+    @Test
+    void evidenceHashComputesWhenFieldMissing() throws Exception {
+        JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-5\"}");
+
+        String hash = service.evidenceHash(evidence);
+
+        assertThat(hash).hasSize(16);
+        assertThat(hash).isAlphanumeric();
+    }
+
+    @Test
+    void bothEvidenceSourcesMissingReturnsEmpty() {
+        when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-6"))).thenReturn(Optional.empty());
+        when(anomalyEventRepository.findTopByEventIdOrderByDetectedAtDesc("evt-6")).thenReturn(Optional.empty());
+
+        Optional<JsonNode> result = service.readEvidence("evt-6");
 
         assertThat(result).isEmpty();
     }

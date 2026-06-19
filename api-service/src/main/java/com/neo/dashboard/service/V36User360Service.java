@@ -79,13 +79,15 @@ public class V36User360Service {
         ));
         response.setChurn(Map.of(
                 "probability", numeric(node, "churnProbability"),
-                "riskLevel", text(node, "churnRiskLevel", "UNKNOWN")
+                "riskLevel", text(node, "churnRiskLevel", "UNKNOWN"),
+                "source", "redis"
         ));
-        response.setRisk(Map.of(
-                "averageRiskScoreLast30d", numeric(node, "averageRiskScoreLast30d"),
-                "alertCountLast30d", node.path("alertCountLast30d").asInt(0),
-                "criticalAlertCountLast30d", node.path("criticalAlertCountLast30d").asInt(0)
-        ));
+        Map<String, Object> risk = new LinkedHashMap<>();
+        risk.put("averageRiskScoreLast30d", numeric(node, "averageRiskScoreLast30d"));
+        risk.put("alertCountLast30d", node.path("alertCountLast30d").asInt(0));
+        risk.put("criticalAlertCountLast30d", node.path("criticalAlertCountLast30d").asInt(0));
+        risk.put("source", "redis");
+        response.setRisk(risk);
         Map<String, Object> baseline = new LinkedHashMap<>();
         baseline.put("usualCountry", text(node, "usualCountry", null));
         baseline.put("usualDevice", text(node, "usualDevice", null));
@@ -105,40 +107,49 @@ public class V36User360Service {
         V36User360Response response = new V36User360Response();
         response.setInsuredId(insuredId);
         response.setPersona(new V36PersonaDisabledDto(false, -1, "persona_disabled", "disabled_v3_6_refactor", null));
-        response.setChurn(Map.of(
-                "probability", recentSessions.stream()
-                        .map(SessionAnalysis::getChurnProbability)
-                        .filter(value -> value != null)
-                        .findFirst()
-                        .orElse(0.0),
-                "riskLevel", recentSessions.stream()
-                        .map(SessionAnalysis::getChurnRiskLevel)
-                        .filter(this::hasText)
-                        .findFirst()
-                        .orElse("UNKNOWN")
-        ));
-        response.setRisk(Map.of(
-                "averageRiskScoreLast30d", recentSessions.stream()
-                        .mapToDouble(s -> nullSafe(s.getFinalRiskScore()))
-                        .average()
-                        .orElse(0.0),
-                "alertCountLast30d", (int) anomalies.stream()
-                        .filter(a -> a.getAnomalyFlag() != null && a.getAnomalyFlag())
-                        .count(),
-                "criticalAlertCountLast30d", (int) anomalies.stream()
-                        .filter(a -> "CRITICAL".equalsIgnoreCase(a.getAnomalyTier()))
-                        .count()
-        ));
+        Map<String, Object> churn = new LinkedHashMap<>();
+        churn.put("probability", recentSessions.stream()
+                .map(SessionAnalysis::getChurnProbability)
+                .filter(value -> value != null)
+                .findFirst()
+                .orElse(0.0));
+        churn.put("riskLevel", recentSessions.stream()
+                .map(SessionAnalysis::getChurnRiskLevel)
+                .filter(this::hasText)
+                .findFirst()
+                .orElse("UNKNOWN"));
+        churn.put("source", "sql_fallback");
+        churn.put("warning", "SQL historical rows may contain pre-correction data; TCN scores before Level-E may be inflated");
+        response.setChurn(churn);
+        Map<String, Object> risk = new LinkedHashMap<>();
+        risk.put("averageRiskScoreLast30d", recentSessions.stream()
+                .mapToDouble(s -> nullSafe(s.getFinalRiskScore()))
+                .average()
+                .orElse(0.0));
+        risk.put("alertCountLast30d", (int) anomalies.stream()
+                .filter(a -> a.getAnomalyFlag() != null && a.getAnomalyFlag())
+                .count());
+        risk.put("criticalAlertCountLast30d", (int) anomalies.stream()
+                .filter(a -> "CRITICAL".equalsIgnoreCase(a.getAnomalyTier()))
+                .count());
+        risk.put("source", "sql_fallback");
+        risk.put("warning", "SQL historical rows may contain pre-correction data; TCN scores before Level-E may be inflated");
+        response.setRisk(risk);
         Map<String, Object> baseline = new LinkedHashMap<>();
         baseline.put("usualCountry", recentSessions.stream().map(SessionAnalysis::getCountryCode).filter(this::hasText).findFirst().orElse(null));
         baseline.put("usualDevice", null);
         baseline.put("usualBrowser", null);
         baseline.put("usualActiveHours", "n/a");
         baseline.put("topApiFamilies", List.of());
+        baseline.put("source", "sql_fallback");
         response.setBaseline(baseline);
         response.setRecentSessions(recentSessions.stream()
                 .limit(10)
-                .map(session -> objectMapper.convertValue(session, new TypeReference<Map<String, Object>>() { }))
+                .map(session -> {
+                    Map<String, Object> item = objectMapper.convertValue(session, new TypeReference<Map<String, Object>>() { });
+                    item.put("source", "sql_fallback");
+                    return item;
+                })
                 .toList());
         response.setRiskTimeline(anomalies.stream()
                 .limit(10)
@@ -148,6 +159,8 @@ public class V36User360Service {
                     point.put("finalRiskScore", anomaly.getFinalRiskScore());
                     point.put("riskLevel", anomaly.getAnomalyTier());
                     point.put("eventId", anomaly.getEventId());
+                    point.put("source", "sql_fallback");
+                    point.put("warning", "SQL historical rows may contain pre-correction data");
                     return point;
                 })
                 .toList());

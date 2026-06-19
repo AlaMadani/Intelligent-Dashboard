@@ -9,6 +9,7 @@ import com.neo.dashboard.dto.v36.V36AnomalyTypeAttributionDto;
 import com.neo.dashboard.dto.v36.V36ChurnContextDto;
 import com.neo.dashboard.dto.v36.V36ForecastContextDto;
 import com.neo.dashboard.dto.v36.V36LiveAlertSummaryDto;
+import com.neo.dashboard.dto.v36.V36LlmEvidencePayloadDto;
 import com.neo.dashboard.dto.v36.V36ModelContributionsDto;
 import com.neo.dashboard.dto.v36.V36ModelScoresDto;
 import com.neo.dashboard.dto.v36.V36PersonaDisabledDto;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,20 +49,37 @@ public class V36AlertService {
     private final AnomalyEventRepository anomalyEventRepository;
     private final SessionAnalysisRepository sessionAnalysisRepository;
     private final ObjectMapper objectMapper;
+    private final DashboardSnapshotFallbackService snapshotFallbackService;
+    private final LlmEvidenceReadService evidenceReadService;
 
     public ApiPageResponse<V36LiveAlertSummaryDto> getLiveAlerts(String riskLevel,
-                                                                 String anomalyType,
-                                                                 String insuredId,
-                                                                 String sessionId,
-                                                                 Instant from,
-                                                                 Instant to,
-                                                                 int limit,
-                                                                 int offset) {
+                                                                  String anomalyType,
+                                                                  String insuredId,
+                                                                  String sessionId,
+                                                                  Instant from,
+                                                                  Instant to,
+                                                                  int limit,
+                                                                  int offset) {
         List<V36LiveAlertSummaryDto> redisAlerts = readAlertList(CacheKeys.ALERTS_LIVE_V36, limit + offset);
         if (!redisAlerts.isEmpty()) {
             List<V36LiveAlertSummaryDto> filtered = filterAlerts(redisAlerts, riskLevel, anomalyType, insuredId, sessionId, from, to);
             return page(filtered, limit, offset);
         }
+
+        List<V36LiveAlertSummaryDto> snapshotAlerts = snapshotFallbackService
+                .readListFromSql(V36LiveAlertSummaryDto.class, "alerts", "alerts:latest", normalizeLimit(limit) + Math.max(offset, 0));
+        if (!snapshotAlerts.isEmpty()) {
+            List<V36LiveAlertSummaryDto> processed = snapshotAlerts.stream()
+                    .peek(a -> { if (!hasText(a.getSource())) a.setSource("sql_fallback"); })
+                    .map(this::normalizeAlert)
+                    .map(this::hydrateAlertFields)
+                    .toList();
+            List<V36LiveAlertSummaryDto> deduped = deduplicateByEventIdWithRichness(processed);
+            List<V36LiveAlertSummaryDto> hydrated = hydrateLiveAlertsFromStoredPayloads(deduped);
+            List<V36LiveAlertSummaryDto> filtered = filterAlerts(hydrated, riskLevel, anomalyType, insuredId, sessionId, from, to);
+            return page(filtered, limit, offset);
+        }
+
         return getSqlAlerts(riskLevel, anomalyType, insuredId, sessionId, from, to, limit, offset);
     }
 
@@ -90,7 +109,8 @@ public class V36AlertService {
     public V36AlertInvestigationDetailDto getAlertDetail(String eventId) {
         Optional<V36AlertInvestigationDetailDto> redisDetail = redisReadService
                 .readValue(CacheKeys.alertInvestigationKey(eventId), V36AlertInvestigationDetailDto.class)
-                .map(this::normalizeInvestigation);
+                .map(this::normalizeInvestigation)
+                .map(detail -> hydrateEvidenceFields(detail, eventId));
         if (redisDetail.isPresent()) {
             return redisDetail.get();
         }
@@ -110,7 +130,7 @@ public class V36AlertService {
             if (detail.getAnomalyDbId() == null) {
                 detail.setAnomalyDbId(anomaly.getId());
             }
-            return normalizeInvestigation(detail);
+            return hydrateEvidenceFields(hydrateDetailTimestamp(normalizeInvestigation(detail), anomaly), eventId);
         }
 
         SessionAnalysis session = sessionAnalysisRepository
@@ -129,15 +149,75 @@ public class V36AlertService {
                 if (detail.getAnomalyDbId() == null) {
                     detail.setAnomalyDbId(anomaly.getId());
                 }
-                return normalizeInvestigation(detail);
+                return hydrateEvidenceFields(hydrateDetailTimestamp(normalizeInvestigation(detail), anomaly), eventId);
             }
         }
 
-        return buildInvestigationFromSql(anomaly, session);
+        return hydrateEvidenceFields(buildInvestigationFromSql(anomaly, session), eventId);
+    }
+
+    private V36AlertInvestigationDetailDto hydrateEvidenceFields(V36AlertInvestigationDetailDto detail, String eventId) {
+        if (detail == null) {
+            return null;
+        }
+        boolean needsHydration = detail.getSequenceEvidence() == null
+                || detail.getTabularEvidence() == null
+                || detail.getRuleEvidence() == null
+                || detail.getChurnContext() == null
+                || detail.getForecastContext() == null;
+        if (!needsHydration) {
+            return detail;
+        }
+        try {
+            evidenceReadService.readEvidence(eventId).ifPresent(evidence -> {
+                try {
+                    V36LlmEvidencePayloadDto evidencePayload = objectMapper.treeToValue(evidence, V36LlmEvidencePayloadDto.class);
+                    if (detail.getSequenceEvidence() == null && evidencePayload.getSequenceEvidence() != null) {
+                        detail.setSequenceEvidence(evidencePayload.getSequenceEvidence());
+                    }
+                    if (detail.getTabularEvidence() == null && evidencePayload.getTabularEvidence() != null) {
+                        detail.setTabularEvidence(evidencePayload.getTabularEvidence());
+                    }
+                    if (detail.getRuleEvidence() == null && evidencePayload.getRuleEvidence() != null) {
+                        detail.setRuleEvidence(evidencePayload.getRuleEvidence());
+                    }
+                    if (detail.getChurnContext() == null && evidencePayload.getChurnContext() != null) {
+                        detail.setChurnContext(evidencePayload.getChurnContext());
+                    }
+                    if (detail.getForecastContext() == null && evidencePayload.getForecastContext() != null) {
+                        detail.setForecastContext(evidencePayload.getForecastContext());
+                    }
+                    if (detail.getAnomalyTypeAttribution() == null && evidencePayload.getAnomalyTypeAttribution() != null) {
+                        detail.setAnomalyTypeAttribution(evidencePayload.getAnomalyTypeAttribution());
+                    }
+                    if (detail.getModelScores() == null && evidencePayload.getModelScores() != null) {
+                        detail.setModelScores(evidencePayload.getModelScores());
+                    }
+                    if (detail.getModelContributions() == null && evidencePayload.getModelContributions() != null) {
+                        detail.setModelContributions(evidencePayload.getModelContributions());
+                    }
+                    if (detail.getEventMetadata() == null && evidencePayload.getEventMetadata() != null) {
+                        detail.setEventMetadata(evidencePayload.getEventMetadata());
+                    }
+                } catch (Exception e) {
+                    log.debug("Failed to hydrate evidence fields from payload for eventId={}", eventId, e);
+                }
+            });
+        } catch (Exception e) {
+            log.debug("Failed to read evidence for eventId={}", eventId, e);
+        }
+        return detail;
+    }
+
+    private V36AlertInvestigationDetailDto hydrateDetailTimestamp(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly) {
+        if (detail != null && detail.getTimestamp() == null && anomaly != null) {
+            detail.setTimestamp(firstNonNull(anomaly.getEventTime(), anomaly.getDetectedAt()));
+        }
+        return detail;
     }
 
     private List<V36LiveAlertSummaryDto> readAlertList(String key, int limit) {
-        return redisReadService.readItems(key, V36LiveAlertSummaryDto.class, normalizeLimit(limit)).stream()
+        List<V36LiveAlertSummaryDto> alerts = redisReadService.readItems(key, V36LiveAlertSummaryDto.class, normalizeLimit(limit)).stream()
                 .map(alert -> {
                     if (!hasText(alert.getSource())) {
                         alert.setSource("redis");
@@ -145,6 +225,67 @@ public class V36AlertService {
                     return normalizeAlert(alert);
                 })
                 .toList();
+        List<V36LiveAlertSummaryDto> deduped = deduplicateByEventIdWithRichness(alerts);
+        List<V36LiveAlertSummaryDto> hydrated = deduped.stream().map(this::hydrateAlertFields).toList();
+        return hydrateLiveAlertsFromStoredPayloads(hydrated);
+    }
+
+    private List<V36LiveAlertSummaryDto> deduplicateByEventIdWithRichness(List<V36LiveAlertSummaryDto> alerts) {
+        if (alerts == null || alerts.size() <= 1) {
+            return alerts;
+        }
+        Map<String, V36LiveAlertSummaryDto> best = new LinkedHashMap<>();
+        int duplicateCount = 0;
+        for (V36LiveAlertSummaryDto alert : alerts) {
+            String eventId = alert.getEventId();
+            if (eventId == null) {
+                continue;
+            }
+            V36LiveAlertSummaryDto existing = best.get(eventId);
+            if (existing == null) {
+                best.put(eventId, alert);
+            } else {
+                duplicateCount++;
+                if (computeRichnessScore(alert) > computeRichnessScore(existing)) {
+                    best.put(eventId, alert);
+                }
+            }
+        }
+        if (duplicateCount > 0) {
+            log.warn("Duplicate alert rows deduplicated by eventId (kept richest): {}", duplicateCount);
+        }
+        return List.copyOf(best.values());
+    }
+
+    private int computeRichnessScore(V36LiveAlertSummaryDto a) {
+        int score = 0;
+        if (hasText(a.getRiskLevel())) score += 10;
+        if (a.getTimestamp() != null) score += 10;
+        if (hasText(a.getEventAction())) score += 8;
+        if (a.getFinalRiskScore() != null) score += 5;
+        if (hasText(a.getAnomalyType())) score += 5;
+        if (hasText(a.getApiTemplate())) score += 5;
+        if (hasText(a.getApiFamily())) score += 5;
+        if (hasText(a.getController())) score += 5;
+        if (hasText(a.getPage())) score += 5;
+        if (hasText(a.getCountry())) score += 5;
+        if (hasText(a.getDevice())) score += 5;
+        if (hasText(a.getBrowser())) score += 5;
+        if (hasText(a.getOs())) score += 5;
+        if (hasText(a.getHttpMethod())) score += 5;
+        if (hasText(a.getStatus())) score += 5;
+        if (a.getXgboostAnomalyScore100() != null) score += 8;
+        if (a.getLightgbmAlertScore100() != null) score += 8;
+        if (a.getTransformerRiskScore100() != null) score += 8;
+        if (a.getTcnRiskScore100() != null) score += 8;
+        if (a.getModelContributions() != null) score += 8;
+        if (a.getTriggeredRuleCodes() != null && !a.getTriggeredRuleCodes().isEmpty()) score += 8;
+        if (a.getChurnProbability() != null) score += 5;
+        if (hasText(a.getChurnRiskLevel())) score += 5;
+        if (hasText(a.getPersonaLabel()) && !"persona_disabled".equals(a.getPersonaLabel())) score += 3;
+        if (Boolean.TRUE.equals(a.getLlmEvidencePayloadAvailable())) score += 3;
+        if (hasText(a.getAlertStatus())) score += 2;
+        return score;
     }
 
     private ApiPageResponse<V36LiveAlertSummaryDto> getSqlAlerts(String riskLevel,
@@ -284,6 +425,14 @@ public class V36AlertService {
         detail.setLlmEvidenceRedisKey(CacheKeys.alertLlmEvidenceKey(anomaly.getEventId()));
         detail.setSource("sql");
         detail.setRawPayload(parseJson(firstText(anomaly.getInvestigationPayloadJson(), session == null ? null : session.getInvestigationPayloadJson())));
+        enrichSessionLifecycleFromPayload(detail, anomaly.getInvestigationPayloadJson());
+        enrichSessionLifecycleFromPayload(detail, session == null ? null : session.getInvestigationPayloadJson());
+        if (session != null && session.getSessionDurationSeconds() != null) {
+            detail.setSessionDurationMs(session.getSessionDurationSeconds() * 1000L);
+        }
+        if (session != null && session.getTotalEvents() != null) {
+            detail.setSessionEventCount(session.getTotalEvents());
+        }
         return normalizeInvestigation(detail);
     }
 
@@ -390,6 +539,79 @@ public class V36AlertService {
         return dto;
     }
 
+    private void populateSessionLifecycle(V36AlertInvestigationDetailDto detail) {
+        detail.buildSessionLifecycle();
+    }
+
+    private void enrichSessionLifecycleFromPayload(V36AlertInvestigationDetailDto detail, String payloadJson) {
+        if (!hasText(payloadJson)) {
+            return;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(payloadJson);
+            if (node == null || !node.isObject()) {
+                return;
+            }
+            if (detail.getSessionEndReason() == null) {
+                detail.setSessionEndReason(textAt(node, "sessionEndReason"));
+            }
+            if (detail.getSessionEndedExplicitly() == null && node.has("sessionEndedExplicitly")) {
+                detail.setSessionEndedExplicitly(node.path("sessionEndedExplicitly").asBoolean(false));
+            }
+            if (detail.getSessionEndedAt() == null && node.has("sessionEndedAt")) {
+                String endedAt = node.path("sessionEndedAt").asText(null);
+                if (endedAt != null) {
+                    try {
+                        detail.setSessionEndedAt(Instant.parse(endedAt));
+                    } catch (Exception ignored) {}
+                }
+            }
+            if (detail.getSessionDurationMs() == null && node.has("sessionDurationMs")) {
+                detail.setSessionDurationMs(node.path("sessionDurationMs").asLong(0));
+            }
+            if (detail.getSessionEventCount() == null && node.has("sessionEventCount")) {
+                detail.setSessionEventCount(node.path("sessionEventCount").asInt(0));
+            }
+            JsonNode lifecycle = node.path("sessionLifecycle");
+            if (lifecycle.isObject() && detail.getSessionLifecycle() == null) {
+                try {
+                    Map<String, Object> lcMap = objectMapper.convertValue(lifecycle, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                    if (!lcMap.isEmpty()) {
+                        detail.setSessionLifecycle(lcMap);
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (detail.getRuntimeWarnings() == null || detail.getRuntimeWarnings().isEmpty()) {
+                JsonNode warnings = node.path("runtimeWarnings");
+                if (warnings.isArray()) {
+                    List<String> runtimeWarnings = objectMapper.convertValue(warnings, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+                    detail.setRuntimeWarnings(runtimeWarnings);
+                }
+            }
+            JsonNode modelScoresNode = node.path("modelScores");
+            if (modelScoresNode.isObject() && detail.getModelScores() == null) {
+                try {
+                    detail.setModelScores(objectMapper.treeToValue(modelScoresNode, com.neo.dashboard.dto.v36.V36ModelScoresDto.class));
+                } catch (Exception ignored) {}
+            }
+            JsonNode modelContributionsNode = node.path("modelContributions");
+            if (modelContributionsNode.isObject() && detail.getModelContributions() == null) {
+                try {
+                    detail.setModelContributions(objectMapper.treeToValue(modelContributionsNode, com.neo.dashboard.dto.v36.V36ModelContributionsDto.class));
+                } catch (Exception ignored) {}
+            }
+            if (detail.getTriggeredRules() == null || detail.getTriggeredRules().isEmpty()) {
+                JsonNode rules = node.path("triggeredRules");
+                if (rules.isArray()) {
+                    List<String> triggeredRules = objectMapper.convertValue(rules, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+                    detail.setTriggeredRules(triggeredRules);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to enrich session lifecycle from payload", e);
+        }
+    }
+
     private Optional<V36AlertInvestigationDetailDto> parseInvestigationPayload(String payload) {
         if (!hasText(payload)) {
             return Optional.empty();
@@ -422,7 +644,38 @@ public class V36AlertService {
         if (!hasText(detail.getSource())) {
             detail.setSource("redis");
         }
+        extractSessionLifecycleFromNested(detail);
+        populateSessionLifecycle(detail);
         return detail;
+    }
+
+    private void extractSessionLifecycleFromNested(V36AlertInvestigationDetailDto detail) {
+        Map<String, Object> lifecycle = detail.getSessionLifecycle();
+        if (lifecycle == null || lifecycle.isEmpty()) {
+            return;
+        }
+        if (detail.getSessionEndReason() == null && lifecycle.get("sessionEndReason") instanceof String reason) {
+            detail.setSessionEndReason(reason);
+        }
+        if (detail.getSessionEndedExplicitly() == null && lifecycle.get("sessionEndedExplicitly") instanceof Boolean explicit) {
+            detail.setSessionEndedExplicitly(explicit);
+        }
+        if (detail.getSessionEndedAt() == null) {
+            Object endedAt = lifecycle.get("sessionEndedAt");
+            if (endedAt instanceof String text) {
+                try {
+                    detail.setSessionEndedAt(Instant.parse(text));
+                } catch (Exception ignored) {}
+            } else if (endedAt instanceof Instant instant) {
+                detail.setSessionEndedAt(instant);
+            }
+        }
+        if (detail.getSessionDurationMs() == null && lifecycle.get("sessionDurationMs") instanceof Number dur) {
+            detail.setSessionDurationMs(dur.longValue());
+        }
+        if (detail.getSessionEventCount() == null && lifecycle.get("sessionEventCount") instanceof Number count) {
+            detail.setSessionEventCount(count.intValue());
+        }
     }
 
     private V36LiveAlertSummaryDto normalizeAlert(V36LiveAlertSummaryDto alert) {
@@ -440,9 +693,352 @@ public class V36AlertService {
             alert.setPersonaLabel("persona_disabled");
         }
         if (alert.getWarnings() == null) {
-            alert.setWarnings(List.of());
+            alert.setWarnings(new ArrayList<>());
         }
         return alert;
+    }
+
+    private V36LiveAlertSummaryDto hydrateAlertFields(V36LiveAlertSummaryDto alert) {
+        if (alert == null) return null;
+        hydrateRiskLevelFromScore(alert);
+        if (!hasText(alert.getRiskLevel())) {
+            alert.getWarnings().add("Risk level unavailable");
+        }
+        return alert;
+    }
+
+    private void hydrateRiskLevelFromScore(V36LiveAlertSummaryDto alert) {
+        if (hasText(alert.getRiskLevel()) || alert.getFinalRiskScore() == null) {
+            return;
+        }
+        double score = alert.getFinalRiskScore();
+        if (score >= 80.0) {
+            alert.setRiskLevel("CRITICAL");
+        } else if (score >= 60.0) {
+            alert.setRiskLevel("HIGH");
+        } else if (score >= 35.0) {
+            alert.setRiskLevel("MEDIUM");
+        } else {
+            alert.setRiskLevel("LOW");
+        }
+    }
+
+    private List<V36LiveAlertSummaryDto> hydrateLiveAlertsFromStoredPayloads(List<V36LiveAlertSummaryDto> alerts) {
+        if (alerts == null || alerts.isEmpty()) return alerts;
+
+        List<String> eventIds = alerts.stream()
+                .map(V36LiveAlertSummaryDto::getEventId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, AnomalyEvent> anomalyMap = anomalyEventRepository.findByEventIdIn(eventIds).stream()
+                .collect(Collectors.toMap(
+                        AnomalyEvent::getEventId,
+                        a -> a,
+                        (a, b) -> a.getDetectedAt() != null && a.getDetectedAt().isAfter(b.getDetectedAt()) ? a : b
+                ));
+
+        List<String> hydrated = new ArrayList<>();
+        List<V36LiveAlertSummaryDto> result = new ArrayList<>(alerts.size());
+        for (V36LiveAlertSummaryDto alert : alerts) {
+            AnomalyEvent anomaly = anomalyMap.get(alert.getEventId());
+            if (anomaly != null) {
+                List<String> fields = hydrateFromAnomalyEvent(alert, anomaly);
+                if (!fields.isEmpty()) {
+                    hydrated.add(alert.getEventId() + " fields=" + fields);
+                }
+            }
+            result.add(alert);
+        }
+
+        if (!hydrated.isEmpty()) {
+            log.debug("ALERT_LIVE_ROW_HYDRATED {}", String.join("; ", hydrated));
+        }
+        return result;
+    }
+
+    private List<String> hydrateFromAnomalyEvent(V36LiveAlertSummaryDto alert, AnomalyEvent anomaly) {
+        List<String> fields = new ArrayList<>();
+
+        if (alert.getTimestamp() == null) {
+            Instant ts = firstNonNull(anomaly.getEventTime(), anomaly.getDetectedAt());
+            if (ts != null) {
+                alert.setTimestamp(ts);
+                fields.add("timestamp");
+            }
+        }
+
+        if (!hasText(alert.getRiskLevel()) && hasText(anomaly.getRiskLevel())) {
+            alert.setRiskLevel(anomaly.getRiskLevel());
+            fields.add("riskLevel");
+        }
+
+        if (alert.getFinalRiskScore() == null) {
+            Double score = firstNonNull(anomaly.getFinalRiskScore(), anomaly.getRiskScore(), anomaly.getAnomalyScore());
+            if (score != null) {
+                alert.setFinalRiskScore(score);
+                fields.add("finalRiskScore");
+            }
+        }
+
+        if (!hasText(alert.getAnomalyType()) && hasText(anomaly.getAnomalyType())) {
+            alert.setAnomalyType(anomaly.getAnomalyType());
+            fields.add("anomalyType");
+        }
+
+        if (alert.getAnomalyTypeConfidence() == null) {
+            Double conf = firstNonNull(anomaly.getAnomalyTypeConfidence(), anomaly.getTypeConfidence());
+            if (conf != null) {
+                alert.setAnomalyTypeConfidence(conf);
+                fields.add("anomalyTypeConfidence");
+            }
+        }
+
+        if (alert.getXgboostAnomalyScore100() == null && anomaly.getXgboostAnomalyScore100() != null) {
+            alert.setXgboostAnomalyScore100(anomaly.getXgboostAnomalyScore100());
+            fields.add("xgboostAnomalyScore100");
+        }
+        if (alert.getLightgbmAlertScore100() == null && anomaly.getLightgbmAlertScore100() != null) {
+            alert.setLightgbmAlertScore100(anomaly.getLightgbmAlertScore100());
+            fields.add("lightgbmAlertScore100");
+        }
+        if (alert.getTransformerRiskScore100() == null && anomaly.getTransformerRiskScore100() != null) {
+            alert.setTransformerRiskScore100(anomaly.getTransformerRiskScore100());
+            fields.add("transformerRiskScore100");
+        }
+        if (alert.getTcnRiskScore100() == null && anomaly.getTcnRiskScore100() != null) {
+            alert.setTcnRiskScore100(anomaly.getTcnRiskScore100());
+            fields.add("tcnRiskScore100");
+        }
+
+        if (alert.getModelContributions() == null && hasText(anomaly.getModelContributionsJson())) {
+            alert.setModelContributions(buildModelContributions(anomaly.getModelContributionsJson(), null));
+            fields.add("modelContributions");
+        }
+
+        if ((alert.getTriggeredRuleCodes() == null || alert.getTriggeredRuleCodes().isEmpty())
+                && hasText(anomaly.getTriggeredRulesJson())) {
+            List<String> rules = parseStringList(anomaly.getTriggeredRulesJson());
+            if (!rules.isEmpty()) {
+                alert.setTriggeredRuleCodes(rules);
+                fields.add("triggeredRuleCodes");
+            }
+        }
+
+        if (alert.getChurnProbability() == null && anomaly.getChurnProbability() != null) {
+            alert.setChurnProbability(anomaly.getChurnProbability());
+            fields.add("churnProbability");
+        }
+
+        if (!hasText(alert.getChurnRiskLevel()) && hasText(anomaly.getChurnRiskLevel())) {
+            alert.setChurnRiskLevel(anomaly.getChurnRiskLevel());
+            fields.add("churnRiskLevel");
+        }
+
+        if (!hasText(alert.getPersonaLabel()) || "persona_disabled".equals(alert.getPersonaLabel())) {
+            if (hasText(anomaly.getPersonaLabel()) && !"persona_disabled".equals(anomaly.getPersonaLabel())) {
+                alert.setPersonaLabel(anomaly.getPersonaLabel());
+                fields.add("personaLabel");
+            }
+        }
+
+        if (!hasText(alert.getEventAction()) && hasText(anomaly.getEventJson())) {
+            populateEventMetadataFields(alert, anomaly.getEventJson());
+            if (hasText(alert.getEventAction())) fields.add("eventAction");
+            if (hasText(alert.getApiTemplate())) fields.add("apiTemplate");
+            if (hasText(alert.getApiFamily())) fields.add("apiFamily");
+            if (hasText(alert.getController())) fields.add("controller");
+            if (hasText(alert.getPage())) fields.add("page");
+            if (hasText(alert.getCountry())) fields.add("country");
+            if (hasText(alert.getDevice())) fields.add("device");
+            if (hasText(alert.getBrowser())) fields.add("browser");
+            if (hasText(alert.getOs())) fields.add("os");
+            if (hasText(alert.getHttpMethod())) fields.add("httpMethod");
+            if (hasText(alert.getStatus())) fields.add("status");
+        }
+
+        if (alert.getLlmEvidencePayloadAvailable() == null) {
+            alert.setLlmEvidencePayloadAvailable(hasText(anomaly.getLlmExplanationEvidencePayloadJson()));
+            fields.add("llmEvidencePayloadAvailable");
+        }
+
+        if (hasText(anomaly.getInvestigationPayloadJson())
+                && (!hasText(alert.getEventAction()) || alert.getModelContributions() == null || alert.getTimestamp() == null)) {
+            try {
+                V36AlertInvestigationDetailDto detail = objectMapper.readValue(
+                        anomaly.getInvestigationPayloadJson(), V36AlertInvestigationDetailDto.class);
+                fields.addAll(hydrateFromInvestigationDetail(alert, detail));
+            } catch (Exception ignored) {}
+        }
+
+        if (alert.getModelContributions() == null && hasText(anomaly.getLlmExplanationEvidencePayloadJson())) {
+            try {
+                JsonNode evidenceNode = objectMapper.readTree(anomaly.getLlmExplanationEvidencePayloadJson());
+                fields.addAll(hydrateFromEvidenceNode(alert, evidenceNode));
+            } catch (Exception ignored) {}
+        }
+
+        return fields;
+    }
+
+    private List<String> hydrateFromInvestigationDetail(V36LiveAlertSummaryDto alert, V36AlertInvestigationDetailDto detail) {
+        List<String> fields = new ArrayList<>();
+        if (detail == null) return fields;
+
+        if (alert.getTimestamp() == null && detail.getTimestamp() != null) {
+            alert.setTimestamp(detail.getTimestamp());
+            fields.add("timestamp");
+        }
+
+        Map<String, Object> metadata = detail.getEventMetadata();
+        if (metadata != null) {
+            if (!hasText(alert.getEventAction()) && metadata.get("eventAction") instanceof String ea) {
+                alert.setEventAction(ea); fields.add("eventAction");
+            }
+            if (!hasText(alert.getApiTemplate()) && metadata.get("apiTemplate") instanceof String api) {
+                alert.setApiTemplate(api); fields.add("apiTemplate");
+            }
+            if (!hasText(alert.getApiFamily()) && metadata.get("apiFamily") instanceof String fam) {
+                alert.setApiFamily(fam); fields.add("apiFamily");
+            }
+            if (!hasText(alert.getController()) && metadata.get("controller") instanceof String ctrl) {
+                alert.setController(ctrl); fields.add("controller");
+            }
+            if (!hasText(alert.getPage()) && metadata.get("page") instanceof String p) {
+                alert.setPage(p); fields.add("page");
+            }
+            if (!hasText(alert.getCountry()) && metadata.get("country") instanceof String cntry) {
+                alert.setCountry(cntry); fields.add("country");
+            }
+            if (!hasText(alert.getDevice()) && metadata.get("device") instanceof String dev) {
+                alert.setDevice(dev); fields.add("device");
+            }
+            if (!hasText(alert.getBrowser()) && metadata.get("browser") instanceof String br) {
+                alert.setBrowser(br); fields.add("browser");
+            }
+            if (!hasText(alert.getOs()) && metadata.get("os") instanceof String os) {
+                alert.setOs(os); fields.add("os");
+            }
+            if (!hasText(alert.getHttpMethod()) && metadata.get("httpMethod") instanceof String http) {
+                alert.setHttpMethod(http); fields.add("httpMethod");
+            }
+            if (!hasText(alert.getStatus()) && metadata.get("status") instanceof String st) {
+                alert.setStatus(st); fields.add("status");
+            }
+        }
+
+        if (alert.getXgboostAnomalyScore100() == null && detail.getModelScores() != null) {
+            V36ModelScoresDto scores = detail.getModelScores();
+            if (scores.getXgboostAnomalyScore100() != null) { alert.setXgboostAnomalyScore100(scores.getXgboostAnomalyScore100()); fields.add("xgboostAnomalyScore100"); }
+            if (scores.getLightgbmAlertScore100() != null) { alert.setLightgbmAlertScore100(scores.getLightgbmAlertScore100()); fields.add("lightgbmAlertScore100"); }
+            if (scores.getTransformerRiskScore100() != null) { alert.setTransformerRiskScore100(scores.getTransformerRiskScore100()); fields.add("transformerRiskScore100"); }
+            if (scores.getTcnRiskScore100() != null) { alert.setTcnRiskScore100(scores.getTcnRiskScore100()); fields.add("tcnRiskScore100"); }
+        }
+
+        if (alert.getModelContributions() == null && detail.getModelContributions() != null) {
+            alert.setModelContributions(detail.getModelContributions());
+            fields.add("modelContributions");
+        }
+
+        if ((alert.getTriggeredRuleCodes() == null || alert.getTriggeredRuleCodes().isEmpty())
+                && detail.getTriggeredRules() != null && !detail.getTriggeredRules().isEmpty()) {
+            alert.setTriggeredRuleCodes(detail.getTriggeredRules());
+            fields.add("triggeredRuleCodes");
+        }
+
+        if (alert.getLlmEvidencePayloadAvailable() == null && detail.getLlmEvidencePayloadAvailable() != null) {
+            alert.setLlmEvidencePayloadAvailable(detail.getLlmEvidencePayloadAvailable());
+            fields.add("llmEvidencePayloadAvailable");
+        }
+
+        return fields;
+    }
+
+    private List<String> hydrateFromEvidenceNode(V36LiveAlertSummaryDto alert, JsonNode evidenceNode) {
+        List<String> fields = new ArrayList<>();
+        if (evidenceNode == null) return fields;
+
+        JsonNode eventMeta = evidenceNode.path("eventMetadata");
+        if (!eventMeta.isMissingNode() && eventMeta.isObject()) {
+            if (!hasText(alert.getEventAction())) {
+                String ea = textAt(eventMeta, "eventAction");
+                if (ea != null) { alert.setEventAction(ea); fields.add("eventAction"); }
+            }
+            if (!hasText(alert.getApiTemplate())) {
+                String api = textAt(eventMeta, "apiTemplate");
+                if (api != null) { alert.setApiTemplate(api); fields.add("apiTemplate"); }
+            }
+            if (!hasText(alert.getApiFamily())) {
+                String fam = textAt(eventMeta, "apiFamily");
+                if (fam != null) { alert.setApiFamily(fam); fields.add("apiFamily"); }
+            }
+            if (!hasText(alert.getController())) {
+                String ctrl = textAt(eventMeta, "controller");
+                if (ctrl != null) { alert.setController(ctrl); fields.add("controller"); }
+            }
+            if (!hasText(alert.getPage())) {
+                String p = textAt(eventMeta, "page");
+                if (p != null) { alert.setPage(p); fields.add("page"); }
+            }
+            if (!hasText(alert.getCountry())) {
+                String c = textAt(eventMeta, "country");
+                if (c != null) { alert.setCountry(c); fields.add("country"); }
+            }
+            if (!hasText(alert.getDevice())) {
+                String d = textAt(eventMeta, "device");
+                if (d != null) { alert.setDevice(d); fields.add("device"); }
+            }
+            if (!hasText(alert.getBrowser())) {
+                String b = textAt(eventMeta, "browser");
+                if (b != null) { alert.setBrowser(b); fields.add("browser"); }
+            }
+            if (!hasText(alert.getOs())) {
+                String os = textAt(eventMeta, "os");
+                if (os != null) { alert.setOs(os); fields.add("os"); }
+            }
+            if (!hasText(alert.getHttpMethod())) {
+                String http = textAt(eventMeta, "httpMethod");
+                if (http != null) { alert.setHttpMethod(http); fields.add("httpMethod"); }
+            }
+            if (!hasText(alert.getStatus())) {
+                String s = textAt(eventMeta, "status");
+                if (s != null) { alert.setStatus(s); fields.add("status"); }
+            }
+        }
+
+        JsonNode modelScores = evidenceNode.path("modelScores");
+        if (!modelScores.isMissingNode() && modelScores.isObject()) {
+            if (alert.getXgboostAnomalyScore100() == null && modelScores.has("xgboostAnomalyScore100")) {
+                alert.setXgboostAnomalyScore100(modelScores.get("xgboostAnomalyScore100").asDouble());
+                fields.add("xgboostAnomalyScore100");
+            }
+            if (alert.getLightgbmAlertScore100() == null && modelScores.has("lightgbmAlertScore100")) {
+                alert.setLightgbmAlertScore100(modelScores.get("lightgbmAlertScore100").asDouble());
+                fields.add("lightgbmAlertScore100");
+            }
+            if (alert.getTransformerRiskScore100() == null && modelScores.has("transformerRiskScore100")) {
+                alert.setTransformerRiskScore100(modelScores.get("transformerRiskScore100").asDouble());
+                fields.add("transformerRiskScore100");
+            }
+            if (alert.getTcnRiskScore100() == null && modelScores.has("tcnRiskScore100")) {
+                alert.setTcnRiskScore100(modelScores.get("tcnRiskScore100").asDouble());
+                fields.add("tcnRiskScore100");
+            }
+        }
+
+        JsonNode contributions = evidenceNode.path("modelContributions");
+        if (alert.getModelContributions() == null && !contributions.isMissingNode() && contributions.isObject()) {
+            alert.setModelContributions(objectMapper.convertValue(contributions, V36ModelContributionsDto.class));
+            fields.add("modelContributions");
+        }
+
+        if (alert.getLlmEvidencePayloadAvailable() == null) {
+            alert.setLlmEvidencePayloadAvailable(true);
+            fields.add("llmEvidencePayloadAvailable");
+        }
+
+        return fields;
     }
 
     private List<String> parseStringList(String jsonOrValue) {

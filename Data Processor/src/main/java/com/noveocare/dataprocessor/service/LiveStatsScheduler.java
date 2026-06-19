@@ -21,7 +21,9 @@ public class LiveStatsScheduler {
         try {
             // Aggregate rolling metrics and refresh only the views that depend on in-flight sessions.
             statisticsService.refreshLiveStatsSnapshot();
-            dashboardSnapshotService.refreshRiskySessions();
+            if (dashboardSnapshotService.isRiskySessionsDirty()) {
+                dashboardSnapshotService.refreshRiskySessions();
+            }
         } catch (Exception e) {
             log.error("Failed to refresh live stats snapshot", e);
         }

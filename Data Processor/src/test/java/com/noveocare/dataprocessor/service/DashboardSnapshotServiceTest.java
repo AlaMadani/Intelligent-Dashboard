@@ -2,6 +2,7 @@ package com.noveocare.dataprocessor.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.noveocare.dataprocessor.ai.forecast.ForecastRuntimeService;
+import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RedisPubSubProperties;
 import com.noveocare.dataprocessor.dto.NextActionScore;
@@ -15,6 +16,7 @@ import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
@@ -38,6 +40,7 @@ class DashboardSnapshotServiceTest {
     private final ModelHealthService modelHealthService = mock(ModelHealthService.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
     private final StatisticsService statisticsService = mock(StatisticsService.class);
+    private final DashboardSnapshotPersistenceService snapshotPersistenceService = mock(DashboardSnapshotPersistenceService.class);
 
     private DashboardSnapshotService service;
 
@@ -46,17 +49,20 @@ class DashboardSnapshotServiceTest {
         RedisCacheProperties cacheProperties = new RedisCacheProperties();
         cacheProperties.setSessionInsight(Duration.ofHours(2));
 
+ObjectFactory<ModelHealthService> healthFactory = () -> modelHealthService;
         service = new DashboardSnapshotService(
                 redisCacheService,
                 cacheProperties,
                 sessionAnalysisRepository,
                 anomalyEventRepository,
                 forecastRuntimeService,
-                modelHealthService,
+                healthFactory,
                 redisTemplate,
                 new ObjectMapper().findAndRegisterModules(),
                 statisticsService,
-                new RedisPubSubProperties()
+                new RedisPubSubProperties(),
+                new PerformanceProperties(),
+                snapshotPersistenceService
         );
     }
 

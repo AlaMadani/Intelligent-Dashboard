@@ -11,6 +11,14 @@ public final class CacheKeys {
         return "session:" + insuredId + ":" + sessionId;
     }
 
+    public static String sessionFullKey(String insuredId, String sessionId) {
+        return "session:full:" + insuredId + ":" + sessionId;
+    }
+
+    public static String sessionRunningSummaryKey(String sessionId) {
+        return "session:running-summary:v3_6:" + sessionId;
+    }
+
     public static String nextActionsKey(String insuredId) {
         return "next_actions:" + insuredId;
     }
@@ -31,15 +39,25 @@ public final class CacheKeys {
         return "session:insight:" + insuredId + ":" + sessionId;
     }
 
-    public static String sequenceWindowKey(String sessionId) {
+public static String sequenceWindowKey(String sessionId) {
         return "session:sequence:v3_6:" + sessionId;
     }
 
-    public static String sequenceScoresKey(String sessionId) {
+    public static String sessionSequenceEventIdsKey(String sessionId) {
+        return "session:sequence:eventIds:v3_6:" + sessionId;
+    }
+
+public static String sequenceScoresKey(String sessionId) {
         return "session:scores:v3_6:" + sessionId;
     }
 
+    public static String sessionStateKey(String insuredId, String sessionId) {
+        return "session:state:" + insuredId + ":" + sessionId;
+    }
 
+    public static String sessionStateIndexKey() {
+        return "session:state:index";
+    }
 
     public static String sessionRiskV36Key(String insuredId, String sessionId) {
         return "session:risk:v3_6:" + insuredId + ":" + sessionId;
@@ -77,8 +95,20 @@ public final class CacheKeys {
         return "alerts:critical:v3_6";
     }
 
-    public static String userAlertsKey(String insuredId) {
+public static String userAlertsKey(String insuredId) {
         return "alerts:user:" + insuredId;
+    }
+
+    public static String userAlertsEventIdsKey(String insuredId) {
+        return "alerts:user:eventIds:" + insuredId;
+    }
+
+    public static String liveAlertsEventIdsKey() {
+        return "alerts:live:eventIds:v3_6";
+    }
+
+    public static String criticalAlertsEventIdsKey() {
+        return "alerts:critical:eventIds:v3_6";
     }
 
     public static String user360Key(String insuredId) {
@@ -123,6 +153,10 @@ public final class CacheKeys {
 
     public static String detectedAnomalyKey(String insuredId, String sessionId) {
         return "anomaly:detected:" + insuredId + ":" + sessionId;
+    }
+
+    public static String sessionFirstEventKey(String sessionId) {
+        return "session:first-event:v3_6:" + sessionId;
     }
 
     // Keys used for rolling minute-based live statistics.

@@ -79,16 +79,37 @@ spring:
 app:
   api:
     schema-version: ${APP_API_SCHEMA_VERSION:v3.6.1}
+  llm:
+    enabled: ${APP_LLM_ENABLED:true}
+    provider: ${APP_LLM_PROVIDER:nvidia-nim}
+    cache:
+      redis-ttl-hours: ${APP_V36_EXPLANATIONS_CACHE_TTL_HOURS:24}
+      generation-lock-ttl-seconds: ${APP_V36_EXPLANATIONS_LOCK_TTL_SECONDS:30}
+    nvidia:
+      base-url: ${NVIDIA_BASE_URL:https://integrate.api.nvidia.com/v1}
+      api-key: ${NVIDIA_API_KEY:}
+      model: ${NVIDIA_MODEL:nvidia/nemotron-3-super-120b-a12b}
+      temperature: ${NVIDIA_TEMPERATURE:1.0}
+      top-p: ${NVIDIA_TOP_P:0.95}
+      max-tokens: ${NVIDIA_MAX_TOKENS:4096}
+      enable-thinking: ${NVIDIA_ENABLE_THINKING:false}
+      reasoning-budget: ${NVIDIA_REASONING_BUDGET:0}
+      send-reasoning-budget-when-zero: ${NVIDIA_SEND_REASONING_BUDGET_WHEN_ZERO:false}
+      timeout-ms: ${NVIDIA_TIMEOUT_MS:120000}
+      include-extra-body: ${NVIDIA_INCLUDE_EXTRA_BODY:true}
+      minimal-request-mode: ${NVIDIA_MINIMAL_REQUEST_MODE:false}
+      log-request-json: ${NVIDIA_LOG_REQUEST_JSON:false}
+      log-request-max-chars: ${NVIDIA_LOG_REQUEST_MAX_CHARS:4000}
   v36:
     redis:
       prefer-v36-keys: ${APP_V36_REDIS_PREFER_V36_KEYS:true}
       fallback-to-legacy: ${APP_V36_REDIS_FALLBACK_TO_LEGACY:true}
     explanations:
-      enabled: ${APP_V36_EXPLANATIONS_ENABLED:true}
-      provider: ${APP_V36_EXPLANATIONS_PROVIDER:gemini}
       cache-enabled: ${APP_V36_EXPLANATIONS_CACHE_ENABLED:true}
       cache-ttl-hours: ${APP_V36_EXPLANATIONS_CACHE_TTL_HOURS:24}
       max-evidence-size-kb: ${APP_V36_EXPLANATIONS_MAX_EVIDENCE_SIZE_KB:128}
+      lock-ttl-seconds: ${APP_V36_EXPLANATIONS_LOCK_TTL_SECONDS:30}
+      evidence-rehydrate-ttl-hours: ${APP_V36_EXPLANATIONS_EVIDENCE_REHYDRATE_TTL_HOURS:24}
       generate-on-get: ${APP_V36_EXPLANATIONS_GENERATE_ON_GET:false}
       default-style: ${APP_V36_EXPLANATIONS_DEFAULT_STYLE:security_analyst}
       default-language: ${APP_V36_EXPLANATIONS_DEFAULT_LANGUAGE:en}

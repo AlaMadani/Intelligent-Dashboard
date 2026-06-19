@@ -4,13 +4,18 @@ A **Spring Boot 4.0.3** read-side REST API that serves real-time analytics, sess
 
 ## V3.6.1 Role and Boundary
 
-`api-service` is the read/expose/orchestrate service in the three-project architecture:
+`api-service` is the **read-side only** service in the three-project architecture:
 
-- `dataprocessor` consumes raw Kafka audit events, runs the V3.6.1 hybrid AI runtime, persists processed SQL rows, writes Redis snapshots, and creates LLM evidence payloads only.
+- `dataprocessor` consumes raw Kafka audit events, runs the V3.6 hybrid AI runtime, persists processed SQL rows, writes Redis snapshots, handles event idempotency (Redis/SQL dedupe), session finalization, and creates LLM evidence payloads.
 - `api-service` reads SQL Server and Redis, exposes REST/SSE endpoints, and calls Gemini only when the frontend explicitly requests an explanation.
 - `frontend` calls `api-service` only.
 
-`api-service` remains read-only. It does not run ONNX, XGBoost, LightGBM, CatBoost, ExtraTrees, Ridge, sequence models, feature-vector builders, risk fusion, or raw Kafka scoring consumers. Schema migrations remain owned by `dataprocessor`; Liquibase stays disabled by default.
+`api-service` remains read-only. It does **not**:
+- Run ONNX, XGBoost, LightGBM, CatBoost, ExtraTrees, Ridge, sequence models, or feature-vector builders
+- Recompute risk or finalize sessions
+- Deduplicate source data as business logic (defensive read-side eventId dedup may log warnings)
+- Call `dataprocessor` directly or consume raw Kafka scoring events
+- Own database migrations (Liquibase stays disabled by default)
 
 ### V3.6.1 Redis Keys Read
 
@@ -18,7 +23,7 @@ The service now prefers these versioned keys and falls back to SQL or legacy key
 
 | Area | Redis keys |
 |------|------------|
-| Runtime | `ai:runtime:health:v3_6`, `ai:sequence:field-coverage:v3_6`, `ai:tabular:field-coverage:v3_6`, `ai:model-latency:v3_6` |
+| Runtime | `ai:runtime:health:v3_6` (includes optional kafka/idempotency/performance/stats/nextActionPrediction/sessionFinalization sections), `ai:sequence:field-coverage:v3_6`, `ai:tabular:field-coverage:v3_6`, `ai:model-latency:v3_6` |
 | Dashboards | `dashboard:security-overview:v3_6`, `dashboard:churn:v3_6`, `dashboard:forecast:v3_6` |
 | Alerts | `alerts:live:v3_6`, `alerts:critical:v3_6`, `alerts:user:{insuredId}` |
 | Investigation | `alert:investigation:{eventId}` |
@@ -34,12 +39,12 @@ All endpoints remain under `/api/v1` and return the existing `ApiResponse<T>` en
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/ai/runtime-health` | V3.6.1 runtime health from Redis with UNKNOWN fallback |
+| GET | `/ai/runtime-health` | V3.6.1 runtime health (kafka/idempotency/performance/stats/nextActionPrediction/sessionFinalization) from Redis with UNKNOWN fallback |
 | GET | `/security/overview` | Security overview snapshot with SQL/legacy fallback |
-| GET | `/security/diagnostics` | Runtime health, field coverage, latency, warnings |
+| GET | `/security/diagnostics` | Runtime health (all sections), field coverage, latency, warnings; top-level convenience fields for kafka/idempotency/performance/stats/sessionFinalization |
 | GET | `/alerts/live` | V3.6.1 live alerts with filters and SQL fallback |
 | GET | `/alerts/critical` | Critical alerts from Redis or SQL fallback |
-| GET | `/alerts/{eventId}` | Alert investigation detail from Redis or SQL payload fallback |
+| GET | `/alerts/{eventId}` | Alert investigation detail from Redis or SQL payload fallback; includes sessionLifecycle when available |
 | GET | `/explanations/alerts/{eventId}/evidence` | Raw V3.6.1 LLM evidence payload |
 | GET | `/explanations/alerts/{eventId}` | Cached explanation only |
 | POST | `/explanations/alerts/{eventId}` | Explicit on-demand Gemini/fallback explanation generation |

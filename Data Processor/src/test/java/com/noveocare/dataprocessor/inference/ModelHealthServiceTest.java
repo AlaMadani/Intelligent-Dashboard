@@ -8,6 +8,8 @@ import com.noveocare.dataprocessor.ai.sequence.SequenceFieldCoverageMonitor;
 import com.noveocare.dataprocessor.ai.sequence.SequenceOnnxInferenceService;
 import com.noveocare.dataprocessor.ai.tabular.TabularAnomalyInferenceService;
 import com.noveocare.dataprocessor.ai.tabular.TabularFieldCoverageMonitor;
+import com.noveocare.dataprocessor.inference.InferenceConfig;
+import com.noveocare.dataprocessor.inference.InferenceExecutorManager;
 import com.noveocare.dataprocessor.config.AiChurnProperties;
 import com.noveocare.dataprocessor.config.AiForecastProperties;
 import com.noveocare.dataprocessor.config.AiLlmExplanationProperties;
@@ -15,9 +17,19 @@ import com.noveocare.dataprocessor.config.AiPersonaProperties;
 import com.noveocare.dataprocessor.config.AiSequenceProperties;
 import com.noveocare.dataprocessor.config.AiTabularAnomalyProperties;
 import com.noveocare.dataprocessor.config.CacheKeys;
+import com.noveocare.dataprocessor.config.LiveStatsProperties;
+import com.noveocare.dataprocessor.config.NextActionPredictionProperties;
+import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
+import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
+import com.noveocare.dataprocessor.kafka.AlertPublisher;
+import com.noveocare.dataprocessor.kafka.AuditTrailConsumer;
+import com.noveocare.dataprocessor.service.DashboardRefreshScheduler;
+import com.noveocare.dataprocessor.service.EventIdempotencyService;
+import com.noveocare.dataprocessor.service.SessionFinalizationOrchestrator;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectFactory;
 
 import java.time.Duration;
 import java.util.List;
@@ -72,6 +84,19 @@ class ModelHealthServiceTest {
         when(sequenceCoverage.highUnknownWarnings()).thenReturn(List.of());
         when(tabularCoverage.snapshot()).thenReturn(Map.of());
 
+        EventIdempotencyService idempotencyService = mock(EventIdempotencyService.class);
+        SessionFinalizationOrchestrator orch = mock(SessionFinalizationOrchestrator.class);
+        AlertPublisher alertPublisher = mock(AlertPublisher.class);
+        LiveStatsProperties liveStats = new LiveStatsProperties();
+        NextActionPredictionProperties napProps = new NextActionPredictionProperties();
+        RedisSessionBufferService bufferService = mock(RedisSessionBufferService.class);
+        AuditTrailConsumer auditConsumer = mock(AuditTrailConsumer.class);
+        ObjectFactory<AuditTrailConsumer> auditConsumerFactory = () -> auditConsumer;
+
+        when(auditConsumer.diagnosticsSnapshot()).thenReturn(Map.of());
+
+        AiSequenceProperties seqProps1 = new AiSequenceProperties();
+        seqProps1.setEnabled(true);
         ModelHealthService service = new ModelHealthService(
                 onnx,
                 tabular,
@@ -82,18 +107,35 @@ class ModelHealthServiceTest {
                 tabularCoverage,
                 redis,
                 ttl,
-                new AiSequenceProperties(),
+                seqProps1,
                 new AiTabularAnomalyProperties(),
                 new AiChurnProperties(),
                 new AiForecastProperties(),
                 new AiPersonaProperties(),
-                new AiLlmExplanationProperties());
+                new AiLlmExplanationProperties(),
+                mock(com.noveocare.dataprocessor.service.SessionFinalizationService.class),
+                idempotencyService,
+                orch,
+                alertPublisher,
+                liveStats,
+                napProps,
+                bufferService,
+                auditConsumerFactory,
+                new PerformanceProperties(),
+                mock(com.noveocare.dataprocessor.service.DashboardSnapshotService.class),
+                mock(com.noveocare.dataprocessor.service.DashboardSnapshotPersistenceService.class),
+                mock(InferenceConfig.class),
+                mock(InferenceExecutorManager.class),
+                mock(DashboardRefreshScheduler.class),
+                mock(InferenceBenchmarkService.class));
         service.recordRuntimeSuccess("xgboost");
         service.recordRuntimeError("lightgbm", "lightgbm_alert_no_trees_parsed");
 
         Map<String, Object> snapshot = service.snapshot();
 
         assertThat(snapshot).containsEntry("schemaVersion", "v3.6.1");
+        assertThat(snapshot).containsKey("inference");
+        assertThat(snapshot).containsKey("dashboard");
         @SuppressWarnings("unchecked")
         Map<String, Object> modelHealth = (Map<String, Object>) snapshot.get("modelHealth");
         @SuppressWarnings("unchecked")
@@ -137,6 +179,19 @@ class ModelHealthServiceTest {
         when(sequenceCoverage.highUnknownWarnings()).thenReturn(List.of());
         when(tabularCoverage.snapshot()).thenReturn(Map.of());
 
+        EventIdempotencyService idempotencyService = mock(EventIdempotencyService.class);
+        SessionFinalizationOrchestrator orch = mock(SessionFinalizationOrchestrator.class);
+        AlertPublisher alertPublisher = mock(AlertPublisher.class);
+        LiveStatsProperties liveStats = new LiveStatsProperties();
+        NextActionPredictionProperties napProps = new NextActionPredictionProperties();
+        RedisSessionBufferService bufferService = mock(RedisSessionBufferService.class);
+        AuditTrailConsumer auditConsumer2 = mock(AuditTrailConsumer.class);
+        ObjectFactory<AuditTrailConsumer> auditConsumerFactory2 = () -> auditConsumer2;
+
+        when(auditConsumer2.diagnosticsSnapshot()).thenReturn(Map.of());
+
+        AiSequenceProperties seqProps2 = new AiSequenceProperties();
+        seqProps2.setEnabled(true);
         ModelHealthService service = new ModelHealthService(
                 onnx,
                 tabular,
@@ -147,12 +202,27 @@ class ModelHealthServiceTest {
                 tabularCoverage,
                 redis,
                 ttl,
-                new AiSequenceProperties(),
+                seqProps2,
                 new AiTabularAnomalyProperties(),
                 new AiChurnProperties(),
                 new AiForecastProperties(),
                 new AiPersonaProperties(),
-                new AiLlmExplanationProperties());
+                new AiLlmExplanationProperties(),
+                mock(com.noveocare.dataprocessor.service.SessionFinalizationService.class),
+                idempotencyService,
+                orch,
+                alertPublisher,
+                liveStats,
+                napProps,
+                bufferService,
+                auditConsumerFactory2,
+                new PerformanceProperties(),
+                mock(com.noveocare.dataprocessor.service.DashboardSnapshotService.class),
+                mock(com.noveocare.dataprocessor.service.DashboardSnapshotPersistenceService.class),
+                mock(InferenceConfig.class),
+                mock(InferenceExecutorManager.class),
+                mock(DashboardRefreshScheduler.class),
+                mock(InferenceBenchmarkService.class));
 
         service.publish();
 

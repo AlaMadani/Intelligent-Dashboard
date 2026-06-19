@@ -1,18 +1,15 @@
 package com.neo.dashboard.service;
 
 import com.neo.dashboard.entity.User;
+import com.neo.dashboard.security.HashUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +25,7 @@ public class PasswordResetService {
 
     private final StringRedisTemplate redisTemplate;
     private final VerificationEmailService verificationEmailService;
+    private final HashUtil hashUtil;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${app.auth.verification.code-ttl-seconds:300}")
@@ -41,9 +39,6 @@ public class PasswordResetService {
 
     @Value("${app.auth.password-reset.token-ttl-seconds:600}")
     private long resetTokenTtlSeconds;
-
-    @Value("${jwt.secret}")
-    private String jwtSecret;
 
     public DispatchResult issueCode(User user, boolean enforceCooldown) {
         String email = normalizeEmail(user.getEmail());
@@ -149,17 +144,11 @@ public class PasswordResetService {
     }
 
     private String hashSecret(String email, String secret, String purpose) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest((normalizeEmail(email) + ":" + purpose + ":" + secret + ":" + jwtSecret).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
-        }
+        return hashUtil.hashWithSalt(email, secret, purpose);
     }
 
     private boolean secureEquals(String expected, String actual) {
-        return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), actual.getBytes(StandardCharsets.UTF_8));
+        return hashUtil.secureEquals(expected, actual);
     }
 
     private String codeKey(String email) {

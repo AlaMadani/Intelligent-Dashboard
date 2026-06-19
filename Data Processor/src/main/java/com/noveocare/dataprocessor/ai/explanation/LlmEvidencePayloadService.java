@@ -1,25 +1,36 @@
 package com.noveocare.dataprocessor.ai.explanation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.noveocare.dataprocessor.config.AiLlmExplanationProperties;
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
 import com.noveocare.dataprocessor.dto.SessionInsight;
 import com.noveocare.dataprocessor.dto.SessionSummary;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class LlmEvidencePayloadService {
 
     private final AiLlmExplanationProperties properties;
+    private final ObjectMapper objectMapper;
 
     public Map<String, Object> build(SessionSummary summary, AuditTrailEvent event, SessionInsight insight) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", "v3.6.1");
+        payload.put("evidenceVersion", "1.0");
         payload.put("eventId", event == null ? null : event.getId());
         payload.put("recordId", event == null ? null : event.getId());
         payload.put("insuredId", summary == null ? null : summary.getInsuredId());
@@ -58,7 +69,24 @@ public class LlmEvidencePayloadService {
                 "doNotInventEvidence", properties.isDoNotInventEvidence()));
         payload.put("llmExplanationInDataprocessor", false);
         payload.put("evidenceSummary", evidenceSummary(insight));
+        payload.put("evidenceHash", computeEvidenceHash(payload));
+        payload.put("evidenceCreatedAt", Instant.now().toString());
         return payload;
+    }
+
+    private String computeEvidenceHash(Map<String, Object> payload) {
+        try {
+            String canonicalJson = objectMapper.writeValueAsString(payload);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(canonicalJson.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (JsonProcessingException e) {
+            log.warn("EVIDENCE_HASH_FAILED json error: {}", e.getMessage());
+            return "hash_error";
+        } catch (NoSuchAlgorithmException e) {
+            log.warn("EVIDENCE_HASH_FAILED no such algorithm: {}", e.getMessage());
+            return "hash_error";
+        }
     }
 
     private Map<String, Object> eventMetadata(AuditTrailEvent event) {
@@ -118,6 +146,11 @@ public class LlmEvidencePayloadService {
         evidence.put("sequenceModelArtifact", insight.getSequenceModelArtifact());
         evidence.put("contextAvailable", Boolean.TRUE.equals(insight.getSequenceContextAvailable()));
         evidence.put("windowSize", 10);
+        evidence.put("sequenceRunBoth", insight.getSequenceRunBoth());
+        evidence.put("sequenceActuallyRanModels", insight.getSequenceActuallyRanModels() == null
+                ? List.of() : insight.getSequenceActuallyRanModels());
+        evidence.put("transformerUsedInFusion", Boolean.TRUE.equals(insight.getTransformerUsedInFusion()));
+        evidence.put("tcnUsedInFusion", Boolean.TRUE.equals(insight.getTcnUsedInFusion()));
         evidence.put("transformerSurpriseScoreRaw", insight.getTransformerScore());
         evidence.put("transformerRiskScore100", insight.getTransformerRiskScore100());
         evidence.put("tcnSurpriseScoreRaw", insight.getTcnScore());

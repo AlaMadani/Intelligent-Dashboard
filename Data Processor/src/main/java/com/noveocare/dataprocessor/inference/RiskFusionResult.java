@@ -11,6 +11,7 @@ import java.util.Map;
 public class RiskFusionResult {
     double finalRiskScore;
     String riskLevel;
+    String riskScale;
     double xgboostContribution;
     double lightgbmContribution;
     double transformerContribution;

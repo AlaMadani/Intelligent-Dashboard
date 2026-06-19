@@ -15,7 +15,6 @@ spring:
       connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
       idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
       max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
-      # Log a warning when a connection is held longer than 10 seconds — helps detect leaks.
       leak-detection-threshold: ${HIKARI_LEAK_DETECTION_THRESHOLD:10000}
   jpa:
     hibernate:
@@ -28,9 +27,17 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:data-processor-group}
-      auto-offset-reset: earliest
+      auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:latest}
+      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:50}
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.interval.ms: ${KAFKA_MAX_POLL_INTERVAL_MS:900000}
+        session.timeout.ms: ${KAFKA_SESSION_TIMEOUT_MS:45000}
+        heartbeat.interval.ms: ${KAFKA_HEARTBEAT_INTERVAL_MS:15000}
+    listener:
+      ack-mode: MANUAL_IMMEDIATE
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -48,6 +55,16 @@ app:
     consumer:
       concurrency: ${KAFKA_CONSUMER_CONCURRENCY:5}
       load-shedding-lag-threshold: ${KAFKA_LOAD_SHEDDING_LAG_THRESHOLD:10000}
+
+  stats:
+    live:
+      time-basis: ${LIVE_STATS_TIME_BASIS:ingestion}
+      events-window-seconds: 60
+      actions-window-minutes: 15
+      countries-window-minutes: 15
+      anomaly-window-minutes: 60
+      ko-window-minutes: 15
+
   redis:
     ttl:
       session-buffer: 30m
@@ -59,9 +76,25 @@ app:
       session-insight: 2h
       dashboard: 15m
       forecast: 24h
+      processed-event: ${PROCESSED_EVENT_TTL:24h}
     pubsub:
       critical-alerts-channel: ${REDIS_CRITICAL_ALERTS_CHANNEL:CRITICAL_ALERT}
       system-traffic-anomaly-channel: ${REDIS_SYSTEM_TRAFFIC_ANOMALY_CHANNEL:SYSTEM_TRAFFIC_ANOMALY}
+  session:
+    finalization:
+      inactivity-timeout-seconds: ${SESSION_INACTIVITY_TIMEOUT_SECONDS:1200}
+      max-open-duration-seconds: ${SESSION_MAX_OPEN_DURATION_SECONDS:7200}
+      expired-flush-interval-ms: ${SESSION_EXPIRED_FLUSH_INTERVAL_MS:30000}
+      late-event-grace-seconds: ${SESSION_LATE_EVENT_GRACE_SECONDS:60}
+      grace-period-ms: ${SESSION_FINALIZATION_GRACE_PERIOD_MS:30000}
+      end-action-field-preference:
+        - action_value
+        - action
+        - frontend_action_name
+      timeout-end-reason: "inactivity_timeout"
+      max-duration-end-reason: "max_open_duration"
+      explicit-logout-end-reason: "explicit_logout"
+      explicit-sso-end-reason: "explicit_sso_disconnect"
   rules:
     unusual-hour:
       start: 2
@@ -102,16 +135,9 @@ app:
       - skip_login
       - data_exfiltration
       - impossible_device_switch
-  stats:
-    live:
-      events-window-seconds: 60
-      actions-window-minutes: 15
-      countries-window-minutes: 15
-      anomaly-window-minutes: 60
-      ko-window-minutes: 15
   scheduling:
-    live-stats-fixed-rate-ms: 5000
-    trend-cron: "0/30 * * * * *"
+    live-stats-fixed-rate-ms: 10000
+    trend-cron: "0 */2 * * * *"
 
   ai:
     runtime-version: "v3.6.1"
@@ -119,16 +145,48 @@ app:
     models-path: "models/"
     config-path: "config/"
     reports-path: "reports/"
+
+    inference-enabled: ${AI_INFERENCE_ENABLED:true}
+    benchmark-on-startup: ${AI_BENCHMARK_ON_STARTUP:true}
+
+    inference-timeouts:
+      xgboost-ms: ${XGBOOST_TIMEOUT_MS:150}
+      lightgbm-ms: ${LIGHTGBM_TIMEOUT_MS:150}
+      catboost-ms: ${CATBOOST_TIMEOUT_MS:250}
+      oneclasssvm-ms: ${ONECLASS_SVM_TIMEOUT_MS:250}
+      transformer-ms: ${TRANSFORMER_TIMEOUT_MS:2000}
+      tcn-ms: ${TCN_TIMEOUT_MS:1000}
+      churn-ms: ${CHURN_TIMEOUT_MS:250}
+
+    circuit-breaker:
+      enabled: ${AI_CIRCUIT_BREAKER_ENABLED:true}
+      timeout-threshold: ${AI_MODEL_TIMEOUT_THRESHOLD:3}
+      cooldown-ms: ${AI_MODEL_CIRCUIT_COOLDOWN_MS:60000}
+      disable-model-for-run-after-circuit-open: ${AI_DISABLE_MODEL_FOR_RUN_AFTER_CIRCUIT_OPEN:false}
+
+    live-fast-mode:
+      enabled: ${AI_LIVE_FAST_MODE_ENABLED:true}
+      max-inference-ms-budget: ${AI_LIVE_FAST_MODE_BUDGET_MS:500}
+      prefer-lightgbm-only: ${AI_LIVE_FAST_MODE_LIGHTGBM_ONLY:true}
+      skip-sequence: ${AI_LIVE_FAST_MODE_SKIP_SEQUENCE:false}
+      skip-sequence-under-load: ${AI_LIVE_FAST_MODE_SKIP_SEQUENCE_UNDER_LOAD:false}
+      skip-transformer: ${AI_LIVE_FAST_MODE_SKIP_TRANSFORMER:false}
+      allow-tcn: ${AI_LIVE_FAST_MODE_ALLOW_TCN:true}
+
     tabular-anomaly:
-      enabled: true
-      xgboost-enabled: true
-      lightgbm-enabled: true
-      catboost-enabled: true
-      oneclasssvm-enabled: true
+      enabled: ${TABULAR_INFERENCE_ENABLED:true}
+      xgboost-enabled: ${XGBOOST_INFERENCE_ENABLED:true}
+      lightgbm-enabled: ${LIGHTGBM_INFERENCE_ENABLED:true}
+      catboost-enabled: ${CATBOOST_INFERENCE_ENABLED:true}
+      oneclasssvm-enabled: ${ONECLASS_SVM_INFERENCE_ENABLED:true}
       fail-open: true
       timeout-ms: 150
     sequence:
-      enabled: true
+      enabled: ${SEQUENCE_INFERENCE_ENABLED:true}
+      transformer-enabled: ${TRANSFORMER_INFERENCE_ENABLED:true}
+      tcn-enabled: ${TCN_INFERENCE_ENABLED:true}
+      debug-benchmark-enabled: ${SEQUENCE_DEBUG_BENCHMARK_ENABLED:false}
+      debug-direct-run: ${SEQUENCE_DEBUG_DIRECT_RUN:false}
       strict-schema: true
       allow-legacy-fallback: false
       min-context-events: 3
@@ -136,6 +194,7 @@ app:
       fast-model: tcn
       load-shedding-model: tcn
       run-both: false
+      timeout-ms: ${SEQUENCE_INFERENCE_TIMEOUT_MS:2000}
     load-shedding:
       tcn-lag-threshold: 5000
       rules-only-lag-threshold: 20000
@@ -155,12 +214,13 @@ app:
       enabled: false
       skipped-reason: "Persona intentionally skipped in V3.6.1 dataprocessor refactor"
     churn:
-      enabled: true
+      enabled: ${CHURN_INFERENCE_ENABLED:true}
       preferred-model: "profile_only_ExtraTrees"
       high-threshold: 0.70
       medium-threshold: 0.30
     forecast:
-      enabled: true
+      enabled: ${FORECAST_INFERENCE_ENABLED:true}
+      run-in-listener: ${FORECAST_RUN_IN_LISTENER:false}
       anomaly-rate-preferred-model: "Ridge"
       total-events-preferred-model: "XGBoost"
       fallback-enabled: true
@@ -175,7 +235,46 @@ app:
       medium-threshold: 35.0
       high-threshold: 60.0
       critical-threshold: 80.0
+    diagnostics:
+      trace-event-processing: ${AI_TRACE_EVENT_PROCESSING:true}
+      trace-model-scores: ${AI_TRACE_MODEL_SCORES:false}
+      trace-sequence-live: ${AI_TRACE_SEQUENCE_LIVE:false}
+      trace-risk-breakdown: ${AI_TRACE_RISK_BREAKDOWN:true}
+      benchmark-onnx-on-startup: ${AI_BENCHMARK_ONNX_ON_STARTUP:true}
+      onnx-benchmark-warmup-runs: ${AI_ONNX_BENCH_WARMUP_RUNS:5}
+      onnx-benchmark-measured-runs: ${AI_ONNX_BENCH_MEASURED_RUNS:100}
+    session:
+      recent-events-limit: ${AI_RECENT_EVENTS_LIMIT:50}
+      max-session-events-retained: ${AI_MAX_SESSION_EVENTS_RETAINED:500}
+      sequence-window-size: ${AI_SEQUENCE_WINDOW_SIZE:10}
   features:
     download-window-seconds: 120
     rapid-action-seconds: 7
     session-alert-risk-threshold: 60.0
+
+  performance:
+    summary-interval-ms: ${PERFORMANCE_SUMMARY_INTERVAL_MS:30000}
+    summary-log-interval-ms: ${SUMMARY_LOG_INTERVAL_MS:30000}
+    trace-event-processing: ${TRACE_EVENT_PROCESSING:false}
+    dashboard-refresh:
+      dashboard-refresh-interval-ms: ${DASHBOARD_REFRESH_INTERVAL_MS:15000}
+      dashboard-refresh-view-timeout-ms: ${DASHBOARD_REFRESH_VIEW_TIMEOUT_MS:10000}
+      security-overview-min-interval-ms: ${SECURITY_OVERVIEW_REFRESH_MIN_INTERVAL_MS:5000}
+      alerts-min-interval-ms: ${ALERTS_REFRESH_MIN_INTERVAL_MS:2000}
+      risky-sessions-min-interval-ms: ${RISKY_SESSIONS_REFRESH_MIN_INTERVAL_MS:10000}
+      model-health-min-interval-ms: ${MODEL_HEALTH_REFRESH_MIN_INTERVAL_MS:10000}
+      churn-interval-ms: ${CHURN_DASHBOARD_REFRESH_INTERVAL_MS:60000}
+      forecast-interval-ms: ${FORECAST_DASHBOARD_REFRESH_INTERVAL_MS:60000}
+      max-alert-items: ${DASHBOARD_MAX_ALERT_ITEMS:100}
+      max-risky-session-items: ${DASHBOARD_MAX_RISKY_SESSION_ITEMS:50}
+    evidence:
+      full-payload-min-risk-score: ${FULL_EVIDENCE_MIN_RISK_SCORE:35.0}
+      write-low-risk-evidence: ${WRITE_LOW_RISK_EVIDENCE:false}
+    hot-path:
+      enable-redis-pipelining: ${ENABLE_REDIS_PIPELINING:true}
+      skip-dashboard-refresh-in-listener: ${SKIP_DASHBOARD_REFRESH_IN_LISTENER:true}
+      skip-heavy-sql-in-listener: ${SKIP_HEAVY_SQL_IN_LISTENER:true}
+
+  next-action-prediction:
+    enabled: false
+    disabled-reason: "Intentionally disabled in V3.6.1. Feature requires sequence context validation and is Redis-only in current architecture. See next_action_predictions table (unique constraint on insured_id)."

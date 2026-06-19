@@ -6,6 +6,7 @@ import com.neo.dashboard.dto.EmailVerificationRequest;
 import com.neo.dashboard.dto.ForgotPasswordRequest;
 import com.neo.dashboard.dto.PasswordResetConfirmRequest;
 import com.neo.dashboard.dto.PasswordResetVerifyRequest;
+import com.neo.dashboard.dto.ResendVerificationRequest;
 import com.neo.dashboard.dto.SignInRequest;
 import com.neo.dashboard.dto.SignUpRequest;
 import com.neo.dashboard.entity.User;
@@ -154,7 +155,7 @@ public class AuthService {
         return issueTokens(user, "Email verified successfully");
     }
 
-    public AuthResponse resendVerificationCode(ForgotPasswordRequest request) {
+    public AuthResponse resendVerificationCode(ResendVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {

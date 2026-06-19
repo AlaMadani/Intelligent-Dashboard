@@ -20,4 +20,9 @@ public class V36DiagnosticsResponse {
     private Object modelLatency;
     private String fallbackMode;
     private List<String> warnings;
+    private Map<String, Object> kafka;
+    private Map<String, Object> idempotency;
+    private Map<String, Object> performance;
+    private Map<String, Object> stats;
+    private Map<String, Object> sessionFinalization;
 }

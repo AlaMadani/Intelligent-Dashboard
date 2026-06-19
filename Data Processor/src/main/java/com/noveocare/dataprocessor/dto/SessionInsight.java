@@ -25,6 +25,7 @@ public class SessionInsight {
     Integer personaCluster;
     Double ensembleRiskScore;
     String riskLevel;
+    String riskScale;
     PathDeviationResult pathDeviation;
     List<PathDeviationResult> rareTransitions;
     List<NextActionScore> nextActions;
@@ -47,6 +48,10 @@ public class SessionInsight {
     Double sequenceContextScore;
     Long sequenceLatencyMs;
     Boolean sequenceContextAvailable;
+    Boolean sequenceRunBoth;
+    java.util.List<String> sequenceActuallyRanModels;
+    Boolean transformerUsedInFusion;
+    Boolean tcnUsedInFusion;
     Double aiRiskScore;
     Double ruleRiskScore;
     List<?> ruleContributions;

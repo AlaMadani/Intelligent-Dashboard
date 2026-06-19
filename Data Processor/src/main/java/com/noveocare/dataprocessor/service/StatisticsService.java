@@ -51,9 +51,14 @@ public class StatisticsService {
     private final com.noveocare.dataprocessor.config.RedisPubSubProperties pubSubProperties;
 
     public void recordEvent(AuditTrailEvent event) {
-        LocalDateTime time = LocalDateTime.ofInstant(
-                event.getCreatedAt() == null ? Instant.now() : event.getCreatedAt(),
-                ZoneOffset.UTC);
+        Instant eventTime = event.getCreatedAt() != null ? event.getCreatedAt() : Instant.now();
+        boolean useIngestionTime = "ingestion".equalsIgnoreCase(liveStatsProperties.getTimeBasis());
+        LocalDateTime time;
+        if (useIngestionTime) {
+            time = LocalDateTime.now(ZoneOffset.UTC);
+        } else {
+            time = LocalDateTime.ofInstant(eventTime, ZoneOffset.UTC);
+        }
         String minute = time.format(MINUTE_FORMAT);
         String day = time.toLocalDate().toString();
 
@@ -94,12 +99,19 @@ public class StatisticsService {
     }
 
     public void updateUserRiskProfile(String insuredId) {
+        long startMs = System.currentTimeMillis();
         Instant now = Instant.now();
         Instant since30 = now.minus(Duration.ofDays(30));
         Instant since7 = now.minus(Duration.ofDays(7));
 
+        long queryStart = System.currentTimeMillis();
         List<SessionAnalysis> sessions30 = sessionAnalysisRepository
                 .findByInsuredIdAndEndTimeAfterOrderByEndTimeDesc(insuredId, since30);
+        long queryMs = System.currentTimeMillis() - queryStart;
+        if (queryMs > 1000) {
+            log.warn("SQL slow: user_risk_profile sessions30 query took {}ms for insuredId={}", queryMs, insuredId);
+        }
+
         int sessions30Count = sessions30.size();
         int sessions7Count = (int) sessions30.stream()
                 .filter(session -> session.getEndTime() != null && session.getEndTime().isAfter(since7))
@@ -129,12 +141,17 @@ public class StatisticsService {
                 .findFirst()
                 .orElse(null);
 
+        long consecutiveQueryStart = System.currentTimeMillis();
         int consecutiveClean = 0;
         for (SessionAnalysis session : sessionAnalysisRepository.findTop200ByInsuredIdOrderByEndTimeDesc(insuredId)) {
             if (session.getFinalRiskScore() != null && session.getFinalRiskScore() >= riskProperties.getMediumThreshold()) {
                 break;
             }
             consecutiveClean++;
+        }
+        long consecutiveMs = System.currentTimeMillis() - consecutiveQueryStart;
+        if (consecutiveMs > 1000) {
+            log.warn("SQL slow: user_risk_profile consecutive query took {}ms for insuredId={}", consecutiveMs, insuredId);
         }
 
         Map<String, Long> aggregatedActions = new HashMap<>();
@@ -167,6 +184,7 @@ public class StatisticsService {
                 .map(SessionAnalysis::getAnomalyTypeSource)
                 .anyMatch(type -> type != null && isHighRiskType(type));
 
+        long saveStart = System.currentTimeMillis();
         UserRiskProfile profile = userRiskProfileRepository.findByInsuredId(insuredId)
                 .orElseGet(UserRiskProfile::new);
         profile.setInsuredId(insuredId);
@@ -185,8 +203,22 @@ public class StatisticsService {
         profile.setAvgSessionDuration30d(avgSessionDuration);
         profile.setConsecutiveCleanSessions(consecutiveClean);
         userRiskProfileRepository.save(profile);
+        long saveMs = System.currentTimeMillis() - saveStart;
+        if (saveMs > 1000) {
+            log.warn("SQL slow: user_risk_profile save took {}ms for insuredId={}", saveMs, insuredId);
+        }
 
+        long redisStart = System.currentTimeMillis();
         redisCacheService.setJson(CacheKeys.riskKey(insuredId), profile, cacheProperties.getRisk());
+        long redisMs = System.currentTimeMillis() - redisStart;
+        if (redisMs > 500) {
+            log.warn("Redis slow: user_risk_profile set took {}ms for insuredId={}", redisMs, insuredId);
+        }
+
+        long totalMs = System.currentTimeMillis() - startMs;
+        if (totalMs > 2000) {
+            log.warn("SQL slow: user_risk_profile total took {}ms for insuredId={}", totalMs, insuredId);
+        }
     }
 
     public void refreshLiveStatsSnapshot() {
@@ -305,11 +337,15 @@ public class StatisticsService {
     }
 
     private long sumCounters(List<String> minuteKeys, java.util.function.Function<String, String> keyFn) {
+        List<String> fullKeys = minuteKeys.stream().map(keyFn).toList();
+        List<String> values = redisTemplate.opsForValue().multiGet(fullKeys);
+        if (values == null) return 0L;
         long sum = 0L;
-        for (String minute : minuteKeys) {
-            Long value = readCounter(keyFn.apply(minute));
-            if (value != null) {
-                sum += value;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                try {
+                    sum += Long.parseLong(value);
+                } catch (NumberFormatException ignored) { }
             }
         }
         return sum;

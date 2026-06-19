@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.ai.forecast")
 public class AiForecastProperties {
     private boolean enabled = true;
+    private boolean runInListener = false;
     private String anomalyRatePreferredModel = "Ridge";
     private String totalEventsPreferredModel = "XGBoost";
     private boolean fallbackEnabled = true;

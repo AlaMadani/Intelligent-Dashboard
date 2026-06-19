@@ -58,4 +58,6 @@ public class V36LiveAlertSummaryDto {
     private Instant createdAt;
     private String source;
     private List<String> warnings;
+    private String sessionEndReason;
+    private Boolean sessionEndedExplicitly;
 }

@@ -105,6 +105,10 @@ public final class CacheKeys {
         return "ai:explanation:v3_6:alert:" + eventId + ":latest";
     }
 
+    public static String explanationLockKey(String eventId, String language, String style) {
+        return "lock:llm-explanation:" + eventId + ":" + language + ":" + style;
+    }
+
     public static String detectedAnomalyKey(String insuredId, String sessionId) {
         return "anomaly:detected:" + insuredId + ":" + sessionId;
     }

@@ -77,6 +77,9 @@ public interface AnomalyEventRepository extends JpaRepository<AnomalyEvent, Long
                                        @Param("toTime") Instant toTime,
                                        Pageable pageable);
 
+    @Query("SELECT e FROM AnomalyEvent e WHERE e.eventId IN :eventIds")
+    List<AnomalyEvent> findByEventIdIn(@Param("eventIds") List<String> eventIds);
+
     @Query("SELECT e.anomalyType, COUNT(e) FROM AnomalyEvent e WHERE e.anomalyType IS NOT NULL GROUP BY e.anomalyType")
     List<Object[]> countByAnomalyType();
 }

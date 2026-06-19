@@ -83,6 +83,14 @@ public class LiveStatsStreamService {
         }
 
         broadcastStats(statsService.getLiveStats(LocalDate.now(ZoneOffset.UTC)));
+
+        // Emit per-page refresh events so the frontend auto-updates even
+        // when no Redis/Kafka trigger is present.
+        log.debug("pushStats: broadcasting {} refresh events", V36_REFRESH_EVENTS.size());
+        for (String event : V36_REFRESH_EVENTS) {
+            log.debug("pushStats: broadcasting refresh event '{}'", event);
+            broadcastRefresh(event);
+        }
     }
 
     public void broadcastStats(StatsResponseDto stats) {

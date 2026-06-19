@@ -3,6 +3,7 @@ package com.neo.dashboard;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Boots the analytics API and lets Spring discover controllers, services,
@@ -10,6 +11,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
  */
 @SpringBootApplication
 @EnableAsync
+@EnableScheduling
 public class ApiServiceApplication {
 
     /* Delegate startup to Spring Boot's auto-configuration pipeline. */

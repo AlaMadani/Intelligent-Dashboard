@@ -26,4 +26,7 @@ public interface SessionAnalysisRepository extends JpaRepository<SessionAnalysis
     // Return the highest-risk finalized sessions for the dashboard.
     List<SessionAnalysis> findTop20ByOrderByFinalRiskScoreDescCreatedAtDesc();
     Optional<SessionAnalysis> findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(String insuredId, String sessionId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT s FROM SessionAnalysis s ORDER BY s.finalRiskScore DESC, s.createdAt DESC")
+    List<SessionAnalysis> findTopRiskySessions(org.springframework.data.domain.Pageable pageable);
 }

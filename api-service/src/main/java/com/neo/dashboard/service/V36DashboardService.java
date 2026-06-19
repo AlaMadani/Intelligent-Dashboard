@@ -39,17 +39,40 @@ public class V36DashboardService {
     private final StatsService statsService;
     private final SessionAnalysisRepository sessionAnalysisRepository;
     private final ObjectMapper objectMapper;
+    private final DashboardSnapshotFallbackService snapshotFallbackService;
 
     public V36RuntimeHealthResponse getRuntimeHealth() {
-        return redisReadService.readValue(CacheKeys.AI_RUNTIME_HEALTH_V36, V36RuntimeHealthResponse.class)
-                .map(this::normalizeRuntimeHealth)
-                .orElseGet(V36RuntimeHealthResponse::unknown);
+        DashboardSnapshotFallbackService.FallbackResult<V36RuntimeHealthResponse> result =
+                snapshotFallbackService.readWithFallback(
+                        CacheKeys.AI_RUNTIME_HEALTH_V36,
+                        V36RuntimeHealthResponse.class,
+                        "model-health",
+                        "model-health:latest");
+        if (result != null) {
+            V36RuntimeHealthResponse response = normalizeRuntimeHealth(result.payload());
+            response.setSource(result.source());
+            return response;
+        }
+        V36RuntimeHealthResponse fallback = V36RuntimeHealthResponse.unknown();
+        fallback.setSource("generated_fallback");
+        return fallback;
     }
 
     public V36SecurityOverviewResponse getSecurityOverview() {
-        return redisReadService.readValue(CacheKeys.DASHBOARD_SECURITY_OVERVIEW_V36, V36SecurityOverviewResponse.class)
-                .map(this::normalizeSecurityOverview)
-                .orElseGet(this::buildSecurityOverviewFallback);
+        DashboardSnapshotFallbackService.FallbackResult<V36SecurityOverviewResponse> result =
+                snapshotFallbackService.readWithFallback(
+                        CacheKeys.DASHBOARD_SECURITY_OVERVIEW_V36,
+                        V36SecurityOverviewResponse.class,
+                        "security-overview",
+                        "security-overview:latest");
+        if (result != null) {
+            V36SecurityOverviewResponse response = normalizeSecurityOverview(result.payload());
+            response.setSource(result.source());
+            return response;
+        }
+        V36SecurityOverviewResponse fallback = buildSecurityOverviewFallback();
+        fallback.setSource("generated_fallback");
+        return fallback;
     }
 
     public V36DiagnosticsResponse getDiagnostics() {
@@ -61,6 +84,9 @@ public class V36DashboardService {
                 .ifPresent(node -> fieldCoverage.put("tabular", safeNodeToObject(node)));
         Optional<Object> modelLatency = redisReadService.readJson(CacheKeys.AI_MODEL_LATENCY_V36)
                 .map(this::safeNodeToObject);
+        if (modelLatency.isEmpty() && runtimeHealth.getModelLatency() != null) {
+            modelLatency = Optional.of(runtimeHealth.getModelLatency());
+        }
 
         List<String> warnings = new ArrayList<>();
         if (fieldCoverage.isEmpty()) {
@@ -73,13 +99,24 @@ public class V36DashboardService {
             warnings.addAll(runtimeHealth.getWarnings());
         }
 
+        Map<String, Object> kafka = runtimeHealth.getKafka();
+        Map<String, Object> idempotency = runtimeHealth.getIdempotency();
+        Map<String, Object> performance = runtimeHealth.getPerformance();
+        Map<String, Object> statsSection = runtimeHealth.getStats();
+        Map<String, Object> sessionFinalization = runtimeHealth.getSessionFinalization();
+
         return new V36DiagnosticsResponse(
                 CacheKeys.V36_SCHEMA_VERSION,
                 runtimeHealth,
                 fieldCoverage,
                 modelLatency.orElse(null),
                 runtimeHealth.getFallbackMode(),
-                warnings.stream().distinct().toList()
+                warnings.stream().distinct().toList(),
+                kafka,
+                idempotency,
+                performance,
+                statsSection,
+                sessionFinalization
         );
     }
 
@@ -96,15 +133,45 @@ public class V36DashboardService {
     }
 
     public V36ChurnDashboardResponse getChurnDashboard() {
-        return redisReadService.readValue(CacheKeys.DASHBOARD_CHURN_V36, V36ChurnDashboardResponse.class)
-                .map(this::normalizeChurnDashboard)
-                .orElseGet(this::buildChurnFallback);
+        DashboardSnapshotFallbackService.FallbackResult<V36ChurnDashboardResponse> result =
+                snapshotFallbackService.readWithFallback(
+                        CacheKeys.DASHBOARD_CHURN_V36,
+                        V36ChurnDashboardResponse.class,
+                        "churn-dashboard",
+                        "churn-dashboard:latest");
+        if (result != null) {
+            V36ChurnDashboardResponse response = normalizeChurnDashboard(result.payload());
+            response.setSource(result.source());
+            return response;
+        }
+        V36ChurnDashboardResponse fallback = buildChurnFallback();
+        fallback.setSource("generated_fallback");
+        return fallback;
     }
 
     public V36ForecastDashboardResponse getForecastDashboard() {
-        return redisReadService.readValue(CacheKeys.DASHBOARD_FORECAST_V36, V36ForecastDashboardResponse.class)
-                .map(this::normalizeForecastDashboard)
-                .orElseGet(this::buildForecastFallback);
+        DashboardSnapshotFallbackService.FallbackResult<V36ForecastDashboardResponse> result =
+                snapshotFallbackService.readWithFallback(
+                        CacheKeys.DASHBOARD_FORECAST_V36,
+                        V36ForecastDashboardResponse.class,
+                        "forecast-dashboard",
+                        "forecast-dashboard:latest");
+        if (result != null) {
+            V36ForecastDashboardResponse response = normalizeForecastDashboard(result.payload());
+            response.setSource(result.source());
+            if (result.source().equals("sql_fallback")) {
+                V36ForecastDashboardResponse finalResponse = response;
+                List<String> warnings = finalResponse.getForecastWarnings() == null
+                        ? new ArrayList<>()
+                        : new ArrayList<>(finalResponse.getForecastWarnings());
+                warnings.add("SQL fallback: " + result.snapshotKey());
+                finalResponse.setForecastWarnings(warnings);
+            }
+            return response;
+        }
+        V36ForecastDashboardResponse fallback = buildForecastFallback();
+        fallback.setSource("generated_fallback");
+        return fallback;
     }
 
     public V36FinalWinnersResponse getFinalWinners() {
@@ -256,16 +323,16 @@ public class V36DashboardService {
                 })
                 .toList();
 
-        return new V36ChurnDashboardResponse(
-                CacheKeys.V36_SCHEMA_VERSION,
-                withChurn.size(),
-                distribution.getOrDefault("HIGH", 0L),
-                distribution.getOrDefault("MEDIUM", 0L),
-                distribution.getOrDefault("LOW", 0L),
-                average,
-                topUsers,
-                distribution
-        );
+        V36ChurnDashboardResponse churnResponse = new V36ChurnDashboardResponse();
+        churnResponse.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
+        churnResponse.setTotalUsers(withChurn.size());
+        churnResponse.setHighChurnRiskUsers(distribution.getOrDefault("HIGH", 0L));
+        churnResponse.setMediumChurnRiskUsers(distribution.getOrDefault("MEDIUM", 0L));
+        churnResponse.setLowChurnRiskUsers(distribution.getOrDefault("LOW", 0L));
+        churnResponse.setAverageChurnProbability(average);
+        churnResponse.setTopChurnRiskUsers(topUsers);
+        churnResponse.setChurnRiskDistribution(distribution);
+        return churnResponse;
     }
 
     private V36ForecastDashboardResponse normalizeForecastDashboard(V36ForecastDashboardResponse response) {
@@ -292,17 +359,18 @@ public class V36DashboardService {
 
     private V36ForecastDashboardResponse buildForecastFallback() {
         StatsResponseDto trendStats = statsService.getTrendStats(LocalDate.now());
-        return new V36ForecastDashboardResponse(
-                CacheKeys.V36_SCHEMA_VERSION,
-                LocalDate.now().plusDays(1),
-                0L,
-                0.0,
-                0L,
-                normalizeForecastSeries(trendStats == null ? null : trendStats.getPayload(), LocalDate.now(), "legacy_trend"),
-                List.of(),
-                Map.of(),
-                List.of("V3.6.1 forecast snapshot not available; returned legacy trend payload when present")
-        );
+        V36ForecastDashboardResponse response = new V36ForecastDashboardResponse();
+        response.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
+        response.setForecastDate(LocalDate.now().plusDays(1));
+        response.setPredictedTotalEvents(0L);
+        response.setPredictedAnomalyRate(0.0);
+        response.setExpectedAlertVolume(0L);
+        response.setHistoricalTotalEvents(normalizeForecastSeries(
+                trendStats == null ? null : trendStats.getPayload(), LocalDate.now(), "legacy_trend"));
+        response.setHistoricalAnomalyRate(List.of());
+        response.setForecastModelNames(Map.of());
+        response.setForecastWarnings(List.of("V3.6.1 forecast snapshot not available; returned legacy trend payload when present"));
+        return response;
     }
 
     private Object normalizeForecastSeries(Object raw, LocalDate date, String defaultLabel) {

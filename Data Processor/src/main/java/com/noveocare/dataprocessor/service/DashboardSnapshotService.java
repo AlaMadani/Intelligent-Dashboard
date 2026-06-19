@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.noveocare.dataprocessor.ai.forecast.ForecastPrediction;
 import com.noveocare.dataprocessor.ai.forecast.ForecastRuntimeService;
 import com.noveocare.dataprocessor.config.CacheKeys;
+import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RedisPubSubProperties;
 import com.noveocare.dataprocessor.dto.SessionInsight;
@@ -17,6 +18,7 @@ import com.noveocare.dataprocessor.repository.AnomalyEventRepository;
 import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +31,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.data.domain.PageRequest;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @Slf4j
@@ -40,11 +47,58 @@ public class DashboardSnapshotService {
     private final SessionAnalysisRepository sessionAnalysisRepository;
     private final AnomalyEventRepository anomalyEventRepository;
     private final ForecastRuntimeService forecastRuntimeService;
-    private final ModelHealthService modelHealthService;
+    private final ObjectFactory<ModelHealthService> modelHealthServiceFactory;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final StatisticsService statisticsService;
     private final RedisPubSubProperties pubSubProperties;
+    private final PerformanceProperties performanceProperties;
+    private final DashboardSnapshotPersistenceService dashboardSnapshotPersistenceService;
+
+    private final AtomicReference<Instant> dashboardLastRefreshAt = new AtomicReference<>();
+    private final AtomicInteger dashboardRefreshSkippedDueToRateLimit = new AtomicInteger();
+    private final AtomicReference<Instant> lastRefreshAttemptAt = new AtomicReference<>();
+    private final AtomicReference<String> lastRefreshError = new AtomicReference<>();
+    private final AtomicLong refreshSuccessCount = new AtomicLong();
+    private final AtomicLong refreshFailureCount = new AtomicLong();
+    private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
+    private final AtomicLong refreshAlreadyRunningSkipped = new AtomicLong();
+
+    private final AtomicReference<Instant> lastSecurityOverviewRefresh = new AtomicReference<>();
+    private final AtomicReference<Instant> lastAlertsRefresh = new AtomicReference<>();
+    private final AtomicReference<Instant> lastRiskySessionsRefresh = new AtomicReference<>();
+    private final AtomicReference<Instant> lastModelHealthRefresh = new AtomicReference<>();
+
+    private final AtomicLong lastAlertsRefreshMs = new AtomicLong();
+    private final AtomicLong lastSecurityOverviewRefreshMs = new AtomicLong();
+    private final AtomicLong lastRiskySessionsRefreshMs = new AtomicLong();
+    private final AtomicLong lastTotalDashboardRefreshMs = new AtomicLong();
+    private final AtomicReference<String> lastSlowDashboardView = new AtomicReference<>();
+    private final AtomicLong lastSlowDashboardViewMs = new AtomicLong();
+    private final AtomicReference<Instant> lastRefreshStartedAt = new AtomicReference<>();
+    private final AtomicReference<Instant> lastRefreshCompletedAt = new AtomicReference<>();
+
+    private volatile boolean alertsDirty = false;
+    private volatile boolean riskySessionsDirty = false;
+    private volatile boolean securityOverviewDirty = false;
+
+    public void markDirty() {
+        alertsDirty = true;
+        riskySessionsDirty = true;
+        securityOverviewDirty = true;
+    }
+
+    public void markAlertsDirty() {
+        alertsDirty = true;
+    }
+
+    public void markOverviewDirty() {
+        securityOverviewDirty = true;
+    }
+
+    public void markRiskySessionsDirty() {
+        riskySessionsDirty = true;
+    }
 
     public void cacheSessionInsight(SessionSummary summary, SessionInsight insight) {
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -134,7 +188,7 @@ public class DashboardSnapshotService {
         payload.put("finalRiskScore", insight.getFinalRiskScore());
         payload.put("xgboostAnomalyScore", insight.getXgboostAnomalyScore());
         payload.put("xgboostAnomalyScore100", insight.getXgboostAnomalyScore100());
-payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
+        payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
         payload.put("lightgbmAlertScore100", insight.getLightgbmAlertScore100());
         payload.put("catboostAnomalyScore", insight.getCatboostAnomalyScore());
         payload.put("catboostAnomalyScore100", insight.getCatboostAnomalyScore100());
@@ -169,6 +223,7 @@ payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
         redisCacheService.addSetMember(CacheKeys.activeSessionInsightsIndexKey(), insightKey);
         redisCacheService.addSetMember(CacheKeys.activeSessionInsightsIndexKey(summary.getInsuredId()), insightKey);
         cacheUser360(summary, insight);
+        markOverviewDirty();
     }
 
     private boolean defaultBoolean(Integer value) {
@@ -215,71 +270,243 @@ payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
         redisCacheService.removeSetMember(CacheKeys.activeSessionInsightsIndexKey(insuredId), insightKey);
     }
 
+    public boolean tryStartRefresh() {
+        if (refreshInProgress.getAndSet(true)) {
+            refreshAlreadyRunningSkipped.incrementAndGet();
+            return false;
+        }
+        lastRefreshStartedAt.set(Instant.now());
+        return true;
+    }
+
+    public void finishRefresh() {
+        refreshInProgress.set(false);
+        lastRefreshCompletedAt.set(Instant.now());
+    }
+
     public void refreshAll() {
-        refreshAlertsFeed();
-        refreshRiskySessions();
-        refreshClusterMix();
-        refreshDropOffs();
-        refreshPathDeviations();
-        refreshForecasts();
-        refreshSecurityOverview();
-        refreshChurnDashboard();
-        refreshForecastDashboardV36();
-        cacheDashboard("model-health", modelHealthService.snapshot());
+        if (!tryStartRefresh()) {
+            log.debug("Dashboard refresh already running, skipping");
+            return;
+        }
+        lastRefreshAttemptAt.set(Instant.now());
+        long totalStart = System.currentTimeMillis();
+        try {
+            refreshSecurityOverview();
+            refreshRiskySessions();
+            refreshAlertsFeed();
+            refreshClusterMix();
+            refreshDropOffs();
+            refreshPathDeviations();
+            refreshForecasts();
+            refreshChurnDashboard();
+            refreshForecastDashboardV36();
+            cacheDashboard("model-health", modelHealthServiceFactory.getObject().snapshot());
+            dashboardLastRefreshAt.set(Instant.now());
+            refreshSuccessCount.incrementAndGet();
+        } catch (Exception e) {
+            refreshFailureCount.incrementAndGet();
+            lastRefreshError.set(e.getClass().getSimpleName() + ": " + e.getMessage());
+            log.warn("Dashboard refreshAll failed", e);
+            throw e;
+        } finally {
+            finishRefresh();
+            lastTotalDashboardRefreshMs.set(System.currentTimeMillis() - totalStart);
+            long totalMs = lastTotalDashboardRefreshMs.get();
+            if (totalMs > 10000) {
+                log.error("Dashboard refresh total took {}ms", totalMs);
+            } else if (totalMs > 2000) {
+                log.warn("Dashboard refresh total took {}ms", totalMs);
+            }
+        }
     }
 
     public void refreshAlertsFeed() {
-        List<Map<String, Object>> alerts = anomalyEventRepository.findTop100ByOrderByDetectedAtDesc().stream()
-                .map(this::alertRow)
-                .toList();
-        if (alerts.isEmpty() && anomalyEventRepository.count() == 0) {
-            alerts = runtimeExport("alerts_feed.csv");
+        if (!canRefresh(lastAlertsRefresh, performanceProperties.getDashboardRefresh().getAlertsMinIntervalMs())) {
+            if (lastAlertsRefresh.get() != null && alertsDirty) {
+                dashboardRefreshSkippedDueToRateLimit.incrementAndGet();
+            }
+            alertsDirty = false;
+            return;
         }
-        cacheDashboard("alerts", Map.of(
-                "items", alerts,
-                "generatedAt", Instant.now().toString()));
+        long startMs = System.currentTimeMillis();
+        long redisReadMs = 0;
+        long sqlReadMs = 0;
+        long jsonParseMs = 0;
+        long sortFilterMs = 0;
+        long redisWriteMs = 0;
+        int itemCount = 0;
+
+        List<Map<String, Object>> alerts = new ArrayList<>();
+
+        long t0 = System.currentTimeMillis();
+        List<Map<String, Object>> liveAlertsRaw = (List<Map<String, Object>>) (List<?>) redisCacheService.getJsonList(CacheKeys.liveAlertsV36Key(), Map.class);
+        redisReadMs = System.currentTimeMillis() - t0;
+        if (liveAlertsRaw != null && !liveAlertsRaw.isEmpty()) {
+            t0 = System.currentTimeMillis();
+            for (Map<String, Object> alert : liveAlertsRaw) {
+                if (alert != null) {
+                    alerts.add(alert);
+                }
+            }
+            jsonParseMs = System.currentTimeMillis() - t0;
+        }
+
+        if (alerts.size() < performanceProperties.getDashboardRefresh().getMaxAlertItems()) {
+            t0 = System.currentTimeMillis();
+            int needed = performanceProperties.getDashboardRefresh().getMaxAlertItems() - alerts.size();
+            List<AnomalyEvent> sqlAlerts = anomalyEventRepository.findRecentAnomalyEvents(PageRequest.of(0, needed));
+            sqlReadMs = System.currentTimeMillis() - t0;
+            t0 = System.currentTimeMillis();
+            for (AnomalyEvent event : sqlAlerts) {
+                alerts.add(alertRow(event));
+            }
+            jsonParseMs += System.currentTimeMillis() - t0;
+        }
+
+        t0 = System.currentTimeMillis();
+        alerts = alerts.stream()
+                .sorted(Comparator.comparing((Map<String, Object> row) -> {
+                    Object val = row.get("detectedAt");
+                    return val instanceof Instant ? (Instant) val : Instant.MIN;
+                }).reversed())
+                .limit(performanceProperties.getDashboardRefresh().getMaxAlertItems())
+                .toList();
+        sortFilterMs = System.currentTimeMillis() - t0;
+        itemCount = alerts.size();
+
+        if (alerts.isEmpty() && liveAlertsRaw == null) {
+            alerts = runtimeExport("alerts_feed.csv");
+            itemCount = alerts.size();
+        }
+
+        t0 = System.currentTimeMillis();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("items", alerts);
+        payload.put("generatedAt", Instant.now().toString());
+        payload.put("updatedAt", Instant.now().toString());
+        payload.put("source", "redis_live_incremental");
+        payload.put("itemCount", itemCount);
+        cacheDashboard("alerts", payload);
+        redisWriteMs = System.currentTimeMillis() - t0;
+
+        lastAlertsRefresh.set(Instant.now());
+        alertsDirty = false;
+        dashboardLastRefreshAt.set(Instant.now());
+        long totalMs = System.currentTimeMillis() - startMs;
+        lastAlertsRefreshMs.set(totalMs);
+
+        log.info("Dashboard view refresh completed view=alerts totalMs={} redisReadMs={} sqlReadMs={} jsonParseMs={} sortFilterMs={} redisWriteMs={} itemCount={}",
+                totalMs, redisReadMs, sqlReadMs, jsonParseMs, sortFilterMs, redisWriteMs, itemCount);
+        if (totalMs > 2000) {
+            log.warn("Dashboard view refresh slow view=alerts totalMs={}", totalMs);
+            lastSlowDashboardView.set("alerts");
+            lastSlowDashboardViewMs.set(totalMs);
+        }
     }
 
     public void refreshRiskySessions() {
-        List<Map<String, Object>> rows = new ArrayList<>(activeSessionInsights());
-        sessionAnalysisRepository.findTop20ByOrderByFinalRiskScoreDescCreatedAtDesc().stream()
-                .map(this::sessionRow)
-                .forEach(rows::add);
+        if (!canRefresh(lastRiskySessionsRefresh, performanceProperties.getDashboardRefresh().getRiskySessionsMinIntervalMs())) {
+            if (lastRiskySessionsRefresh.get() != null && riskySessionsDirty) {
+                dashboardRefreshSkippedDueToRateLimit.incrementAndGet();
+            }
+            riskySessionsDirty = false;
+            return;
+        }
+        long startMs = System.currentTimeMillis();
+        long redisReadMs = 0;
+        long sqlReadMs = 0;
+        long jsonParseMs = 0;
+        long sortFilterMs = 0;
+        long redisWriteMs = 0;
+        int itemCount = 0;
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+
+        long t0 = System.currentTimeMillis();
+        for (Map<String, Object> insight : activeSessionInsights()) {
+            rows.add(insight);
+        }
+        redisReadMs = System.currentTimeMillis() - t0;
+
+        int maxItems = performanceProperties.getDashboardRefresh().getMaxRiskySessionItems();
+        if (rows.size() < maxItems) {
+            t0 = System.currentTimeMillis();
+            int needed = maxItems - rows.size();
+            sessionAnalysisRepository.findTopRiskySessions(PageRequest.of(0, needed)).stream()
+                    .map(this::sessionRow)
+                    .forEach(rows::add);
+            sqlReadMs = System.currentTimeMillis() - t0;
+        }
+
+        t0 = System.currentTimeMillis();
         rows = rows.stream()
                 .sorted(Comparator.comparing((Map<String, Object> row) -> numeric(row.get("riskScore"))).reversed())
-                .limit(20)
+                .limit(maxItems)
                 .toList();
+        sortFilterMs = System.currentTimeMillis() - t0;
+        itemCount = rows.size();
+
         if (rows.isEmpty()) {
             rows = runtimeExport("top_risky_sessions.csv");
+            itemCount = rows.size();
         }
-        cacheDashboard("risky-sessions", Map.of(
-                "items", rows,
-                "generatedAt", Instant.now().toString()));
+
+        t0 = System.currentTimeMillis();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("items", rows);
+        payload.put("generatedAt", Instant.now().toString());
+        payload.put("updatedAt", Instant.now().toString());
+        payload.put("source", "redis_live_incremental");
+        payload.put("itemCount", itemCount);
+        cacheDashboard("risky-sessions", payload);
+        redisWriteMs = System.currentTimeMillis() - t0;
+
+        lastRiskySessionsRefresh.set(Instant.now());
+        riskySessionsDirty = false;
+        dashboardLastRefreshAt.set(Instant.now());
+        long totalMs = System.currentTimeMillis() - startMs;
+        lastRiskySessionsRefreshMs.set(totalMs);
+
+        log.info("Dashboard view refresh completed view=risky-sessions totalMs={} redisReadMs={} sqlReadMs={} jsonParseMs={} sortFilterMs={} redisWriteMs={} itemCount={}",
+                totalMs, redisReadMs, sqlReadMs, jsonParseMs, sortFilterMs, redisWriteMs, itemCount);
+        if (totalMs > 2000) {
+            log.warn("Dashboard view refresh slow view=risky-sessions totalMs={}", totalMs);
+            lastSlowDashboardView.set("risky-sessions");
+            lastSlowDashboardViewMs.set(totalMs);
+        }
     }
 
     public void refreshClusterMix() {
         List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
-        List<Map<String, Object>> rows;
         if (sessions.isEmpty()) {
-            rows = runtimeExport("cluster_mix.csv");
-        } else {
-            Map<Integer, Long> counts = new LinkedHashMap<>();
-            for (SessionAnalysis session : sessions) {
-                if (session.getPersonaCluster() == null) {
-                    continue;
-                }
-                counts.put(session.getPersonaCluster(), counts.getOrDefault(session.getPersonaCluster(), 0L) + 1);
-            }
-            long total = counts.values().stream().mapToLong(Long::longValue).sum();
-            rows = counts.entrySet().stream()
-                    .map(entry -> Map.<String, Object>of(
-                            "cluster_id", entry.getKey(),
-                            "traffic_share", total == 0 ? 0.0 : (double) entry.getValue() / total))
-                    .toList();
+            cacheDashboard("cluster-mix", Map.of(
+                    "items", runtimeExport("cluster_mix.csv"),
+                    "generatedAt", Instant.now().toString(),
+                    "updatedAt", Instant.now().toString(),
+                    "source", "sql_live",
+                    "itemCount", 0));
+            return;
         }
+        Map<Integer, Long> counts = new LinkedHashMap<>();
+        for (SessionAnalysis session : sessions) {
+            if (session.getPersonaCluster() == null) {
+                continue;
+            }
+            counts.put(session.getPersonaCluster(), counts.getOrDefault(session.getPersonaCluster(), 0L) + 1);
+        }
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        List<Map<String, Object>> rows = counts.entrySet().stream()
+                .map(entry -> Map.<String, Object>of(
+                        "cluster_id", entry.getKey(),
+                        "traffic_share", total == 0 ? 0.0 : (double) entry.getValue() / total))
+                .toList();
         cacheDashboard("cluster-mix", Map.of(
                 "items", rows,
-                "generatedAt", Instant.now().toString()));
+                "generatedAt", Instant.now().toString(),
+                "updatedAt", Instant.now().toString(),
+                "source", "sql_live",
+                "itemCount", rows.size()));
     }
 
     public void refreshDropOffs() {
@@ -287,12 +514,18 @@ payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
         if (sessions.isEmpty()) {
             cacheDashboard("drop-offs", Map.of(
                     "items", runtimeExport("dropoff_actions.csv"),
-                    "generatedAt", Instant.now().toString()));
+                    "generatedAt", Instant.now().toString(),
+                    "updatedAt", Instant.now().toString(),
+                    "source", "sql_live",
+                    "itemCount", 0));
             return;
         }
         cacheDashboard("drop-offs", Map.of(
                 "items", List.of(),
-                "generatedAt", Instant.now().toString()));
+                "generatedAt", Instant.now().toString(),
+                "updatedAt", Instant.now().toString(),
+                "source", "sql_live",
+                "itemCount", 0));
     }
 
     public void refreshPathDeviations() {
@@ -302,7 +535,10 @@ payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
         }
         cacheDashboard("path-deviations", Map.of(
                 "items", rows,
-                "generatedAt", Instant.now().toString()));
+                "generatedAt", Instant.now().toString(),
+                "updatedAt", Instant.now().toString(),
+                "source", "runtime_export",
+                "itemCount", rows.size()));
     }
 
     public void refreshForecasts() {
@@ -312,13 +548,39 @@ payload.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
     }
 
     public void refreshSecurityOverview() {
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        long totalEvents = statisticsService.countEventsForDate(today);
-        long alerts = statisticsService.countAlertsForDate(today);
-        ForecastPrediction forecast = forecastRuntimeService.forecast(today);
-        List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
+        if (!canRefresh(lastSecurityOverviewRefresh, performanceProperties.getDashboardRefresh().getSecurityOverviewMinIntervalMs())) {
+            if (lastSecurityOverviewRefresh.get() != null && securityOverviewDirty) {
+                dashboardRefreshSkippedDueToRateLimit.incrementAndGet();
+            }
+            securityOverviewDirty = false;
+            return;
+        }
+        long startMs = System.currentTimeMillis();
+        long redisReadMs = 0;
+        long forecastMs = 0;
+        long sqlReadMs = 0;
+        long aggregationMs = 0;
+        long redisWriteMs = 0;
+        long eventCount = 0;
+        long alertCount = 0;
+        long sessionCount = 0;
 
-Map<String, Long> topRules = new LinkedHashMap<>();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        long t0 = System.currentTimeMillis();
+        long totalEvents = statisticsService.countEventsForDate(today);
+        eventCount = totalEvents;
+        long alerts = statisticsService.countAlertsForDate(today);
+        alertCount = alerts;
+        redisReadMs = System.currentTimeMillis() - t0;
+
+        t0 = System.currentTimeMillis();
+        List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
+        sqlReadMs = System.currentTimeMillis() - t0;
+        sessionCount = sessions.size();
+
+        t0 = System.currentTimeMillis();
+        Map<String, Long> topRules = new LinkedHashMap<>();
         double riskTotal = 0.0;
         int riskCount = 0;
         long critical = 0L;
@@ -341,24 +603,49 @@ Map<String, Long> topRules = new LinkedHashMap<>();
                 }
             }
         }
+        aggregationMs = System.currentTimeMillis() - t0;
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", "v3.6.1");
         payload.put("snapshotTimestamp", Instant.now().toString());
+        payload.put("generatedAt", Instant.now().toString());
+        payload.put("updatedAt", Instant.now().toString());
+        payload.put("source", "redis_live_incremental");
         payload.put("totalEventsToday", totalEvents);
+        payload.put("eventCount", eventCount);
         payload.put("activeUsersToday", activeSessionInsights().stream().map(row -> row.get("insuredId")).distinct().count());
         payload.put("anomalyRateToday", totalEvents == 0 ? 0.0 : (double) alerts / totalEvents);
         payload.put("criticalAlertsToday", critical);
         payload.put("highRiskAlertsToday", high);
+        payload.put("alertCount", alertCount);
+        payload.put("sessionCount", sessionCount);
         payload.put("averageRiskScoreToday", riskCount == 0 ? 0.0 : riskTotal / riskCount);
-        payload.put("predictedAnomalyRateTomorrow", forecast.getAnomalyRateForecast());
-        payload.put("predictedTotalEventsTomorrow", forecast.getTotalEventsForecast());
-        payload.put("expectedAlertVolumeTomorrow", forecast.getExpectedAlertVolume());
+        payload.put("predictedAnomalyRateTomorrow", null);
+        payload.put("predictedTotalEventsTomorrow", null);
+        payload.put("expectedAlertVolumeTomorrow", null);
         payload.put("topAnomalyTypes", Map.of());
         payload.put("topTriggeredRules", topNMap(topRules, 5));
-        payload.put("modelHealthSummary", modelHealthService.snapshot());
-        payload.put("fieldCoverageWarnings", modelHealthService.snapshot().get("highUnknownFieldWarnings"));
+        payload.put("modelHealthSummary", modelHealthServiceFactory.getObject().snapshot());
+        payload.put("fieldCoverageWarnings", modelHealthServiceFactory.getObject().snapshot().get("highUnknownFieldWarnings"));
+
+        t0 = System.currentTimeMillis();
         redisCacheService.setJson(CacheKeys.securityOverviewDashboardKey(), payload, cacheProperties.getDashboard());
+        redisWriteMs = System.currentTimeMillis() - t0;
+        dashboardSnapshotPersistenceService.persistSnapshot("security-overview", "security-overview:latest", payload, "dashboard_refresh");
+
+        lastSecurityOverviewRefresh.set(Instant.now());
+        securityOverviewDirty = false;
+        dashboardLastRefreshAt.set(Instant.now());
+        long totalMs = System.currentTimeMillis() - startMs;
+        lastSecurityOverviewRefreshMs.set(totalMs);
+
+        log.info("Dashboard view refresh completed view=security-overview totalMs={} redisReadMs={} sqlReadMs={} forecastMs={} aggregationMs={} redisWriteMs={} eventCount={} alertCount={} sessionCount={}",
+                totalMs, redisReadMs, sqlReadMs, forecastMs, aggregationMs, redisWriteMs, eventCount, alertCount, sessionCount);
+        if (totalMs > 2000) {
+            log.warn("Dashboard view refresh slow view=security-overview totalMs={}", totalMs);
+            lastSlowDashboardView.set("security-overview");
+            lastSlowDashboardViewMs.set(totalMs);
+        }
     }
 
     public void refreshChurnDashboard() {
@@ -407,11 +694,17 @@ Map<String, Long> topRules = new LinkedHashMap<>();
         payload.put("averageChurnProbability", count == 0 ? 0.0 : total / count);
         payload.put("topChurnRiskUsers", users);
         payload.put("churnRiskDistribution", distribution);
+        payload.put("generatedAt", Instant.now().toString());
+        payload.put("updatedAt", Instant.now().toString());
+        payload.put("source", "sql_live");
         redisCacheService.setJson(CacheKeys.churnDashboardKey(), payload, cacheProperties.getDashboard());
+        dashboardSnapshotPersistenceService.persistSnapshot("churn-dashboard", "churn-dashboard:latest", payload, "dashboard_refresh");
     }
 
     public void refreshForecastDashboardV36() {
-        redisCacheService.setJson(CacheKeys.forecastDashboardV36Key(), buildForecastDashboardPayload(LocalDate.now(ZoneOffset.UTC)), cacheProperties.getForecast());
+        Map<String, Object> payload = buildForecastDashboardPayload(LocalDate.now(ZoneOffset.UTC));
+        redisCacheService.setJson(CacheKeys.forecastDashboardV36Key(), payload, cacheProperties.getForecast());
+        dashboardSnapshotPersistenceService.persistSnapshot("forecast-dashboard", "forecast-dashboard:latest", payload, "dashboard_refresh");
     }
 
     public Map<String, Object> buildForecastSnapshot(LocalDate referenceDate) {
@@ -452,6 +745,8 @@ Map<String, Long> topRules = new LinkedHashMap<>();
         payload.put("referenceDate", effectiveDate);
         payload.put("hasLiveTraffic", totalEventsActual > 0);
         payload.put("generatedAt", Instant.now().toString());
+        payload.put("updatedAt", Instant.now().toString());
+        payload.put("source", "sql_live");
         payload.put("items", items);
         payload.put("warnings", forecast.getWarnings());
         return payload;
@@ -478,6 +773,12 @@ Map<String, Long> topRules = new LinkedHashMap<>();
         return payload;
     }
 
+    private boolean canRefresh(AtomicReference<Instant> lastRefresh, long minIntervalMs) {
+        Instant last = lastRefresh.get();
+        if (last == null) return true;
+        return System.currentTimeMillis() - last.toEpochMilli() >= minIntervalMs;
+    }
+
     private Map<String, Long> topNMap(Map<String, Long> counts, int limit) {
         Map<String, Long> ordered = new LinkedHashMap<>();
         counts.entrySet().stream()
@@ -488,8 +789,10 @@ Map<String, Long> topRules = new LinkedHashMap<>();
     }
 
     private void cacheDashboard(String view, Object payload) {
-        redisCacheService.setJson(CacheKeys.dashboardKey(view), withSchemaVersion(payload), cacheProperties.getDashboard());
+        Object versionedPayload = withSchemaVersion(payload);
+        redisCacheService.setJson(CacheKeys.dashboardKey(view), versionedPayload, cacheProperties.getDashboard());
         redisCacheService.publishJson(pubSubProperties.getLiveStatsChannel(), Map.of("refresh", view));
+        dashboardSnapshotPersistenceService.persistSnapshot(view, view + ":latest", versionedPayload, "dashboard_refresh");
     }
 
     private Object withSchemaVersion(Object payload) {
@@ -586,7 +889,7 @@ Map<String, Long> topRules = new LinkedHashMap<>();
         row.put("churnProbability", event.getChurnProbability());
         row.put("riskScore", event.getRiskScore());
         row.put("personaCluster", event.getPersonaCluster());
-row.put("personaLabel", event.getPersonaLabel());
+        row.put("personaLabel", event.getPersonaLabel());
         row.put("aiRiskScore", event.getAiRiskScore());
         row.put("ruleRiskScore", event.getRuleRiskScore());
         row.put("finalRiskScore", event.getFinalRiskScore());
@@ -596,7 +899,7 @@ row.put("personaLabel", event.getPersonaLabel());
         return row;
     }
 
-private Map<String, Object> sessionRow(SessionAnalysis session) {
+    private Map<String, Object> sessionRow(SessionAnalysis session) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("sessionId", session.getSessionId());
         row.put("insuredId", session.getInsuredId());
@@ -659,4 +962,75 @@ private Map<String, Object> sessionRow(SessionAnalysis session) {
         }
     }
 
+    public Instant getDashboardLastRefreshAt() {
+        return dashboardLastRefreshAt.get();
+    }
+
+    public int getDashboardRefreshSkippedDueToRateLimit() {
+        return dashboardRefreshSkippedDueToRateLimit.get();
+    }
+
+    public Instant getLastRefreshAttemptAt() {
+        return lastRefreshAttemptAt.get();
+    }
+
+    public String getLastRefreshError() {
+        return lastRefreshError.get();
+    }
+
+    public long getRefreshSuccessCount() {
+        return refreshSuccessCount.get();
+    }
+
+    public long getRefreshFailureCount() {
+        return refreshFailureCount.get();
+    }
+
+    public boolean isAlertsDirty() {
+        return alertsDirty;
+    }
+
+    public boolean isRiskySessionsDirty() {
+        return riskySessionsDirty;
+    }
+
+    public boolean isSecurityOverviewDirty() {
+        return securityOverviewDirty;
+    }
+
+    public long getLastAlertsRefreshMs() {
+        return lastAlertsRefreshMs.get();
+    }
+
+    public long getLastSecurityOverviewRefreshMs() {
+        return lastSecurityOverviewRefreshMs.get();
+    }
+
+    public long getLastRiskySessionsRefreshMs() {
+        return lastRiskySessionsRefreshMs.get();
+    }
+
+    public long getLastTotalDashboardRefreshMs() {
+        return lastTotalDashboardRefreshMs.get();
+    }
+
+    public String getLastSlowDashboardView() {
+        return lastSlowDashboardView.get();
+    }
+
+    public long getLastSlowDashboardViewMs() {
+        return lastSlowDashboardViewMs.get();
+    }
+
+    public long getRefreshAlreadyRunningSkipped() {
+        return refreshAlreadyRunningSkipped.get();
+    }
+
+    public Instant getLastRefreshStartedAt() {
+        return lastRefreshStartedAt.get();
+    }
+
+    public Instant getLastRefreshCompletedAt() {
+        return lastRefreshCompletedAt.get();
+    }
 }

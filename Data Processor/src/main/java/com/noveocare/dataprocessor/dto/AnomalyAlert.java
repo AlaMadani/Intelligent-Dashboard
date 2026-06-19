@@ -44,8 +44,10 @@ public class AnomalyAlert {
     private Double ruleRiskScore;
     private Double finalRiskScore;
     private String riskLevel;
+    private String riskTier;
+    private String riskScale;
     private String anomalyTypeSource;
-private Double anomalyTypeConfidence;
+    private Double anomalyTypeConfidence;
     private java.util.Map<String, Object> anomalyTypeEvidence;
     private java.util.Map<String, Object> modelScores;
     private java.util.Map<String, Object> modelContributions;
@@ -66,6 +68,9 @@ private Double anomalyTypeConfidence;
     private String os;
     private String httpMethod;
     private String status;
+    private java.util.Map<String, Object> eventMetadata;
+    private java.util.Map<String, Object> sequenceEvidence;
+    private java.util.Map<String, Object> tabularEvidence;
     private List<NextActionScore> nextActions;
 
     // Timestamps for the triggering event and the actual detection moment.

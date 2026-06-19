@@ -8,6 +8,7 @@ import com.noveocare.dataprocessor.ai.sequence.SequenceFieldCoverageMonitor;
 import com.noveocare.dataprocessor.ai.sequence.SequenceOnnxInferenceService;
 import com.noveocare.dataprocessor.ai.tabular.TabularAnomalyInferenceService;
 import com.noveocare.dataprocessor.ai.tabular.TabularFieldCoverageMonitor;
+import com.noveocare.dataprocessor.kafka.AuditTrailConsumer;
 import com.noveocare.dataprocessor.config.AiChurnProperties;
 import com.noveocare.dataprocessor.config.AiForecastProperties;
 import com.noveocare.dataprocessor.config.AiLlmExplanationProperties;
@@ -15,9 +16,21 @@ import com.noveocare.dataprocessor.config.AiPersonaProperties;
 import com.noveocare.dataprocessor.config.AiSequenceProperties;
 import com.noveocare.dataprocessor.config.AiTabularAnomalyProperties;
 import com.noveocare.dataprocessor.config.CacheKeys;
+import com.noveocare.dataprocessor.config.LiveStatsProperties;
+import com.noveocare.dataprocessor.config.NextActionPredictionProperties;
+import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
+import com.noveocare.dataprocessor.kafka.AlertPublisher;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
+import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
+import com.noveocare.dataprocessor.service.DashboardSnapshotService;
+import com.noveocare.dataprocessor.service.EventIdempotencyService;
+import com.noveocare.dataprocessor.service.SessionFinalizationOrchestrator;
+import com.noveocare.dataprocessor.service.SessionFinalizationService;
+import com.noveocare.dataprocessor.service.DashboardRefreshScheduler;
+import com.noveocare.dataprocessor.service.DashboardSnapshotPersistenceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -46,6 +59,21 @@ public class ModelHealthService {
     private final AiForecastProperties forecastProperties;
     private final AiPersonaProperties personaProperties;
     private final AiLlmExplanationProperties llmProperties;
+    private final SessionFinalizationService sessionFinalizationService;
+    private final EventIdempotencyService eventIdempotencyService;
+    private final SessionFinalizationOrchestrator finalizationOrchestrator;
+    private final AlertPublisher alertPublisher;
+    private final LiveStatsProperties liveStatsProperties;
+    private final NextActionPredictionProperties nextActionPredictionProperties;
+    private final RedisSessionBufferService redisSessionBufferService;
+    private final ObjectFactory<AuditTrailConsumer> auditTrailConsumerFactory;
+    private final PerformanceProperties performanceProperties;
+    private final DashboardSnapshotService dashboardSnapshotService;
+    private final DashboardSnapshotPersistenceService dashboardSnapshotPersistenceService;
+    private final InferenceConfig inferenceConfig;
+    private final InferenceExecutorManager executorManager;
+    private final DashboardRefreshScheduler dashboardRefreshScheduler;
+    private final InferenceBenchmarkService inferenceBenchmarkService;
 
     private final AtomicLong inferenceErrorCount = new AtomicLong();
     private final Map<String, Instant> runtimeLastInferenceAt = new ConcurrentHashMap<>();
@@ -117,7 +145,191 @@ public class ModelHealthService {
                 "sequence", coverageMonitor.snapshot(),
                 "tabular", tabularCoverageMonitor.snapshot()));
         payload.put("highUnknownFieldWarnings", coverageMonitor.highUnknownWarnings());
+        payload.put("sessionFinalization", sessionFinalizationService.diagnosticsSnapshot());
+        payload.put("kafka", buildKafkaDiagnostics());
+        payload.put("idempotency", buildIdempotencyDiagnostics());
+        payload.put("stats", buildStatsDiagnostics());
+        payload.put("nextActionPrediction", buildNextActionPredictionDiagnostics());
+        payload.put("inference", buildInferenceDiagnostics());
+        payload.put("dashboard", buildDashboardDiagnostics());
+        payload.put("performance", buildPerformanceDiagnostics());
+        payload.put("modelLatency", buildModelLatencyDiagnostics());
         return payload;
+    }
+
+    private Map<String, Object> buildInferenceDiagnostics() {
+        Map<String, Object> inference = new LinkedHashMap<>();
+        inference.put("enabled", inferenceConfig.isInferenceEnabled());
+        inference.put("sequenceEnabled", inferenceConfig.isSequenceEnabled());
+        inference.put("transformerEnabled", inferenceConfig.isTransformerEnabled());
+        inference.put("tcnEnabled", inferenceConfig.isTcnEnabled());
+        inference.put("sequenceDisabledReason", inferenceConfig.isSequenceEnabled() ? null : "live_fast_mode");
+        inference.put("tabularEnabled", inferenceConfig.isTabularEnabled());
+        inference.put("churnEnabled", inferenceConfig.isChurnEnabled());
+        inference.put("forecastEnabled", inferenceConfig.isForecastEnabled());
+        inference.put("liveFastModeEnabled", inferenceConfig.isLiveFastModeEnabled());
+        inference.put("liveFastModeSkipTransformer", inferenceConfig.isLiveFastModeSkipTransformer());
+        inference.put("liveFastModeSkipSequence", inferenceConfig.isLiveFastModeSkipSequence());
+        inference.put("disableModelForRunAfterCircuitOpen", inferenceConfig.isDisableModelForRunAfterCircuitOpen());
+        inference.put("debugBenchmarkEnabled", inferenceConfig.isDebugBenchmarkEnabled());
+        inference.put("modelTimeoutCountByModel", executorManager.getTimeoutCount("transformer"));
+        inference.put("modelCircuitOpenByModel", executorManager.isCircuitOpenRaw("transformer"));
+        inference.put("lastTimedOutModel", executorManager.getLastTimedOutAt("transformer") != null ? "transformer" : null);
+        inference.put("lastTimedOutAt", executorManager.getLastTimedOutAt("transformer") != null
+                ? executorManager.getLastTimedOutAt("transformer").toString() : null);
+        inference.put("executors", executorManager.diagnostics());
+        inference.put("circuitBreakers", executorManager.circuitBreakerDiagnostics());
+        inference.put("sequenceBenchmark", inferenceBenchmarkService.snapshot());
+        return inference;
+    }
+
+    private Map<String, Object> buildDashboardDiagnostics() {
+        Map<String, Object> dashboard = new LinkedHashMap<>();
+        dashboard.put("dirtyFlags", Map.of(
+                "alertsDirty", dashboardSnapshotService.isAlertsDirty(),
+                "riskySessionsDirty", dashboardSnapshotService.isRiskySessionsDirty(),
+                "securityOverviewDirty", dashboardSnapshotService.isSecurityOverviewDirty()));
+        dashboard.put("schedulerLastRunAt", dashboardRefreshScheduler.getLastRunAt() != null
+                ? dashboardRefreshScheduler.getLastRunAt().toString() : null);
+        dashboard.put("schedulerRunCount", dashboardRefreshScheduler.getRunCount());
+        dashboard.put("lastRefreshAttemptAt", dashboardSnapshotService.getLastRefreshAttemptAt() != null
+                ? dashboardSnapshotService.getLastRefreshAttemptAt().toString() : null);
+        dashboard.put("lastRefreshSuccessAt", dashboardSnapshotService.getDashboardLastRefreshAt() != null
+                ? dashboardSnapshotService.getDashboardLastRefreshAt().toString() : null);
+        dashboard.put("lastRefreshError", dashboardSnapshotService.getLastRefreshError());
+        dashboard.put("refreshSuccessCount", dashboardSnapshotService.getRefreshSuccessCount());
+        dashboard.put("refreshFailureCount", dashboardSnapshotService.getRefreshFailureCount());
+        dashboard.put("refreshSkippedDueToRateLimit", dashboardSnapshotService.getDashboardRefreshSkippedDueToRateLimit());
+        dashboard.put("lastAlertsRefreshMs", dashboardSnapshotService.getLastAlertsRefreshMs());
+        dashboard.put("lastSecurityOverviewRefreshMs", dashboardSnapshotService.getLastSecurityOverviewRefreshMs());
+        dashboard.put("lastRiskySessionsRefreshMs", dashboardSnapshotService.getLastRiskySessionsRefreshMs());
+        dashboard.put("lastTotalDashboardRefreshMs", dashboardSnapshotService.getLastTotalDashboardRefreshMs());
+        dashboard.put("lastSlowDashboardView", dashboardSnapshotService.getLastSlowDashboardView());
+        dashboard.put("lastSlowDashboardViewMs", dashboardSnapshotService.getLastSlowDashboardViewMs());
+        dashboard.put("refreshAlreadyRunningSkipped", dashboardSnapshotService.getRefreshAlreadyRunningSkipped());
+        dashboard.put("lastRefreshStartedAt", dashboardSnapshotService.getLastRefreshStartedAt() != null
+                ? dashboardSnapshotService.getLastRefreshStartedAt().toString() : null);
+        dashboard.put("lastRefreshCompletedAt", dashboardSnapshotService.getLastRefreshCompletedAt() != null
+                ? dashboardSnapshotService.getLastRefreshCompletedAt().toString() : null);
+        dashboard.put("snapshotSqlWriteSuccessTotal", dashboardSnapshotPersistenceService.getSqlWriteSuccessTotal());
+        dashboard.put("snapshotSqlWriteFailureTotal", dashboardSnapshotPersistenceService.getSqlWriteFailureTotal());
+        dashboard.put("snapshotSqlLastWriteAt", dashboardSnapshotPersistenceService.getSqlLastWriteAt() != null
+                ? dashboardSnapshotPersistenceService.getSqlLastWriteAt().toString() : null);
+        dashboard.put("snapshotSqlLastFailureAt", dashboardSnapshotPersistenceService.getSqlLastFailureAt() != null
+                ? dashboardSnapshotPersistenceService.getSqlLastFailureAt().toString() : null);
+        return dashboard;
+    }
+
+    private Map<String, Object> buildKafkaDiagnostics() {
+        Map<String, Object> kafka = new LinkedHashMap<>();
+        Map<String, Object> consumerDiag = auditTrailConsumerFactory.getObject().diagnosticsSnapshot();
+        kafka.putAll(consumerDiag);
+        return kafka;
+    }
+
+    private Map<String, Object> buildPerformanceDiagnostics() {
+        Map<String, Object> perf = new LinkedHashMap<>();
+        Map<String, Object> kafkaDiag = auditTrailConsumerFactory.getObject().diagnosticsSnapshot();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> kafkaPerf = kafkaDiag.get("performance") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p : Map.of();
+
+        boolean hasData = false;
+        for (String key : List.of("eventProcessingMsAvg", "eventProcessingMsP95", "recordsProcessedPerSecond")) {
+            if (kafkaPerf.get(key) != null) {
+                hasData = true;
+                break;
+            }
+        }
+        perf.put("available", hasData);
+        if (!hasData) {
+            perf.put("reason", "not_instrumented_yet");
+            return perf;
+        }
+
+        perf.put("eventProcessingMsAvg", kafkaPerf.get("eventProcessingMsAvg"));
+        perf.put("eventProcessingMsP95", kafkaPerf.get("eventProcessingMsP95"));
+        perf.put("modelInferenceMsAvg", kafkaPerf.get("modelInferenceMsAvg"));
+        perf.put("modelInferenceMsP95", kafkaPerf.get("modelInferenceMsP95"));
+        perf.put("sequenceMsAvg", kafkaPerf.get("sequenceMsAvg"));
+        perf.put("sequenceMsP95", kafkaPerf.get("sequenceMsP95"));
+        perf.put("tabularMsAvg", kafkaPerf.get("tabularMsAvg"));
+        perf.put("tabularMsP95", kafkaPerf.get("tabularMsP95"));
+        perf.put("historyFetchMsAvg", kafkaPerf.get("historyFetchMsAvg"));
+        perf.put("historyFetchMsP95", kafkaPerf.get("historyFetchMsP95"));
+        perf.put("rulesMsAvg", kafkaPerf.get("rulesMsAvg"));
+        perf.put("rulesMsP95", kafkaPerf.get("rulesMsP95"));
+        perf.put("finalizationMsAvg", kafkaPerf.get("finalizationMsAvg"));
+        perf.put("finalizationMsP95", kafkaPerf.get("finalizationMsP95"));
+        perf.put("alertPublishMsAvg", kafkaPerf.get("alertPublishMsAvg"));
+        perf.put("alertPublishMsP95", kafkaPerf.get("alertPublishMsP95"));
+        perf.put("kafkaEventAgeReceiveMsAvg", kafkaPerf.get("kafkaEventAgeReceiveMsAvg"));
+        perf.put("kafkaEventAgeReceiveMsP95", kafkaPerf.get("kafkaEventAgeReceiveMsP95"));
+        perf.put("recordsProcessedPerSecond", kafkaPerf.get("recordsProcessedPerSecond"));
+        perf.put("kafkaLagCached", kafkaPerf.get("kafkaLagCached"));
+        perf.put("performanceSummaryLastRunAt", kafkaPerf.get("performanceSummaryLastRunAt"));
+        perf.put("performanceSummaryRunCount", kafkaPerf.get("performanceSummaryRunCount"));
+        perf.put("lastSlowEventId", kafkaPerf.get("lastSlowEventId"));
+        perf.put("lastSlowEventAction", kafkaPerf.get("lastSlowEventAction"));
+
+        perf.put("dashboardLastRefreshAt", dashboardSnapshotService.getDashboardLastRefreshAt() != null
+                ? dashboardSnapshotService.getDashboardLastRefreshAt().toString() : null);
+        perf.put("loadSheddingMode", fallbackMode);
+        perf.put("sequenceMode", sequenceProperties.isEnabled()
+                ? (sequenceProperties.isRunBoth() ? "run_both"
+                        : sequenceProperties.getPrimaryModel())
+                : "disabled");
+        return perf;
+    }
+
+    private Map<String, Object> buildModelLatencyDiagnostics() {
+        Map<String, Object> latency = new LinkedHashMap<>();
+        Map<String, Object> benchmark = inferenceBenchmarkService.snapshot();
+        boolean hasBenchmark = benchmark.containsKey("xgboost") || benchmark.containsKey("lightgbm")
+                || benchmark.containsKey("catboost") || benchmark.containsKey("oneclasssvm")
+                || benchmark.containsKey("churn");
+        latency.put("available", hasBenchmark);
+        if (!hasBenchmark) {
+            latency.put("reason", "not_instrumented_yet");
+            return latency;
+        }
+        latency.put("benchmarkLastRunAt", benchmark.get("lastRunAt"));
+        latency.put("xgboostMs", benchmark.get("xgboost"));
+        latency.put("lightgbmMs", benchmark.get("lightgbm"));
+        latency.put("catboostMs", benchmark.get("catboost"));
+        latency.put("oneclasssvmMs", benchmark.get("oneclasssvm"));
+        latency.put("churnMs", benchmark.get("churn"));
+        latency.put("benchmarkWarnings", benchmark.get("warnings"));
+        return latency;
+    }
+
+    private Map<String, Object> buildIdempotencyDiagnostics() {
+        Map<String, Object> idempotency = new LinkedHashMap<>();
+        idempotency.put("duplicateEventsSkipped", eventIdempotencyService.getDuplicateEventsSkipped());
+        idempotency.put("lastDuplicateEventId", eventIdempotencyService.getLastDuplicateEventId());
+        idempotency.put("lastDuplicateEventSessionId", eventIdempotencyService.getLastDuplicateEventSessionId());
+        idempotency.put("lastDuplicateEventAt", eventIdempotencyService.getLastDuplicateEventAt() != null
+                ? eventIdempotencyService.getLastDuplicateEventAt().toString() : null);
+        idempotency.put("duplicateSequenceAppendsSkipped", redisSessionBufferService.getDuplicateSequenceAppendsSkipped());
+        idempotency.put("duplicateAlertsSkipped", finalizationOrchestrator.getDuplicateAlertsSkipped());
+        idempotency.put("duplicateSqlWritesSkipped", alertPublisher.getDuplicateSqlWritesSkipped());
+        idempotency.put("duplicateFinalizationSkipped", finalizationOrchestrator.getDuplicateFinalizationSkipped());
+        idempotency.put("duplicateLiveAlertsSkipped", finalizationOrchestrator.getDuplicateLiveAlertsSkipped());
+        idempotency.put("duplicateUserAlertsSkipped", finalizationOrchestrator.getDuplicateUserAlertsSkipped());
+        return idempotency;
+    }
+
+    private Map<String, Object> buildStatsDiagnostics() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("liveTimeBasis", liveStatsProperties.getTimeBasis());
+        return stats;
+    }
+
+    private Map<String, Object> buildNextActionPredictionDiagnostics() {
+        Map<String, Object> nap = new LinkedHashMap<>();
+        nap.put("enabled", nextActionPredictionProperties.isEnabled());
+        nap.put("disabledReason", nextActionPredictionProperties.getDisabledReason());
+        return nap;
     }
 
     private Map<String, Object> modelHealth() {

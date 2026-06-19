@@ -24,4 +24,5 @@ public class V36ForecastDashboardResponse {
     private Object historicalAnomalyRate;
     private Map<String, String> forecastModelNames;
     private List<String> forecastWarnings;
+    private String source;
 }

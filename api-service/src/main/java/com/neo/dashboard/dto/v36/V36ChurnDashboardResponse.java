@@ -22,4 +22,5 @@ public class V36ChurnDashboardResponse {
     private double averageChurnProbability;
     private List<Map<String, Object>> topChurnRiskUsers;
     private Map<String, Long> churnRiskDistribution;
+    private String source;
 }

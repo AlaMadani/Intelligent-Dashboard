@@ -8,12 +8,14 @@ import com.neo.dashboard.repository.AnomalyEventRepository;
 import com.neo.dashboard.repository.SessionAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Optional;
 
@@ -22,10 +24,15 @@ import java.util.Optional;
 @Slf4j
 public class LlmEvidenceReadService {
 
+    private static final Duration REHYDRATE_TTL = Duration.ofHours(24);
+
     private final V36RedisReadService redisReadService;
     private final AnomalyEventRepository anomalyEventRepository;
     private final SessionAnalysisRepository sessionAnalysisRepository;
     private final ObjectMapper objectMapper;
+
+    @Value("${app.v36.explanations.evidence-rehydrate-ttl-hours:24}")
+    private long evidenceRehydrateTtlHours;
 
     public Optional<JsonNode> readEvidence(String eventId) {
         if (!hasText(eventId)) {
@@ -35,7 +42,11 @@ public class LlmEvidenceReadService {
         if (redis.isPresent()) {
             return redis;
         }
-        return readEvidenceFromSql(eventId);
+        Optional<JsonNode> sql = readEvidenceFromSql(eventId);
+        if (sql.isPresent()) {
+            rehydrateRedis(eventId, sql.get());
+        }
+        return sql;
     }
 
     public JsonNode requireEvidence(String eventId) {
@@ -60,6 +71,13 @@ public class LlmEvidenceReadService {
     }
 
     public String evidenceHash(JsonNode evidence) {
+        if (evidence == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EVIDENCE", "Evidence payload is null");
+        }
+        String existing = textAt(evidence, "/evidenceHash");
+        if (existing != null && !existing.isBlank()) {
+            return existing;
+        }
         try {
             String canonical = objectMapper.writeValueAsString(evidence);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -67,6 +85,17 @@ public class LlmEvidenceReadService {
         } catch (Exception e) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EVIDENCE", "Unable to hash LLM evidence payload");
         }
+    }
+
+    private String textAt(JsonNode node, String pointer) {
+        if (node == null || pointer == null) {
+            return null;
+        }
+        JsonNode value = node.at(pointer);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        return value.isValueNode() ? value.asText() : value.toString();
     }
 
     @Transactional(readOnly = true)
@@ -81,6 +110,16 @@ public class LlmEvidenceReadService {
                             .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(anomaly.getInsuredId(), anomaly.getSessionId())
                             .flatMap(session -> parsePayload(session.getLlmExplanationEvidencePayloadJson()));
                 });
+    }
+
+    private void rehydrateRedis(String eventId, JsonNode evidence) {
+        try {
+            Duration ttl = Duration.ofHours(Math.max(evidenceRehydrateTtlHours, 1));
+            redisReadService.writeJson(CacheKeys.alertLlmEvidenceKey(eventId), evidence, ttl);
+            log.info("Rehydrated Redis key={} from SQL evidence fallback", CacheKeys.alertLlmEvidenceKey(eventId));
+        } catch (Exception e) {
+            log.warn("Failed to rehydrate Redis evidence for eventId={}", eventId, e);
+        }
     }
 
     private Optional<JsonNode> parsePayload(String json) {

@@ -55,6 +55,23 @@ class V36RedisReadServiceTest {
     }
 
     @Test
+    void readItemsHandlesDuplicateListEntries() {
+        when(listOperations.range("alerts:live:v3_6", 0, 4)).thenReturn(List.of(
+                "{\"eventId\":\"evt-1\"}",
+                "{\"eventId\":\"evt-2\"}",
+                "{\"eventId\":\"evt-1\"}",
+                "{\"eventId\":\"evt-3\"}",
+                "{\"eventId\":\"evt-2\"}"
+        ));
+
+        List<V36LiveAlertSummaryDto> result = service.readItems("alerts:live:v3_6", V36LiveAlertSummaryDto.class, 5);
+
+        assertThat(result).hasSize(3);
+        assertThat(result.stream().map(V36LiveAlertSummaryDto::getEventId).toList())
+                .containsExactly("evt-1", "evt-2", "evt-3");
+    }
+
+    @Test
     void readItemsSupportsRedisListPayloads() {
         when(listOperations.range("alerts:live:v3_6", 0, 1)).thenReturn(List.of(
                 "{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-1\",\"riskLevel\":\"CRITICAL\"}",
