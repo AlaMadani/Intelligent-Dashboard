@@ -13,18 +13,19 @@ import com.noveocare.dataprocessor.dto.SessionState;
 import com.noveocare.dataprocessor.dto.SessionSummary;
 import com.noveocare.dataprocessor.entity.SessionAnalysis;
 import com.noveocare.dataprocessor.kafka.AlertPublisher;
+import com.noveocare.dataprocessor.dto.V36LiveAlertSummary;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
 import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
@@ -43,12 +44,11 @@ public class SessionFinalizationOrchestrator {
     private final FeatureEngineeringProperties featureEngineeringProperties;
     private final SessionFinalizationService finalizationService;
     private final PerformanceProperties performanceProperties;
-    private final StringRedisTemplate redisTemplate;
+    private final AlertCacheService alertCacheService;
 
     private final AtomicLong duplicateFinalizationSkipped = new AtomicLong();
     private final AtomicLong duplicateAlertsSkipped = new AtomicLong();
-    private final AtomicLong duplicateLiveAlertsSkipped = new AtomicLong();
-    private final AtomicLong duplicateUserAlertsSkipped = new AtomicLong();
+    private final AtomicLong llmEvidenceKeyPayloadMismatchTotal = new AtomicLong();
 
     public void completeFinalization(SessionSummary summary, SessionInsight insight,
                                      List<AuditTrailEvent> enrichedEvents, List<String> triggeredRules,
@@ -318,6 +318,7 @@ public class SessionFinalizationOrchestrator {
 
     public void publishAlert(SessionSummary summary, SessionInsight insight, List<AuditTrailEvent> enrichedEvents) {
         AuditTrailEvent lastEvent = enrichedEvents.get(enrichedEvents.size() - 1);
+        boolean llmEvidenceMatches = llmEvidenceMatchesAlert(insight, lastEvent.getId());
         AnomalyAlert alert = AnomalyAlert.builder()
                 .schemaVersion("v3.6.1")
                 .recordId(lastEvent.getId())
@@ -354,8 +355,9 @@ public class SessionFinalizationOrchestrator {
                 .triggeredRules(insight.getTriggeredRules())
                 .churn(buildChurnPayload(insight))
                 .persona(buildPersonaPayload(insight))
-                .llmEvidencePayloadAvailable(insight.getLlmExplanationEvidencePayload() != null)
-                .llmEvidencePayloadRedisKey(CacheKeys.alertLlmEvidenceKey(lastEvent.getId()))
+                .llmEvidencePayloadAvailable(llmEvidenceMatches)
+                .llmEvidencePayloadRedisKey(llmEvidenceMatches
+                        ? CacheKeys.alertLlmEvidenceKey(lastEvent.getId()) : null)
                 .artifactNames(insight.getModelArtifacts())
                 .eventAction(lastEvent.getAction())
                 .apiTemplate(lastEvent.getApiTemplate())
@@ -372,6 +374,7 @@ public class SessionFinalizationOrchestrator {
                 .sequenceEvidence(buildSequenceEvidence(insight))
                 .tabularEvidence(buildTabularEvidence(insight))
                 .nextActions(insight.getNextActions() == null ? List.of() : insight.getNextActions())
+                .investigationPayload(insight.getInvestigationPayload())
                 .detectedAt(Instant.now())
                 .build();
 
@@ -407,106 +410,72 @@ public class SessionFinalizationOrchestrator {
     }
 
     private void cacheV36Alert(AnomalyAlert alert, SessionInsight insight) {
-        Map<String, Object> liveAlert = new LinkedHashMap<>();
-        liveAlert.put("schemaVersion", "v3.6.1");
-        liveAlert.put("eventId", alert.getEventId());
-        liveAlert.put("recordId", alert.getRecordId());
-        liveAlert.put("insuredId", alert.getInsuredId());
-        liveAlert.put("sessionId", alert.getSessionId());
-        liveAlert.put("timestamp", alert.getEventTime());
-        liveAlert.put("eventAction", alert.getEventAction());
-        liveAlert.put("apiTemplate", alert.getApiTemplate());
-        liveAlert.put("apiFamily", alert.getApiFamily());
-        liveAlert.put("controller", alert.getController());
-        liveAlert.put("page", alert.getPage());
-        liveAlert.put("country", alert.getCountry());
-        liveAlert.put("device", alert.getDevice());
-        liveAlert.put("browser", alert.getBrowser());
-        liveAlert.put("os", alert.getOs());
-        liveAlert.put("httpMethod", alert.getHttpMethod());
-        liveAlert.put("status", alert.getStatus());
-        liveAlert.put("riskLevel", alert.getRiskLevel());
-        liveAlert.put("riskTier", alert.getRiskTier());
-        liveAlert.put("riskScale", alert.getRiskScale());
-        liveAlert.put("finalRiskScore", alert.getFinalRiskScore());
-        liveAlert.put("xgboostAnomalyScore", insight.getXgboostAnomalyScore());
-        liveAlert.put("xgboostAnomalyScore100", insight.getXgboostAnomalyScore100());
-        liveAlert.put("lightgbmAlertScore", insight.getLightgbmAlertScore());
-        liveAlert.put("lightgbmAlertScore100", insight.getLightgbmAlertScore100());
-        liveAlert.put("transformerRiskScore100", insight.getTransformerRiskScore100());
-        liveAlert.put("tcnRiskScore100", insight.getTcnRiskScore100());
-        liveAlert.put("ruleRiskScore", insight.getRuleRiskScore());
-        liveAlert.put("modelScores", insight.getModelScores());
-        liveAlert.put("modelContributions", insight.getModelContributions());
-        liveAlert.put("triggeredRuleCodes", alert.getTriggeredRules());
-        liveAlert.put("anomalyType", alert.getAnomalyType());
-        liveAlert.put("anomalyTypeConfidence", alert.getAnomalyTypeConfidence());
-        liveAlert.put("churnProbability", insight.getChurnProbability());
-        liveAlert.put("churnRiskLevel", insight.getChurnRiskLevel());
-        liveAlert.put("llmEvidencePayloadAvailable", alert.getLlmEvidencePayloadAvailable());
-        liveAlert.put("llmEvidencePayloadRedisKey", alert.getLlmEvidencePayloadRedisKey());
-        liveAlert.put("alertStatus", "OPEN");
-        liveAlert.put("createdAt", alert.getDetectedAt());
-        liveAlert.put("eventMetadata", alert.getEventMetadata());
-        liveAlert.put("sequenceEvidence", alert.getSequenceEvidence());
-        liveAlert.put("tabularEvidence", alert.getTabularEvidence());
+        Instant createdAt = alert.getDetectedAt() != null ? alert.getDetectedAt() : Instant.now();
 
-        String eventId = alert.getEventId() != null ? alert.getEventId() : "";
+        V36LiveAlertSummary summary = new V36LiveAlertSummary(
+                "v3.6.1",
+                alert.getEventId(),
+                alert.getRecordId(),
+                alert.getInsuredId(),
+                alert.getSessionId(),
+                alert.getEventTime() != null ? alert.getEventTime().toString() : createdAt.toString(),
+                alert.getEventAction(),
+                alert.getApiTemplate(),
+                alert.getApiFamily(),
+                alert.getController(),
+                alert.getPage(),
+                alert.getCountry(),
+                alert.getDevice(),
+                alert.getBrowser(),
+                alert.getOs(),
+                alert.getHttpMethod(),
+                alert.getStatus(),
+                alert.getRiskLevel(),
+                alert.getRiskTier(),
+                alert.getRiskScale(),
+                alert.getFinalRiskScore(),
+                insight.getXgboostAnomalyScore(),
+                insight.getXgboostAnomalyScore100(),
+                insight.getLightgbmAlertScore(),
+                insight.getLightgbmAlertScore100(),
+                insight.getTransformerRiskScore100(),
+                insight.getTcnRiskScore100(),
+                insight.getRuleRiskScore(),
+                insight.getModelScores(),
+                insight.getModelContributions(),
+                alert.getTriggeredRules(),
+                alert.getAnomalyType(),
+                alert.getAnomalyTypeConfidence(),
+                insight.getChurnProbability(),
+                insight.getChurnRiskLevel(),
+                alert.getLlmEvidencePayloadAvailable(),
+                alert.getLlmEvidencePayloadRedisKey(),
+                "OPEN",
+                createdAt,
+                alert.getEventMetadata(),
+                alert.getSequenceEvidence(),
+                alert.getTabularEvidence()
+        );
 
-        if (tryAddToLiveAlertsSet(eventId)) {
-            redisCacheService.addToJsonList(CacheKeys.liveAlertsV36Key(), liveAlert, redisCacheProperties.getLiveStats());
-        } else {
-            duplicateLiveAlertsSkipped.incrementAndGet();
-        }
+        alertCacheService.addAlert(summary);
 
-        if (tryAddToUserAlertsSet(alert.getInsuredId(), eventId)) {
-            redisCacheService.addToJsonList(CacheKeys.userAlertsKey(alert.getInsuredId()), liveAlert, redisCacheProperties.getLiveStats());
-        } else {
-            duplicateUserAlertsSkipped.incrementAndGet();
-        }
-
-        if ("CRITICAL".equalsIgnoreCase(alert.getRiskLevel())) {
-            if (tryAddToCriticalAlertsSet(eventId)) {
-                redisCacheService.addToJsonList(CacheKeys.criticalAlertsV36Key(), liveAlert, redisCacheProperties.getLiveStats());
-            }
-        }
-
-        if (insight.getLlmExplanationEvidencePayload() != null) {
-            redisCacheService.setJson(CacheKeys.alertLlmEvidenceKey(eventId),
-                    insight.getLlmExplanationEvidencePayload(),
-                    redisCacheProperties.getSessionInsight());
+        if (insight.getLlmExplanationEvidencePayload() != null
+                && alert.getLlmEvidencePayloadAvailable()) {
             Map<String, Object> ev = insight.getLlmExplanationEvidencePayload();
+            redisCacheService.setJson(CacheKeys.alertLlmEvidenceKey(alert.getEventId()), ev,
+                    redisCacheProperties.getSessionInsight());
             log.info("LLM_EVIDENCE_PAYLOAD_WRITE eventId={} insuredId={} sessionId={} hash={} version={} target=redis",
-                    eventId, alert.getInsuredId(), alert.getSessionId(),
+                    alert.getEventId(), alert.getInsuredId(), alert.getSessionId(),
                     ev.get("evidenceHash"), ev.get("evidenceVersion"));
         }
         if (insight.getInvestigationPayload() != null) {
-            redisCacheService.setJson(CacheKeys.alertInvestigationKey(eventId),
-                    insight.getInvestigationPayload(),
-                    redisCacheProperties.getSessionInsight());
+            Map<String, Object> inv = insight.getInvestigationPayload();
+            Object invEventIdObj = inv.get("eventId");
+            String invKeyEventId = (invEventIdObj != null && !String.valueOf(invEventIdObj).isBlank())
+                    ? String.valueOf(invEventIdObj) : alert.getEventId();
+            redisCacheService.setJson(CacheKeys.alertInvestigationKey(invKeyEventId),
+                    inv, redisCacheProperties.getSessionInsight());
         }
-    }
-
-    private boolean tryAddToLiveAlertsSet(String eventId) {
-        if (eventId == null || eventId.isBlank()) return false;
-        Long added = redisTemplate.opsForSet().add(CacheKeys.liveAlertsEventIdsKey(), eventId);
-        redisTemplate.expire(CacheKeys.liveAlertsEventIdsKey(), redisCacheProperties.getLiveStats());
-        return added != null && added > 0;
-    }
-
-    private boolean tryAddToUserAlertsSet(String insuredId, String eventId) {
-        if (eventId == null || eventId.isBlank() || insuredId == null || insuredId.isBlank()) return false;
-        String key = CacheKeys.userAlertsEventIdsKey(insuredId);
-        Long added = redisTemplate.opsForSet().add(key, eventId);
-        redisTemplate.expire(key, redisCacheProperties.getLiveStats());
-        return added != null && added > 0;
-    }
-
-    private boolean tryAddToCriticalAlertsSet(String eventId) {
-        if (eventId == null || eventId.isBlank()) return false;
-        Long added = redisTemplate.opsForSet().add(CacheKeys.criticalAlertsEventIdsKey(), eventId);
-        redisTemplate.expire(CacheKeys.criticalAlertsEventIdsKey(), redisCacheProperties.getLiveStats());
-        return added != null && added > 0;
     }
 
     private String buildAlertContextJson(SessionSummary summary, SessionInsight insight, AuditTrailEvent lastEvent)
@@ -637,11 +606,30 @@ public class SessionFinalizationOrchestrator {
         return duplicateAlertsSkipped.get();
     }
 
+    public long getLlmEvidenceKeyPayloadMismatchTotal() {
+        return llmEvidenceKeyPayloadMismatchTotal.get();
+    }
+
     public long getDuplicateLiveAlertsSkipped() {
-        return duplicateLiveAlertsSkipped.get();
+        return 0L;
     }
 
     public long getDuplicateUserAlertsSkipped() {
-        return duplicateUserAlertsSkipped.get();
+        return 0L;
+    }
+
+    private boolean llmEvidenceMatchesAlert(SessionInsight insight, String alertEventId) {
+        Map<String, Object> payload = insight.getLlmExplanationEvidencePayload();
+        if (payload == null) {
+            return false;
+        }
+        Object payloadEventId = payload.get("eventId");
+        boolean match = Objects.equals(String.valueOf(payloadEventId), alertEventId);
+        if (!match) {
+            llmEvidenceKeyPayloadMismatchTotal.incrementAndGet();
+            log.warn("LLM evidence payload eventId {} does not match alert eventId {}, suppressing evidence key",
+                    payloadEventId, alertEventId);
+        }
+        return match;
     }
 }

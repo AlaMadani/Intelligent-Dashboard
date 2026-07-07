@@ -1,6 +1,7 @@
 package com.noveocare.dataprocessor.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.noveocare.dataprocessor.ai.forecast.ForecastPrediction;
 import com.noveocare.dataprocessor.ai.forecast.ForecastRuntimeService;
@@ -10,6 +11,7 @@ import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.config.RedisPubSubProperties;
 import com.noveocare.dataprocessor.dto.SessionInsight;
 import com.noveocare.dataprocessor.dto.SessionSummary;
+import com.noveocare.dataprocessor.dto.V36LiveAlertSummary;
 import com.noveocare.dataprocessor.entity.AnomalyEvent;
 import com.noveocare.dataprocessor.entity.SessionAnalysis;
 import com.noveocare.dataprocessor.inference.ModelHealthService;
@@ -54,6 +56,7 @@ public class DashboardSnapshotService {
     private final RedisPubSubProperties pubSubProperties;
     private final PerformanceProperties performanceProperties;
     private final DashboardSnapshotPersistenceService dashboardSnapshotPersistenceService;
+    private final AlertCacheService alertCacheService;
 
     private final AtomicReference<Instant> dashboardLastRefreshAt = new AtomicReference<>();
     private final AtomicInteger dashboardRefreshSkippedDueToRateLimit = new AtomicInteger();
@@ -332,50 +335,38 @@ public class DashboardSnapshotService {
         long startMs = System.currentTimeMillis();
         long redisReadMs = 0;
         long sqlReadMs = 0;
-        long jsonParseMs = 0;
-        long sortFilterMs = 0;
         long redisWriteMs = 0;
         int itemCount = 0;
 
         List<Map<String, Object>> alerts = new ArrayList<>();
+        int maxItems = performanceProperties.getDashboardRefresh().getMaxAlertItems();
 
         long t0 = System.currentTimeMillis();
-        List<Map<String, Object>> liveAlertsRaw = (List<Map<String, Object>>) (List<?>) redisCacheService.getJsonList(CacheKeys.liveAlertsV36Key(), Map.class);
+        List<String> liveIds = alertCacheService.getLiveEventIds(0, maxItems);
         redisReadMs = System.currentTimeMillis() - t0;
-        if (liveAlertsRaw != null && !liveAlertsRaw.isEmpty()) {
-            t0 = System.currentTimeMillis();
-            for (Map<String, Object> alert : liveAlertsRaw) {
-                if (alert != null) {
-                    alerts.add(alert);
-                }
+
+        for (String eventId : liveIds) {
+            V36LiveAlertSummary summary = alertCacheService.getAlertPayload(eventId);
+            if (summary != null) {
+                alerts.add(alertFromSummary(summary));
             }
-            jsonParseMs = System.currentTimeMillis() - t0;
         }
 
-        if (alerts.size() < performanceProperties.getDashboardRefresh().getMaxAlertItems()) {
+        if (alerts.size() < maxItems) {
             t0 = System.currentTimeMillis();
-            int needed = performanceProperties.getDashboardRefresh().getMaxAlertItems() - alerts.size();
+            int needed = maxItems - alerts.size();
             List<AnomalyEvent> sqlAlerts = anomalyEventRepository.findRecentAnomalyEvents(PageRequest.of(0, needed));
             sqlReadMs = System.currentTimeMillis() - t0;
-            t0 = System.currentTimeMillis();
             for (AnomalyEvent event : sqlAlerts) {
+                String eid = event.getEventId();
+                if (eid != null && liveIds.contains(eid)) continue;
                 alerts.add(alertRow(event));
             }
-            jsonParseMs += System.currentTimeMillis() - t0;
         }
 
-        t0 = System.currentTimeMillis();
-        alerts = alerts.stream()
-                .sorted(Comparator.comparing((Map<String, Object> row) -> {
-                    Object val = row.get("detectedAt");
-                    return val instanceof Instant ? (Instant) val : Instant.MIN;
-                }).reversed())
-                .limit(performanceProperties.getDashboardRefresh().getMaxAlertItems())
-                .toList();
-        sortFilterMs = System.currentTimeMillis() - t0;
         itemCount = alerts.size();
 
-        if (alerts.isEmpty() && liveAlertsRaw == null) {
+        if (alerts.isEmpty()) {
             alerts = runtimeExport("alerts_feed.csv");
             itemCount = alerts.size();
         }
@@ -385,7 +376,7 @@ public class DashboardSnapshotService {
         payload.put("items", alerts);
         payload.put("generatedAt", Instant.now().toString());
         payload.put("updatedAt", Instant.now().toString());
-        payload.put("source", "redis_live_incremental");
+        payload.put("source", "canonical_zset_v3_6");
         payload.put("itemCount", itemCount);
         cacheDashboard("alerts", payload);
         redisWriteMs = System.currentTimeMillis() - t0;
@@ -396,13 +387,58 @@ public class DashboardSnapshotService {
         long totalMs = System.currentTimeMillis() - startMs;
         lastAlertsRefreshMs.set(totalMs);
 
-        log.info("Dashboard view refresh completed view=alerts totalMs={} redisReadMs={} sqlReadMs={} jsonParseMs={} sortFilterMs={} redisWriteMs={} itemCount={}",
-                totalMs, redisReadMs, sqlReadMs, jsonParseMs, sortFilterMs, redisWriteMs, itemCount);
+        log.info("Dashboard view refresh completed view=alerts totalMs={} redisReadMs={} sqlReadMs={} redisWriteMs={} itemCount={}",
+                totalMs, redisReadMs, sqlReadMs, redisWriteMs, itemCount);
         if (totalMs > 2000) {
             log.warn("Dashboard view refresh slow view=alerts totalMs={}", totalMs);
             lastSlowDashboardView.set("alerts");
             lastSlowDashboardViewMs.set(totalMs);
         }
+    }
+
+    private Map<String, Object> alertFromSummary(V36LiveAlertSummary s) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("eventId", s.getEventId());
+        row.put("insuredId", s.getInsuredId());
+        row.put("sessionId", s.getSessionId());
+        row.put("eventTime", s.getTimestamp());
+        row.put("riskLevel", s.getRiskLevel());
+        row.put("riskTier", s.getRiskTier());
+        row.put("finalRiskScore", s.getFinalRiskScore());
+        row.put("anomalyType", s.getAnomalyType());
+        row.put("anomalyTypeConfidence", s.getAnomalyTypeConfidence());
+        row.put("detectedAt", s.getCreatedAt());
+        row.put("churnProbability", s.getChurnProbability());
+        row.put("llmEvidencePayloadAvailable", s.getLlmEvidencePayloadAvailable());
+        row.put("alertStatus", s.getAlertStatus());
+        row.put("modelScores", s.getModelScores());
+        row.put("modelContributions", s.getModelContributions());
+        row.put("triggeredRuleCodes", s.getTriggeredRuleCodes());
+        row.put("eventAction", s.getEventAction());
+        row.put("apiTemplate", s.getApiTemplate());
+        row.put("apiFamily", s.getApiFamily());
+        row.put("page", s.getPage());
+        row.put("device", s.getDevice());
+        row.put("browser", s.getBrowser());
+        row.put("os", s.getOs());
+        row.put("httpMethod", s.getHttpMethod());
+        row.put("status", s.getStatus());
+        row.put("country", s.getCountry());
+        row.put("xgboostAnomalyScore", s.getXgboostAnomalyScore());
+        row.put("xgboostAnomalyScore100", s.getXgboostAnomalyScore100());
+        row.put("lightgbmAlertScore", s.getLightgbmAlertScore());
+        row.put("lightgbmAlertScore100", s.getLightgbmAlertScore100());
+        row.put("transformerRiskScore100", s.getTransformerRiskScore100());
+        row.put("tcnRiskScore100", s.getTcnRiskScore100());
+        row.put("ruleRiskScore", s.getRuleRiskScore());
+        row.put("eventMetadata", s.getEventMetadata());
+        row.put("sequenceEvidence", s.getSequenceEvidence());
+        row.put("tabularEvidence", s.getTabularEvidence());
+        row.put("churnRiskLevel", s.getChurnRiskLevel());
+        row.put("riskScale", s.getRiskScale());
+        row.put("recordId", s.getRecordId());
+        row.put("llmEvidencePayloadRedisKey", s.getLlmEvidencePayloadRedisKey());
+        return row;
     }
 
     public void refreshRiskySessions() {
@@ -605,6 +641,16 @@ public class DashboardSnapshotService {
         }
         aggregationMs = System.currentTimeMillis() - t0;
 
+        t0 = System.currentTimeMillis();
+        Map<String, Long> anomalyTypeCounts = buildTopAnomalyTypes(today);
+        Map<String, Object> securityWarnings = new LinkedHashMap<>();
+        if (alerts > 0 && anomalyTypeCounts.isEmpty()) {
+            securityWarnings.put("top_anomaly_types_empty_despite_alerts",
+                    "alerts=" + alerts + " but no anomaly types found in anomaly_events");
+            log.warn("SECURITY_OVERVIEW anomaly types empty despite {} alerts count", alerts);
+        }
+        aggregationMs += System.currentTimeMillis() - t0;
+
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", "v3.6.1");
         payload.put("snapshotTimestamp", Instant.now().toString());
@@ -620,13 +666,14 @@ public class DashboardSnapshotService {
         payload.put("alertCount", alertCount);
         payload.put("sessionCount", sessionCount);
         payload.put("averageRiskScoreToday", riskCount == 0 ? 0.0 : riskTotal / riskCount);
-        payload.put("predictedAnomalyRateTomorrow", null);
-        payload.put("predictedTotalEventsTomorrow", null);
-        payload.put("expectedAlertVolumeTomorrow", null);
-        payload.put("topAnomalyTypes", Map.of());
+        populateForecastFields(payload);
+        payload.put("topAnomalyTypes", anomalyTypeCounts);
         payload.put("topTriggeredRules", topNMap(topRules, 5));
         payload.put("modelHealthSummary", modelHealthServiceFactory.getObject().snapshot());
         payload.put("fieldCoverageWarnings", modelHealthServiceFactory.getObject().snapshot().get("highUnknownFieldWarnings"));
+        if (!securityWarnings.isEmpty()) {
+            payload.put("securityWarnings", securityWarnings);
+        }
 
         t0 = System.currentTimeMillis();
         redisCacheService.setJson(CacheKeys.securityOverviewDashboardKey(), payload, cacheProperties.getDashboard());
@@ -771,6 +818,78 @@ public class DashboardSnapshotService {
         payload.put("forecastModelNames", modelNames);
         payload.put("forecastWarnings", forecast.getWarnings());
         return payload;
+    }
+
+    private void populateForecastFields(Map<String, Object> payload) {
+        Map<String, Object> forecast = null;
+        try {
+            forecast = redisCacheService.getJson(CacheKeys.forecastDashboardV36Key(), new TypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.debug("No forecast cache available for security overview");
+        }
+        if (forecast != null) {
+            Object anomalyRate = forecast.get("predictedAnomalyRate");
+            Object totalEvents = forecast.get("predictedTotalEvents");
+            Object alertVolume = forecast.get("expectedAlertVolume");
+            boolean hasForecast = anomalyRate != null || totalEvents != null || alertVolume != null;
+            if (hasForecast) {
+                payload.put("predictedAnomalyRateTomorrow", anomalyRate);
+                payload.put("predictedTotalEventsTomorrow", totalEvents);
+                payload.put("expectedAlertVolumeTomorrow", alertVolume);
+                List<String> warnings = castWarnings(forecast.get("forecastWarnings"));
+                if (warnings != null && !warnings.isEmpty()) {
+                    payload.put("forecastWarnings", warnings);
+                }
+            } else {
+                payload.put("predictedAnomalyRateTomorrow", null);
+                payload.put("predictedTotalEventsTomorrow", null);
+                payload.put("expectedAlertVolumeTomorrow", null);
+                payload.put("forecastWarnings", List.of("forecast_not_available"));
+            }
+        } else {
+            payload.put("predictedAnomalyRateTomorrow", null);
+            payload.put("predictedTotalEventsTomorrow", null);
+            payload.put("expectedAlertVolumeTomorrow", null);
+            payload.put("forecastWarnings", List.of("forecast_not_available"));
+        }
+    }
+
+    private Map<String, Long> buildTopAnomalyTypes(LocalDate date) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        try {
+            Instant dayStart = date.atStartOfDay(ZoneOffset.UTC).toInstant();
+            Instant dayEnd = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            List<AnomalyEvent> events = anomalyEventRepository.findByDetectedAtBetween(dayStart, dayEnd);
+            for (AnomalyEvent event : events) {
+                String type = event.getAnomalyType();
+                if (type != null && !type.isBlank()) {
+                    counts.merge(type, 1L, Long::sum);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to build topAnomalyTypes for date={}", date, ex);
+            return counts;
+        }
+        if (counts.isEmpty()) {
+            return counts;
+        }
+        Map<String, Long> sorted = new LinkedHashMap<>();
+        counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(10)
+                .forEachOrdered(entry -> sorted.put(entry.getKey(), entry.getValue()));
+        return sorted;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> castWarnings(Object obj) {
+        if (obj instanceof List<?> list) {
+            for (Object item : list) {
+                if (!(item instanceof String)) return null;
+            }
+            return (List<String>) list;
+        }
+        return null;
     }
 
     private boolean canRefresh(AtomicReference<Instant> lastRefresh, long minIntervalMs) {

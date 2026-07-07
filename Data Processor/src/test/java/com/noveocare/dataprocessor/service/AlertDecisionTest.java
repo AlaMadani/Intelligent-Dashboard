@@ -50,6 +50,8 @@ class AlertDecisionTest {
     private StringRedisTemplate redisTemplate;
     @Mock
     private SetOperations<String, String> setOperations;
+    @Mock
+    private AlertCacheService alertCacheService;
 
     private FeatureEngineeringProperties featureProperties;
     private RedisCacheProperties redisCacheProperties;
@@ -75,7 +77,7 @@ class AlertDecisionTest {
                 statisticsService, dashboardSnapshotService,
                 sessionBufferService, redisCacheService,
                 redisCacheProperties, featureProperties,
-                finalizationService, new PerformanceProperties(), redisTemplate);
+                finalizationService, new PerformanceProperties(), alertCacheService);
     }
 
     @Test

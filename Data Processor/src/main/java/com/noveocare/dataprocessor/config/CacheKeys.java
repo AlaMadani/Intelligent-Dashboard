@@ -2,6 +2,48 @@ package com.noveocare.dataprocessor.config;
 
 /**
  * Centralizes Redis key naming so every service uses the same cache layout.
+ *
+ * <h2>Canonical alert Redis contract</h2>
+ *
+ * <h3>Canonical ZSET keys (active path)</h3>
+ * <pre>
+ *   alerts:live:zset:v3_6       — ZSET, member = eventId, score = event createdAt epoch millis
+ *   alerts:critical:zset:v3_6   — ZSET, derived subset of live
+ *   alerts:high:zset:v3_6       — ZSET, derived subset of live
+ *   alerts:user:{insuredId}:zset:v3_6 — ZSET, per-insured subset
+ * </pre>
+ * <h3>Payload keys</h3>
+ * <pre>
+ *   alert:live:v3_6:{eventId}   — JSON blob of V36LiveAlertSummary
+ * </pre>
+ * <h3>Legacy keys (do NOT use for new code)</h3>
+ * <pre>
+ *   alerts:live:v3_6             — LIST (deprecated)
+ *   alerts:critical:v3_6         — LIST (deprecated)
+ *   alerts:user:{insuredId}      — LIST (deprecated)
+ *   alerts:live:eventIds:v3_6    — SET  (deprecated, dedup)
+ *   alerts:critical:eventIds:v3_6— SET  (deprecated, dedup)
+ *   alerts:user:eventIds:{insuredId} — SET (deprecated, dedup)
+ * </pre>
+ *
+ * <h3>Required invariant</h3>
+ * <pre>critical ZSET ⊆ live ZSET</pre>
+ *
+ * <h3>TTL</h3>
+ * <p>{@code RedisCacheProperties.liveStats} applied to all ZSET keys and payload keys on every write.
+ *    Expiry is best-effort; the TTL is refreshed each time {@code addAlert()} is called.</p>
+ *
+ * <h3>Trimming</h3>
+ * <p>Live ZSET is capped at 5000 members (see {@link com.noveocare.dataprocessor.service.AlertCacheService#MAX_LIVE_ALERTS}).
+ *    When the cap is exceeded the oldest half is removed from <em>both</em> the live ZSET and
+ *    the derived critical/high ZSETs, preserving the subset invariant.</p>
+ *
+ * <h3>Api-service read guidance</h3>
+ * <ol>
+ *   <li>Read from canonical ZSET ({@link #liveAlertsV36ZSetKey()} / {@link #criticalAlertsV36ZSetKey()}).</li>
+ *   <li>Fall back to legacy LIST ({@link #liveAlertsV36Key()}) only during migration.</li>
+ *   <li>Use SQL {@code anomaly_event} table as durable fallback.</li>
+ * </ol>
  */
 public final class CacheKeys {
     private CacheKeys() {}
@@ -21,6 +63,14 @@ public final class CacheKeys {
 
     public static String nextActionsKey(String insuredId) {
         return "next_actions:" + insuredId;
+    }
+
+    public static String nextEventPredictionSessionKey(String sessionId) {
+        return "next_event_prediction:session:" + sessionId;
+    }
+
+    public static String nextEventPredictionInsuredKey(String insuredId) {
+        return "next_event_prediction:insured:" + insuredId;
     }
 
     public static String riskKey(String insuredId) {
@@ -87,28 +137,75 @@ public static String sequenceScoresKey(String sessionId) {
         return "alert:llm-evidence:" + eventId;
     }
 
+    /**
+     * Legacy LIST key. Do not use as canonical source.
+     * Use {@link #liveAlertsV36ZSetKey()}.
+     */
+    @Deprecated
     public static String liveAlertsV36Key() {
         return "alerts:live:v3_6";
     }
 
+    /**
+     * Legacy LIST key. Do not use as canonical source.
+     * Use {@link #criticalAlertsV36ZSetKey()}.
+     */
+    @Deprecated
     public static String criticalAlertsV36Key() {
         return "alerts:critical:v3_6";
     }
 
-public static String userAlertsKey(String insuredId) {
+    /**
+     * Legacy LIST key. Do not use as canonical source.
+     * Use {@link #userAlertsV36ZSetKey(String)}.
+     */
+    @Deprecated
+    public static String userAlertsKey(String insuredId) {
         return "alerts:user:" + insuredId;
     }
 
+    /**
+     * Legacy SET key for dedup. Do not use.
+     */
+    @Deprecated
     public static String userAlertsEventIdsKey(String insuredId) {
         return "alerts:user:eventIds:" + insuredId;
     }
 
+    /**
+     * Legacy SET key for dedup. Do not use.
+     */
+    @Deprecated
     public static String liveAlertsEventIdsKey() {
         return "alerts:live:eventIds:v3_6";
     }
 
+    /**
+     * Legacy SET key for dedup. Do not use.
+     */
+    @Deprecated
     public static String criticalAlertsEventIdsKey() {
         return "alerts:critical:eventIds:v3_6";
+    }
+
+    public static String liveAlertsV36PayloadKey(String eventId) {
+        return "alert:live:v3_6:" + eventId;
+    }
+
+    public static String liveAlertsV36ZSetKey() {
+        return "alerts:live:zset:v3_6";
+    }
+
+    public static String criticalAlertsV36ZSetKey() {
+        return "alerts:critical:zset:v3_6";
+    }
+
+    public static String highAlertsV36ZSetKey() {
+        return "alerts:high:zset:v3_6";
+    }
+
+    public static String userAlertsV36ZSetKey(String insuredId) {
+        return "alerts:user:" + insuredId + ":zset:v3_6";
     }
 
     public static String user360Key(String insuredId) {

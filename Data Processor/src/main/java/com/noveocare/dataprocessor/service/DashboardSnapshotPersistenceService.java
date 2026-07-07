@@ -60,17 +60,18 @@ public class DashboardSnapshotPersistenceService {
                 existing.setUpdatedAt(now);
                 repository.save(existing);
             } else {
-                DashboardSnapshot snapshot = new DashboardSnapshot();
-                snapshot.setSchemaVersion("v3.6.1");
-                snapshot.setViewName(viewName);
-                snapshot.setSnapshotKey(snapshotKey);
-                snapshot.setSnapshotDate(today);
-                snapshot.setSnapshotTimestamp(now);
-                snapshot.setPayloadJson(payloadJson);
-                snapshot.setPayloadHash(payloadHash);
-                snapshot.setSource(source);
-                snapshot.setCreatedAt(now);
-                snapshot.setUpdatedAt(now);
+                DashboardSnapshot snapshot = DashboardSnapshot.builder()
+                        .schemaVersion("v3.6.1")
+                        .viewName(viewName)
+                        .snapshotKey(snapshotKey)
+                        .snapshotDate(today)
+                        .snapshotTimestamp(now)
+                        .payloadJson(payloadJson)
+                        .payloadHash(payloadHash)
+                        .source(source)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
                 repository.save(snapshot);
             }
 

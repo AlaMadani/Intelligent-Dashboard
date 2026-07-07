@@ -219,6 +219,127 @@ class PayloadContractTest {
     }
 
     @Test
+    void v36LiveAlertSummaryRoundTrip() throws Exception {
+        V36LiveAlertSummary summary = new V36LiveAlertSummary(
+                "v3.6.1",
+                "anom-1",
+                "rec-1",
+                "insured-1",
+                "sess-1",
+                "2026-06-25T10:00:00Z",
+                "login",
+                "/documents/file",
+                "documents",
+                "DocumentsController",
+                "documents",
+                "US",
+                "mobile",
+                "Chrome",
+                "Android",
+                "POST",
+                "200",
+                "CRITICAL",
+                "CRITICAL",
+                "ZERO_TO_ONE_HUNDRED",
+                84.1,
+                0.95,
+                95.0,
+                0.03,
+                2.78,
+                99.59,
+                0.0,
+                35.0,
+                new LinkedHashMap<>(Map.of("xgboostAnomalyScore", 0.95)),
+                new LinkedHashMap<>(Map.of("xgboost", 0.5)),
+                List.of("API_SCRAPING_PATTERN"),
+                "unknown_suspicious_behavior",
+                0.85,
+                0.5,
+                "LOW",
+                true,
+                "redis:key:anom-1",
+                "OPEN",
+                Instant.parse("2026-06-25T10:00:01Z"),
+                new LinkedHashMap<>(Map.of("ip", "1.2.3.4")),
+                new LinkedHashMap<>(Map.of("states", List.of())),
+                new LinkedHashMap<>(Map.of("features", List.of()))
+        );
+
+        String json = objectMapper.writeValueAsString(summary);
+        assertThat(json).contains("anom-1");
+        assertThat(json).contains("CRITICAL");
+        assertThat(json).contains("84.1");
+
+        V36LiveAlertSummary deserialized = objectMapper.readValue(json, V36LiveAlertSummary.class);
+        assertThat(deserialized.getEventId()).isEqualTo("anom-1");
+        assertThat(deserialized.getInsuredId()).isEqualTo("insured-1");
+        assertThat(deserialized.getSessionId()).isEqualTo("sess-1");
+        assertThat(deserialized.getTimestamp()).isEqualTo("2026-06-25T10:00:00Z");
+        assertThat(deserialized.getRiskLevel()).isEqualTo("CRITICAL");
+        assertThat(deserialized.getFinalRiskScore()).isEqualTo(84.1);
+        assertThat(deserialized.getApiTemplate()).isEqualTo("/documents/file");
+        assertThat(deserialized.getApiFamily()).isEqualTo("documents");
+        assertThat(deserialized.getAlertStatus()).isEqualTo("OPEN");
+        assertThat(deserialized.getCreatedAt()).isEqualTo(Instant.parse("2026-06-25T10:00:01Z"));
+    }
+
+    @Test
+    void v36LiveAlertSummaryDeserializesJsonWithoutConstructorError() throws Exception {
+        String json = """
+                {
+                    "schemaVersion": "v3.6.1",
+                    "eventId": "anom-1",
+                    "recordId": "rec-1",
+                    "insuredId": "insured-1",
+                    "sessionId": "sess-1",
+                    "timestamp": "2026-06-25T10:00:00Z",
+                    "eventAction": "login",
+                    "apiTemplate": "/documents/file",
+                    "apiFamily": "documents",
+                    "controller": "DocumentsController",
+                    "page": "documents",
+                    "country": "US",
+                    "device": "mobile",
+                    "browser": "Chrome",
+                    "os": "Android",
+                    "httpMethod": "POST",
+                    "status": "200",
+                    "riskLevel": "CRITICAL",
+                    "finalRiskScore": 84.1,
+                    "triggeredRuleCodes": ["API_SCRAPING_PATTERN"],
+                    "alertStatus": "OPEN",
+                    "createdAt": "2026-06-25T10:00:01Z"
+                }
+                """;
+
+        V36LiveAlertSummary summary = objectMapper.readValue(json, V36LiveAlertSummary.class);
+        assertThat(summary.getEventId()).isEqualTo("anom-1");
+        assertThat(summary.getRiskLevel()).isEqualTo("CRITICAL");
+        assertThat(summary.getFinalRiskScore()).isEqualTo(84.1);
+        assertThat(summary.getTimestamp()).isEqualTo("2026-06-25T10:00:00Z");
+        assertThat(summary.getCreatedAt()).isEqualTo(Instant.parse("2026-06-25T10:00:01Z"));
+    }
+
+    @Test
+    void v36LiveAlertSummaryTimestampPreserved() throws Exception {
+        V36LiveAlertSummary summary = new V36LiveAlertSummary();
+        summary.setSchemaVersion("v3.6.1");
+        summary.setEventId("anom-ts-1");
+        summary.setInsuredId("insured-1");
+        summary.setSessionId("sess-1");
+        summary.setTimestamp("2026-06-25T12:00:00Z");
+        summary.setRiskLevel("HIGH");
+        summary.setFinalRiskScore(50.0);
+        summary.setAlertStatus("OPEN");
+        summary.setCreatedAt(Instant.parse("2026-06-25T12:00:00Z"));
+
+        String json = objectMapper.writeValueAsString(summary);
+        V36LiveAlertSummary read = objectMapper.readValue(json, V36LiveAlertSummary.class);
+        assertThat(read.getTimestamp()).isNotNull();
+        assertThat(read.getTimestamp()).isEqualTo("2026-06-25T12:00:00Z");
+    }
+
+    @Test
     void defaultTransformerTcnBothNullWhenNotSet() {
         SessionInsight insight = SessionInsight.builder()
                 .insuredId("insured-1")

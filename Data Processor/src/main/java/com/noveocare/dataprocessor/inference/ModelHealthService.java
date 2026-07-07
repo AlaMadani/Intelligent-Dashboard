@@ -18,6 +18,7 @@ import com.noveocare.dataprocessor.config.AiTabularAnomalyProperties;
 import com.noveocare.dataprocessor.config.CacheKeys;
 import com.noveocare.dataprocessor.config.LiveStatsProperties;
 import com.noveocare.dataprocessor.config.NextActionPredictionProperties;
+import com.noveocare.dataprocessor.config.NextEventPredictionProperties;
 import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.kafka.AlertPublisher;
@@ -29,6 +30,7 @@ import com.noveocare.dataprocessor.service.SessionFinalizationOrchestrator;
 import com.noveocare.dataprocessor.service.SessionFinalizationService;
 import com.noveocare.dataprocessor.service.DashboardRefreshScheduler;
 import com.noveocare.dataprocessor.service.DashboardSnapshotPersistenceService;
+import com.noveocare.dataprocessor.service.AlertCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.stereotype.Service;
@@ -65,6 +67,7 @@ public class ModelHealthService {
     private final AlertPublisher alertPublisher;
     private final LiveStatsProperties liveStatsProperties;
     private final NextActionPredictionProperties nextActionPredictionProperties;
+    private final NextEventPredictionProperties nextEventPredictionProperties;
     private final RedisSessionBufferService redisSessionBufferService;
     private final ObjectFactory<AuditTrailConsumer> auditTrailConsumerFactory;
     private final PerformanceProperties performanceProperties;
@@ -74,6 +77,7 @@ public class ModelHealthService {
     private final InferenceExecutorManager executorManager;
     private final DashboardRefreshScheduler dashboardRefreshScheduler;
     private final InferenceBenchmarkService inferenceBenchmarkService;
+    private final AlertCacheService alertCacheService;
 
     private final AtomicLong inferenceErrorCount = new AtomicLong();
     private final Map<String, Instant> runtimeLastInferenceAt = new ConcurrentHashMap<>();
@@ -150,10 +154,12 @@ public class ModelHealthService {
         payload.put("idempotency", buildIdempotencyDiagnostics());
         payload.put("stats", buildStatsDiagnostics());
         payload.put("nextActionPrediction", buildNextActionPredictionDiagnostics());
+        payload.put("nextEventPrediction", buildNextEventPredictionDiagnostics());
         payload.put("inference", buildInferenceDiagnostics());
         payload.put("dashboard", buildDashboardDiagnostics());
         payload.put("performance", buildPerformanceDiagnostics());
         payload.put("modelLatency", buildModelLatencyDiagnostics());
+        payload.put("alertCacheConsistency", alertCacheService.consistencyDiagnostics());
         return payload;
     }
 
@@ -329,7 +335,23 @@ public class ModelHealthService {
         Map<String, Object> nap = new LinkedHashMap<>();
         nap.put("enabled", nextActionPredictionProperties.isEnabled());
         nap.put("disabledReason", nextActionPredictionProperties.getDisabledReason());
+        nap.put("deprecated", true);
+        nap.put("replacedBy", "nextEventPrediction");
         return nap;
+    }
+
+    private Map<String, Object> buildNextEventPredictionDiagnostics() {
+        Map<String, Object> d = new LinkedHashMap<>();
+        d.put("enabled", nextEventPredictionProperties.isEnabled());
+        d.put("model", nextEventPredictionProperties.getModelPreference());
+        d.put("topK", nextEventPredictionProperties.getTopK());
+        d.put("minContextEvents", nextEventPredictionProperties.getMinContextEvents());
+        d.put("affectRiskScore", nextEventPredictionProperties.isAffectRiskScore());
+        d.put("writeRedis", nextEventPredictionProperties.isWriteRedis());
+        d.put("writeSql", nextEventPredictionProperties.isWriteSql());
+        d.put("evaluateDeviation", nextEventPredictionProperties.isEvaluateDeviation());
+        d.put("heads", nextEventPredictionProperties.getHeads());
+        return d;
     }
 
     private Map<String, Object> modelHealth() {

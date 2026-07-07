@@ -221,6 +221,12 @@ app:
     forecast:
       enabled: ${FORECAST_INFERENCE_ENABLED:true}
       run-in-listener: ${FORECAST_RUN_IN_LISTENER:false}
+      async-refresh-enabled: ${FORECAST_ASYNC_REFRESH_ENABLED:true}
+      refresh-interval-seconds: ${FORECAST_REFRESH_INTERVAL_SECONDS:60}
+      min-refresh-gap-seconds: ${FORECAST_MIN_REFRESH_GAP_SECONDS:30}
+      dirty-on-event: ${FORECAST_DIRTY_ON_EVENT:true}
+      write-redis-snapshot: ${FORECAST_WRITE_REDIS:true}
+      write-sql-snapshot: ${FORECAST_WRITE_SQL:true}
       anomaly-rate-preferred-model: "Ridge"
       total-events-preferred-model: "XGBoost"
       fallback-enabled: true
@@ -276,5 +282,23 @@ app:
       skip-heavy-sql-in-listener: ${SKIP_HEAVY_SQL_IN_LISTENER:true}
 
   next-action-prediction:
-    enabled: false
-    disabled-reason: "Intentionally disabled in V3.6.1. Feature requires sequence context validation and is Redis-only in current architecture. See next_action_predictions table (unique constraint on insured_id)."
+    enabled: ${NEXT_ACTION_PREDICTION_ENABLED:false}
+    disabled-reason: "Deprecated in V3.6.1. Use next-event-prediction instead."
+
+  next-event-prediction:
+    enabled: ${NEXT_EVENT_PREDICTION_ENABLED:true}
+    top-k: ${NEXT_EVENT_PREDICTION_TOPK:5}
+    min-context-events: ${NEXT_EVENT_PREDICTION_MIN_CONTEXT_EVENTS:3}
+    model-preference: ${NEXT_EVENT_PREDICTION_MODEL_PREFERENCE:transformer}
+    write-redis: ${NEXT_EVENT_PREDICTION_WRITE_REDIS:true}
+    write-sql: ${NEXT_EVENT_PREDICTION_WRITE_SQL:true}
+    evaluate-deviation: ${NEXT_EVENT_PREDICTION_EVALUATE_DEVIATION:true}
+    affect-risk-score: ${NEXT_EVENT_PREDICTION_AFFECT_RISK_SCORE:false}
+    heads:
+      - frontend_action_name
+      - action_value
+      - page
+      - api_template
+      - api_family
+      - http_method
+      - status

@@ -199,3 +199,13 @@ databaseChangeLog:
             relativeToChangelogFile: false
             splitStatements: true
             stripComments: false
+
+  - changeSet:
+      id: add_next_event_predictions-v22
+      author: data-processor
+      changes:
+        - sqlFile:
+            path: db/migration/V22__add_next_event_predictions.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: false

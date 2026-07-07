@@ -43,7 +43,7 @@ class DataprocessorFollowUpTest {
         sequenceProperties = new AiSequenceProperties();
         InferenceConfigProperties props = new InferenceConfigProperties();
         inferenceConfig = new InferenceConfig(props, null, sequenceProperties, null, null);
-        dashboardSnapshotService = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        dashboardSnapshotService = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         dashboardRefreshScheduler = new DashboardRefreshScheduler(dashboardSnapshotService, null);
     }
 
@@ -108,7 +108,7 @@ class DataprocessorFollowUpTest {
 
     @Test
     void dashboardRateLimitNotIncrementedBeforeFirstRefresh() {
-        DashboardSnapshotService service = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService service = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThat(service.getDashboardRefreshSkippedDueToRateLimit()).isZero();
     }
 
@@ -200,21 +200,21 @@ class DataprocessorFollowUpTest {
 
     @Test
     void dashboardSchedulerTracksRunCount() {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         DashboardRefreshScheduler scheduler = new DashboardRefreshScheduler(dss, null);
         assertThat(scheduler.getRunCount()).isZero();
     }
 
     @Test
     void dashboardSnapshotTracksRefreshSuccessCount() {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThat(dss.getRefreshSuccessCount()).isZero();
         assertThat(dss.getRefreshFailureCount()).isZero();
     }
 
     @Test
     void dashboardSnapshotTracksLastRefreshAttempt() {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThat(dss.getLastRefreshAttemptAt()).isNull();
         assertThat(dss.getLastRefreshError()).isNull();
     }
@@ -264,7 +264,7 @@ class DataprocessorFollowUpTest {
 
     @Test
     void dashboardRefreshIsSingleFlight() {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThat(dss.tryStartRefresh()).isTrue();
         assertThat(dss.tryStartRefresh()).isFalse();
         assertThat(dss.getRefreshAlreadyRunningSkipped()).isEqualTo(1L);
@@ -275,7 +275,7 @@ class DataprocessorFollowUpTest {
 
     @Test
     void dirtyFlagsClearAfterSuccessfulPerViewRefresh() throws Exception {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         dss.markAlertsDirty();
         dss.markRiskySessionsDirty();
         dss.markOverviewDirty();
@@ -310,7 +310,7 @@ class DataprocessorFollowUpTest {
 
     @Test
     void runtimeHealthExposesDashboardPerViewTimings() {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThat(dss.getLastAlertsRefreshMs()).isZero();
         assertThat(dss.getLastSecurityOverviewRefreshMs()).isZero();
         assertThat(dss.getLastRiskySessionsRefreshMs()).isZero();
@@ -322,7 +322,7 @@ class DataprocessorFollowUpTest {
 
     @Test
     void refreshSkipCountersNotIncrementedOnEverySchedulerTick() {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         long before = dss.getDashboardRefreshSkippedDueToRateLimit();
         assertThat(before).isZero();
     }
@@ -348,7 +348,7 @@ class DataprocessorFollowUpTest {
 
     @Test
     void dashboardTimingFieldsExposed() {
-        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null);
+        DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         assertThat(dss.getLastRefreshStartedAt()).isNull();
         assertThat(dss.getLastRefreshCompletedAt()).isNull();
         assertThat(dss.getDashboardLastRefreshAt()).isNull();

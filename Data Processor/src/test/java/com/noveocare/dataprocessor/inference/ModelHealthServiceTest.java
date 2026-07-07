@@ -19,12 +19,14 @@ import com.noveocare.dataprocessor.config.AiTabularAnomalyProperties;
 import com.noveocare.dataprocessor.config.CacheKeys;
 import com.noveocare.dataprocessor.config.LiveStatsProperties;
 import com.noveocare.dataprocessor.config.NextActionPredictionProperties;
+import com.noveocare.dataprocessor.config.NextEventPredictionProperties;
 import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
 import com.noveocare.dataprocessor.kafka.AlertPublisher;
 import com.noveocare.dataprocessor.kafka.AuditTrailConsumer;
+import com.noveocare.dataprocessor.service.AlertCacheService;
 import com.noveocare.dataprocessor.service.DashboardRefreshScheduler;
 import com.noveocare.dataprocessor.service.EventIdempotencyService;
 import com.noveocare.dataprocessor.service.SessionFinalizationOrchestrator;
@@ -89,6 +91,7 @@ class ModelHealthServiceTest {
         AlertPublisher alertPublisher = mock(AlertPublisher.class);
         LiveStatsProperties liveStats = new LiveStatsProperties();
         NextActionPredictionProperties napProps = new NextActionPredictionProperties();
+        NextEventPredictionProperties nepProps = new NextEventPredictionProperties();
         RedisSessionBufferService bufferService = mock(RedisSessionBufferService.class);
         AuditTrailConsumer auditConsumer = mock(AuditTrailConsumer.class);
         ObjectFactory<AuditTrailConsumer> auditConsumerFactory = () -> auditConsumer;
@@ -119,6 +122,7 @@ class ModelHealthServiceTest {
                 alertPublisher,
                 liveStats,
                 napProps,
+                nepProps,
                 bufferService,
                 auditConsumerFactory,
                 new PerformanceProperties(),
@@ -127,7 +131,8 @@ class ModelHealthServiceTest {
                 mock(InferenceConfig.class),
                 mock(InferenceExecutorManager.class),
                 mock(DashboardRefreshScheduler.class),
-                mock(InferenceBenchmarkService.class));
+                mock(InferenceBenchmarkService.class),
+                mock(AlertCacheService.class));
         service.recordRuntimeSuccess("xgboost");
         service.recordRuntimeError("lightgbm", "lightgbm_alert_no_trees_parsed");
 
@@ -184,6 +189,7 @@ class ModelHealthServiceTest {
         AlertPublisher alertPublisher = mock(AlertPublisher.class);
         LiveStatsProperties liveStats = new LiveStatsProperties();
         NextActionPredictionProperties napProps = new NextActionPredictionProperties();
+        NextEventPredictionProperties nepProps2 = new NextEventPredictionProperties();
         RedisSessionBufferService bufferService = mock(RedisSessionBufferService.class);
         AuditTrailConsumer auditConsumer2 = mock(AuditTrailConsumer.class);
         ObjectFactory<AuditTrailConsumer> auditConsumerFactory2 = () -> auditConsumer2;
@@ -214,6 +220,7 @@ class ModelHealthServiceTest {
                 alertPublisher,
                 liveStats,
                 napProps,
+                nepProps2,
                 bufferService,
                 auditConsumerFactory2,
                 new PerformanceProperties(),
@@ -222,7 +229,8 @@ class ModelHealthServiceTest {
                 mock(InferenceConfig.class),
                 mock(InferenceExecutorManager.class),
                 mock(DashboardRefreshScheduler.class),
-                mock(InferenceBenchmarkService.class));
+                mock(InferenceBenchmarkService.class),
+                mock(AlertCacheService.class));
 
         service.publish();
 

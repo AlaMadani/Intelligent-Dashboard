@@ -66,6 +66,7 @@ import com.noveocare.dataprocessor.redis.RedisCacheService;
 import com.noveocare.dataprocessor.redis.RedisSessionBufferService;
 import com.noveocare.dataprocessor.repository.SessionAnalysisRepository;
 import com.noveocare.dataprocessor.service.DashboardSnapshotService;
+import com.noveocare.dataprocessor.service.ForecastRefreshService;
 import com.noveocare.dataprocessor.service.EventIdempotencyService;
 import com.noveocare.dataprocessor.service.SessionRunningSummaryService;
 import com.noveocare.dataprocessor.service.SessionFinalizationOrchestrator;
@@ -124,6 +125,7 @@ class DataprocessorV36SmokeTest {
         ForecastRuntimeService forecastRuntimeService = mock(ForecastRuntimeService.class);
         RedisCacheService redisCacheService = mock(RedisCacheService.class);
         ModelHealthService modelHealthService = mock(ModelHealthService.class);
+        ForecastRefreshService forecastRefreshService = mock(ForecastRefreshService.class);
         RedisCacheProperties redisProperties = redisProperties();
 
         AiTabularAnomalyProperties tabularProps = new AiTabularAnomalyProperties();
@@ -131,6 +133,9 @@ class DataprocessorV36SmokeTest {
         AiForecastProperties forecastProps = new AiForecastProperties();
 
         AiDiagnosticsProperties diagnosticsProps = new AiDiagnosticsProperties();
+
+        com.noveocare.dataprocessor.service.NextEventPredictionService nextEventPredictionService =
+                mock(com.noveocare.dataprocessor.service.NextEventPredictionService.class);
 
         ModelInferenceService service = new ModelInferenceService(
                 sequenceProperties,
@@ -153,11 +158,13 @@ class DataprocessorV36SmokeTest {
                 churnInferenceService,
                 forecastRuntimeService,
                 new LlmEvidencePayloadService(new AiLlmExplanationProperties(), objectMapper),
+                forecastRefreshService,
                 redisCacheService,
                 redisProperties,
                 modelHealthService,
                 new InferenceConfig(new InferenceConfigProperties(), new AiTabularAnomalyProperties(), sequenceProperties, new AiChurnProperties(), new AiForecastProperties()),
-                new InferenceExecutorManager());
+                new InferenceExecutorManager(),
+                nextEventPredictionService);
 
         SessionSummary summary = summary();
         AuditTrailEvent previousEvent = auditEvent("evt-prev", "VIEW_HOME", "/api/home", Instant.parse("2026-05-25T02:14:00Z"));

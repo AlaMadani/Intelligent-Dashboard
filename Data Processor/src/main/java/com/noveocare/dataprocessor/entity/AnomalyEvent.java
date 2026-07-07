@@ -132,4 +132,7 @@ public class AnomalyEvent {
 
     @Column(name = "detected_at")
     private Instant detectedAt;
+
+    @Column(name = "investigation_payload_json", columnDefinition = "NVARCHAR(MAX)")
+    private String investigationPayloadJson;
 }

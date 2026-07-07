@@ -25,6 +25,7 @@ import com.noveocare.dataprocessor.ai.tabular.TabularAnomalyResult;
 import com.noveocare.dataprocessor.config.AiDiagnosticsProperties;
 import com.noveocare.dataprocessor.config.AiForecastProperties;
 import com.noveocare.dataprocessor.config.AiRiskScoringProperties;
+import com.noveocare.dataprocessor.service.ForecastRefreshService;
 import com.noveocare.dataprocessor.config.AiSequenceProperties;
 import com.noveocare.dataprocessor.config.AiTabularAnomalyProperties;
 import com.noveocare.dataprocessor.config.AiChurnProperties;
@@ -36,6 +37,7 @@ import com.noveocare.dataprocessor.dto.FeatureContribution;
 import com.noveocare.dataprocessor.dto.SessionInsight;
 import com.noveocare.dataprocessor.dto.SessionSummary;
 import com.noveocare.dataprocessor.redis.RedisCacheService;
+import com.noveocare.dataprocessor.service.NextEventPredictionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -74,11 +76,13 @@ public class ModelInferenceService {
     private final ChurnInferenceService churnInferenceService;
     private final ForecastRuntimeService forecastRuntimeService;
     private final LlmEvidencePayloadService llmEvidencePayloadService;
+    private final ForecastRefreshService forecastRefreshService;
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties redisCacheProperties;
     private final ModelHealthService modelHealthService;
     private final InferenceConfig inferenceConfig;
     private final InferenceExecutorManager executorManager;
+    private final NextEventPredictionService nextEventPredictionService;
 
     private final AtomicLong artifactLoadCount = new AtomicLong();
     private final Map<String, AtomicLong> modelArtifactLoadCountByModel = new java.util.concurrent.ConcurrentHashMap<>();
@@ -249,12 +253,12 @@ public class ModelInferenceService {
                     timing.transformerMs = runTimedSequenceModel("transformer",
                             SequenceModelKind.TRANSFORMER, previousWindow, currentEncoded, tRef,
                             currentEvent.getId(), summary.getInsuredId(), summary.getSessionId(),
-                            windowFetchMs, inputBuildMs);
+                            windowFetchMs, inputBuildMs, previousState.realEventCount(), currentEvent);
                     if (timing.transformerMs >= 0) {
                         timing.tcnMs = runTimedSequenceModel("tcn",
                                 SequenceModelKind.TCN, previousWindow, currentEncoded, tcnRef,
-                                currentEvent.getId(), summary.getInsuredId(), summary.getSessionId(),
-                                windowFetchMs, inputBuildMs);
+                            currentEvent.getId(), summary.getInsuredId(), summary.getSessionId(),
+                                windowFetchMs, inputBuildMs, previousState.realEventCount(), currentEvent);
                     } else {
                         timing.tcnMs = -1;
                     }
@@ -268,7 +272,7 @@ public class ModelInferenceService {
                         timing.tcnMs = runTimedSequenceModel("tcn",
                                 SequenceModelKind.TCN, previousWindow, currentEncoded, tcnRef,
                                 currentEvent.getId(), summary.getInsuredId(), summary.getSessionId(),
-                                windowFetchMs, inputBuildMs);
+                                windowFetchMs, inputBuildMs, previousState.realEventCount(), currentEvent);
                         tcnScoreResult = tcnRef[0];
                         selectedScore = tcnScoreResult;
                     } else if (selectedModel == SequenceModelKind.TRANSFORMER && transformerActuallyEnabled) {
@@ -277,7 +281,7 @@ public class ModelInferenceService {
                         timing.transformerMs = runTimedSequenceModel("transformer",
                                 SequenceModelKind.TRANSFORMER, previousWindow, currentEncoded, tRef,
                                 currentEvent.getId(), summary.getInsuredId(), summary.getSessionId(),
-                                windowFetchMs, inputBuildMs);
+                                windowFetchMs, inputBuildMs, previousState.realEventCount(), currentEvent);
                         transformerScoreResult = tRef[0];
                         selectedScore = transformerScoreResult;
                     } else {
@@ -378,7 +382,14 @@ public class ModelInferenceService {
 
         long forecastStart = System.currentTimeMillis();
         ForecastPrediction forecast;
-        if (!forecastProperties.isEnabled() || !forecastProperties.isRunInListener()) {
+        if (!forecastProperties.isEnabled()) {
+            forecast = ForecastPrediction.builder().warnings(List.of("forecast_disabled")).build();
+        } else if (forecastProperties.isAsyncRefreshEnabled() && !forecastProperties.isRunInListener()) {
+            if (forecastProperties.isDirtyOnEvent()) {
+                forecastRefreshService.markDirty();
+            }
+            forecast = ForecastPrediction.builder().warnings(List.of()).build();
+        } else if (!forecastProperties.isRunInListener()) {
             forecast = ForecastPrediction.builder().warnings(List.of("forecast_not_run_in_listener")).build();
         } else if (liveFast && liveFastExhausted) {
             forecast = ForecastPrediction.builder().warnings(List.of("live_fast_mode_skip_forecast")).build();
@@ -390,7 +401,9 @@ public class ModelInferenceService {
         }
         timing.forecastMs = System.currentTimeMillis() - forecastStart;
         recordForecastRuntimeHealth(forecast);
-        warnings.addAll(forecast.getWarnings());
+        if (forecast.getWarnings() != null) {
+            warnings.addAll(forecast.getWarnings());
+        }
         modelHealthService.publish();
 
         timing.totalInferenceMs = System.currentTimeMillis() - inferenceStart;
@@ -648,7 +661,8 @@ public class ModelInferenceService {
     private long runTimedSequenceModel(String modelName, SequenceModelKind kind, SequenceWindow window,
                                        EncodedSequenceEvent target, SequenceScoreResult[] outResult,
                                        String eventId, String insuredId, String sessionId,
-                                       long windowFetchMs, long inputBuildMs) {
+                                       long windowFetchMs, long inputBuildMs, int contextSize,
+                                       AuditTrailEvent currentEvent) {
         long seqTotalStart = System.nanoTime();
         String status = "OK";
         String errorClass = "";
@@ -666,6 +680,7 @@ public class ModelInferenceService {
                 long totalMs = (System.nanoTime() - seqTotalStart) / 1_000_000L;
 
                 outResult[0] = score;
+                nextEventPredictionService.predict(inference, insuredId, sessionId, eventId, contextSize, currentEvent);
                 log.info("SEQUENCE_LIVE_TIMING model={} eventId={} sessionId={}"
                                 + " windowFetchMs={} inputBuildMs={} tensorCreateMs={} sessionRunMs={}"
                                 + " outputExtractMs={} postprocessMs={} totalMs={}"
@@ -699,8 +714,10 @@ public class ModelInferenceService {
         }
         long timeoutMs = inferenceConfig.getTimeoutMs(modelName);
         long submitStart = System.nanoTime();
+        Object[] inferenceHolder = new Object[1];
         SequenceScoreResult result = executorManager.submitWithTimeout("sequence", modelName, () -> {
             SequenceInferenceResult inference = onnxInferenceService.infer(kind, window);
+            inferenceHolder[0] = inference;
             return scoringService.score(inference, target);
         }, timeoutMs, SequenceScoreResult.unavailable(List.of(modelName + "_timeout")));
         long totalMs = (System.nanoTime() - submitStart) / 1_000_000L;
@@ -722,6 +739,8 @@ public class ModelInferenceService {
             }
             return -1;
         }
+        SequenceInferenceResult inference = (SequenceInferenceResult) inferenceHolder[0];
+        nextEventPredictionService.predict(inference, insuredId, sessionId, eventId, contextSize, currentEvent);
         log.info("SEQUENCE_LIVE_TIMING model={} eventId={} sessionId={}"
                         + " windowFetchMs={} inputBuildMs={} totalMs={}"
                         + " status={} errorClass={} errorMessage={}",

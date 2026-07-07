@@ -150,4 +150,35 @@ public class RedisCacheService {
         }
         return new LinkedHashSet<>(members);
     }
+
+    public boolean zsetAdd(String key, String member, double score) {
+        return Boolean.TRUE.equals(redisTemplate.opsForZSet().add(key, member, score));
+    }
+
+    public Double zsetScore(String key, String member) {
+        return redisTemplate.opsForZSet().score(key, member);
+    }
+
+    public Set<String> zsetReverseRange(String key, long start, long end) {
+        Set<String> members = redisTemplate.opsForZSet().reverseRange(key, start, end);
+        return members != null ? members : Set.of();
+    }
+
+    public Set<String> zsetRange(String key, long start, long end) {
+        Set<String> members = redisTemplate.opsForZSet().range(key, start, end);
+        return members != null ? members : Set.of();
+    }
+
+    public Long zsetRemove(String key, Object... members) {
+        return redisTemplate.opsForZSet().remove(key, members);
+    }
+
+    public Long zsetCard(String key) {
+        Long count = redisTemplate.opsForZSet().zCard(key);
+        return count != null ? count : 0L;
+    }
+
+    public Long zsetRemoveRangeByRank(String key, long start, long end) {
+        return redisTemplate.opsForZSet().removeRange(key, start, end);
+    }
 }

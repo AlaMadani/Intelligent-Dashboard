@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.instancio.Select.field;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +54,45 @@ class AnomalyAlertMapperTest {
         assertEquals(alert.getRuleType(), entity.getRuleType());
         assertEquals(rawEventJson, entity.getEventJson());
         assertEquals(detectedAt, entity.getDetectedAt());
+    }
+
+    @Test
+    void investigationPayloadJsonContainsEventIdMatchingRow() {
+        Instant detectedAt = Instant.parse("2026-04-01T10:15:30Z");
+        Map<String, Object> investigationPayload = new LinkedHashMap<>();
+        investigationPayload.put("eventId", "event-xyz");
+        investigationPayload.put("riskLevel", "CRITICAL");
+        investigationPayload.put("finalRiskScore", 84.1);
+        investigationPayload.put("anomalyType", "unknown_suspicious_behavior");
+        investigationPayload.put("modelScores", Map.of("xgboostAnomalyScore", 0.95));
+        investigationPayload.put("sessionEndReason", "TIMEOUT");
+        investigationPayload.put("sessionEndedAt", "2026-04-01T10:20:00Z");
+
+        AnomalyAlert alert = Instancio.of(AnomalyAlert.class)
+                .set(field(AnomalyAlert::getEventId), "event-xyz")
+                .set(field(AnomalyAlert::getInsuredId), "insured-123")
+                .set(field(AnomalyAlert::getSessionId), "session-abc")
+                .set(field(AnomalyAlert::getInvestigationPayload), investigationPayload)
+                .set(field(AnomalyAlert::getDetectedAt), detectedAt)
+                .create();
+
+        AnomalyEvent entity = mapper.toEntity(alert, "{}");
+
+        assertEquals("event-xyz", entity.getEventId());
+        assertNotNull(entity.getInvestigationPayloadJson());
+        assertTrue(entity.getInvestigationPayloadJson().contains("event-xyz"));
+        assertTrue(entity.getInvestigationPayloadJson().contains("CRITICAL"));
+        assertTrue(entity.getInvestigationPayloadJson().contains("TIMEOUT"));
+    }
+
+    @Test
+    void investigationPayloadJsonIsNullWhenNotSet() {
+        AnomalyAlert alert = Instancio.of(AnomalyAlert.class)
+                .set(field(AnomalyAlert::getInvestigationPayload), null)
+                .create();
+
+        AnomalyEvent entity = mapper.toEntity(alert, "{}");
+        assertNull(entity.getInvestigationPayloadJson());
     }
 
     @Test

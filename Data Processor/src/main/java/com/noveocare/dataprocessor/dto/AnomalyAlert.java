@@ -73,6 +73,8 @@ public class AnomalyAlert {
     private java.util.Map<String, Object> tabularEvidence;
     private List<NextActionScore> nextActions;
 
+    private java.util.Map<String, Object> investigationPayload;
+
     // Timestamps for the triggering event and the actual detection moment.
     private Instant eventTime;
     private Instant detectedAt;

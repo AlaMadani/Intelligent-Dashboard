@@ -27,6 +27,6 @@ public interface SessionAnalysisRepository extends JpaRepository<SessionAnalysis
     List<SessionAnalysis> findTop20ByOrderByFinalRiskScoreDescCreatedAtDesc();
     Optional<SessionAnalysis> findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(String insuredId, String sessionId);
 
-    @org.springframework.data.jpa.repository.Query("SELECT s FROM SessionAnalysis s ORDER BY s.finalRiskScore DESC, s.createdAt DESC")
+    @Query("SELECT s FROM SessionAnalysis s ORDER BY s.finalRiskScore DESC, s.createdAt DESC")
     List<SessionAnalysis> findTopRiskySessions(org.springframework.data.domain.Pageable pageable);
 }

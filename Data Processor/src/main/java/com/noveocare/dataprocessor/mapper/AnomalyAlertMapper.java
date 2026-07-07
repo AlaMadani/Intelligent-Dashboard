@@ -35,6 +35,7 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
     @Mapping(target = "churnContextJson", source = "churn", qualifiedByName = "stringifyObject")
     @Mapping(target = "personaContextJson", source = "persona", qualifiedByName = "stringifyObject")
     @Mapping(target = "artifactNamesJson", source = "artifactNames", qualifiedByName = "stringifyObject")
+    @Mapping(target = "investigationPayloadJson", source = "investigationPayload", qualifiedByName = "stringifyObject")
     @Mapping(target = "detectedAt", source = "detectedAt", qualifiedByName = "detectedAtOrNow")
     public abstract AnomalyEvent toEntity(AnomalyAlert dto);
 
@@ -67,6 +68,7 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
     @Mapping(target = "churnContextJson", source = "alert.churn", qualifiedByName = "stringifyObject")
     @Mapping(target = "personaContextJson", source = "alert.persona", qualifiedByName = "stringifyObject")
     @Mapping(target = "artifactNamesJson", source = "alert.artifactNames", qualifiedByName = "stringifyObject")
+    @Mapping(target = "investigationPayloadJson", source = "alert.investigationPayload", qualifiedByName = "stringifyObject")
     @Mapping(target = "detectedAt", source = "alert.detectedAt", qualifiedByName = "detectedAtOrNow")
     public abstract AnomalyEvent toEntity(AnomalyAlert alert, String rawEventJson);
 
