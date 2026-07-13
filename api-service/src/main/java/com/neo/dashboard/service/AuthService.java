@@ -2,6 +2,7 @@ package com.neo.dashboard.service;
 
 import com.neo.dashboard.dto.AuthResponse;
 import com.neo.dashboard.dto.ChangePasswordRequest;
+import com.neo.dashboard.mapper.AuthApiMapper;
 import com.neo.dashboard.dto.EmailVerificationRequest;
 import com.neo.dashboard.dto.ForgotPasswordRequest;
 import com.neo.dashboard.dto.PasswordResetConfirmRequest;
@@ -36,6 +37,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
     private final PasswordResetService passwordResetService;
+    private final AuthApiMapper authApiMapper;
 
     @Value("${app.auth.allowed-domain:@noveocare.com}")
     private String allowedDomain;
@@ -91,7 +93,9 @@ public class AuthService {
         );
     }
 
-    public AuthResponse signIn(SignInRequest request) {
+    public record SignInOutput(User user, String accessToken, String refreshToken) {}
+
+    public SignInOutput authenticate(SignInRequest request) {
         String email = normalizeEmail(request.getEmail());
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null || !user.isEnabled() || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -115,7 +119,12 @@ public class AuthService {
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
 
         log.info("User signed in: {}", email);
-        return buildAuthResponse(user, accessToken, refreshToken, "Sign in successful");
+        return new SignInOutput(user, accessToken, refreshToken);
+    }
+
+    public AuthResponse signIn(SignInRequest request) {
+        SignInOutput output = authenticate(request);
+        return buildAuthResponse(output.user(), output.accessToken(), output.refreshToken(), "Sign in successful");
     }
 
     public AuthResponse verifyEmail(EmailVerificationRequest request) {
@@ -337,13 +346,7 @@ public class AuthService {
                 .message(message)
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
-                .user(AuthResponse.UserAuthDto.builder()
-                        .id(user.getId())
-                        .email(user.getEmail())
-                        .fullName(user.getFullName())
-                        .role(user.getRole().toString())
-                        .emailVerified(user.isEmailVerified())
-                        .build())
+                .user(authApiMapper.toUserAuthDto(user))
                 .build();
     }
 

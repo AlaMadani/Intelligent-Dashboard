@@ -12,7 +12,6 @@ import com.noveocare.dataprocessor.config.PerformanceProperties;
 import com.noveocare.dataprocessor.config.RedisCacheProperties;
 
 import com.noveocare.dataprocessor.dto.AuditTrailEvent;
-import com.noveocare.dataprocessor.dto.RunningSummaryUpdateResult;
 import com.noveocare.dataprocessor.dto.SessionInsight;
 import com.noveocare.dataprocessor.dto.SessionRunningSummary;
 import com.noveocare.dataprocessor.dto.SessionSummary;

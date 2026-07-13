@@ -98,7 +98,8 @@ Sections now include (when the `dataprocessor` writes them):
 | **idempotency** | `duplicateEventsSkipped`, `duplicateSequenceAppendsSkipped`, `duplicateAlertsSkipped`, `duplicateSqlWritesSkipped` |
 | **performance** | `eventProcessingMsAvg`, `eventProcessingMsP95`, `redisWriteMsAvg`, `redisWriteMsP95`, `modelInferenceMsAvg`, `modelInferenceMsP95`, `sqlWriteMsAvg`, `sqlWriteMsP95`, `dashboardRefreshMsAvg`, `dashboardRefreshMsP95`, `recordsProcessedPerSecond`, `dashboardLastRefreshAt`, `dashboardRefreshSkippedDueToRateLimit`, `kafkaLagCached`, `loadSheddingMode` |
 | **stats** | `liveTimeBasis` (`ingestion` or `event`) |
-| **nextActionPrediction** | `enabled`, `mode`, `lastSkipReason`, `predictionsGeneratedTotal`, `predictionsSkippedTotal` |
+| **nextEventPrediction** | `enabled`, `model`, `topK`, `minContextEvents`, `heads`, `affectRiskScore`, `writeRedis`, `writeSql`, `evaluateDeviation`, `generatedTotal`, `skippedInsufficientContextTotal`, `lastPredictionAt` |
+| **nextActionPrediction** *(deprecated)* | `enabled`, `mode`, `lastSkipReason`, `predictionsGeneratedTotal`, `predictionsSkippedTotal` |
 | **sessionFinalization** | `openSessionCount`, `sessionsFinalizedByExplicitEnd`, `sessionsFinalizedByInactivityTimeout`, `sessionsFinalizedByMaxDuration`, `expiredSessionFlushLastRunAt`, `expiredSessionFlushLastFinalizedCount`, `lateEventsForFinalizedSessions`, `duplicateFinalizationSkipped` |
 
 ```json
@@ -197,6 +198,8 @@ Reads `dashboard:security-overview:v3_6` from Redis first, then falls back to SQ
 
 The response includes a `source` field: `"redis"`, `"sql_fallback"`, or `"generated_fallback"`.
 
+**`topAnomalyTypes` population:** When `highRiskAlertsToday` or `criticalAlertsToday` is non-zero and `topAnomalyTypes` is empty, the API enriches the response by querying the `anomaly_events` table for anomaly type counts since the start of the current UTC day. Null/blank anomaly types are ignored. Results are sorted by count descending, limited to top 10.
+
 ```json
 {
   "schemaVersion": "v3.6.1",
@@ -263,7 +266,62 @@ Top-level convenience fields (`kafka`, `idempotency`, `performance`, `stats`, `s
 
 `GET /api/v1/alerts/live?riskLevel=CRITICAL&limit=100`
 
-Reads `alerts:live:v3_6` from Redis first, then falls back to SQL `dashboard_snapshots` with `view_name=alerts` / `snapshot_key=alerts:latest`, then falls back to SQL `anomaly_events`.
+Redis read order (tried in sequence):
+
+1. **Canonical ZSET** — `alerts:live:zset:v3_6` (member = plain eventId string, score = createdAt epoch millis, fallback timestamp epoch millis, fallback `System.currentTimeMillis()`). Payload at `alert:live:v3_6:{eventId}`.
+2. **Legacy LIST fallback** — `alerts:live:v3_6` (used only if ZSET is empty/unavailable; logged as `CANONICAL_ZSET_EMPTY_LEGACY_LIST_USED`)
+3. **SQL dashboard_snapshots** — `view_name=alerts` / `snapshot_key=alerts:latest`
+4. **SQL anomaly_events** — direct table query
+
+ZSET fetch uses `ZREVRANGE alerts:live:zset:v3_6 0 4999` (up to 5000 members, matching the dataprocessor cap). Payload reads are done via `GET alert:live:v3_6:{eventId}` for each member. Members with missing payloads are skipped and counted as `missingPayloadCount`.
+
+Response source markers:
+- `redis_zset` — from canonical ZSET
+- `redis_legacy_list` — from legacy LIST fallback (warning `canonical_zset_empty_legacy_list_used` added)
+- `sql_fallback` — from SQL snapshot or anomaly_events
+
+This is the **canonical live/open alerts endpoint**. All alert endpoints (`/alerts/live`, `/alerts/critical`, `/alerts/user`) share the same read pipeline (`queryLiveAlerts`) to guarantee consistency.
+
+`/alerts/critical` is a compatibility shortcut equivalent to `/alerts/live?riskLevel=CRITICAL` — it delegates to the same `queryLiveAlerts` pipeline with `riskLevel=CRITICAL` hardcoded.
+
+**Defensive merge from critical source:** When Redis is the active source, the live endpoint performs a defensive merge: it reads the critical ZSET key (`alerts:critical:zset:v3_6`) and inserts any critical alerts that are missing from the live ZSET key. This protects against source divergence where the dataprocessor writes critical alerts to the critical key but not to the live key. A warning `CRITICAL_ALERTS_MERGED_INTO_LIVE` is logged when this happens.
+
+### Server-side filtering
+
+`/alerts/live` supports optional server-side filter parameters. When provided, filtering is applied after deduplication and hydration but before pagination, so `count` reflects the filtered total.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `riskLevel` | string | Filter by risk level (CRITICAL, HIGH, MEDIUM, LOW) |
+| `anomalyType` | string | Filter by anomaly type |
+| `insuredId` | string | Filter by insured ID |
+| `sessionId` | string | Filter by session ID |
+| `from` | ISO instant | Include alerts at or after this timestamp |
+| `to` | ISO instant | Include alerts at or before this timestamp |
+
+Examples:
+- `GET /api/v1/alerts/live?riskLevel=CRITICAL&limit=50` — only critical alerts
+- `GET /api/v1/alerts/live?insuredId=...&limit=50` — alerts for a specific user
+- `GET /api/v1/alerts/live?sessionId=...&limit=20` — alerts for a specific session
+
+### Pagination metadata
+
+The response pagination fields follow this contract:
+
+| Field | Type | Description |
+|---|---|---|
+| `count` | integer | Total number of alerts after deduplication and filtering (not page size). Frontend uses this to compute total pages. |
+| `limit` | integer | Requested page size (clamped to 1–500). |
+| `offset` | integer | Zero-based offset into the full candidate list. |
+| `hasMore` | boolean | `true` when `offset + items.length < count`, `false` otherwise. |
+
+Pagination is applied after the full pipeline: **fetch → deduplicate → hydrate → sort globally (newest-first) → filter → compute total → slice page**.
+
+**Examples** (given 150 total alerts):
+- `limit=50 offset=0` → `count=150, hasMore=true`
+- `limit=50 offset=50` → `count=150, hasMore=true`
+- `limit=50 offset=100` → `count=150, hasMore=false`
+- `limit=50 offset=100` (117 total) → `count=117, hasMore=false` (17 items returned)
 
 ### Deduplication
 
@@ -368,21 +426,63 @@ Optional/nullable frontend table fields include `id`, `anomalyDbId`, `controller
 
 ## Critical Alerts
 
-`GET /api/v1/alerts/critical`
+`GET /api/v1/alerts/critical?limit=20&offset=0`
 
-Reads `alerts:critical:v3_6`, then falls back to SQL alerts with risk/tier `CRITICAL`.
+**Compatibility shortcut.** Delegates to the shared `queryLiveAlerts` pipeline with `riskLevel=CRITICAL` hardcoded. Equivalent to `GET /api/v1/alerts/live?riskLevel=CRITICAL&limit=...&offset=...`.
+
+Uses the same source strategy as `/alerts/live`:
+1. Canonical ZSET `alerts:live:zset:v3_6` (defensively merged with `alerts:critical:zset:v3_6`)
+2. Legacy LIST `alerts:live:v3_6` fallback
+3. SQL `dashboard_snapshots`
+4. SQL `anomaly_events` filtered by `riskLevel=CRITICAL`
+
+Preserves the same sorting, pagination metadata contract, and deduplication logic as `/alerts/live`.
 
 ## Alert Investigation
 
 `GET /api/v1/alerts/{eventId}`
 
-Reads `alert:investigation:{eventId}` from Redis first, then SQL `investigation_payload_json` from `anomaly_events` and `session_analysis`, then builds a detail response from stored SQL fields.
+Reads `alert:investigation:{eventId}` from Redis first, then SQL `investigation_payload_json` from `anomaly_events` and `session_analysis`, then falls back to the Redis live alert payload (`alert:live:v3_6:{eventId}`) for event metadata enrichment, and finally builds a detail response from stored SQL fields.
+
+**Hydration priority:**
+
+1. **Exact investigation payload** (`alert:investigation:{eventId}`, `anomaly_event.investigationPayloadJson`, or `session_analysis.investigationPayloadJson`) — validated at both raw JSON level (`isPayloadForRequestedEvent`) and DTO level (`isDetailForRequestedEvent`). Checks all candidate fields: `payload.eventId`, `payload.recordId`, `payload.eventMetadata.eventId`, `payload.eventMetadata.recordId`, and wrapped `payload.data.eventId`. Used only if all non-null candidate IDs equal `requestedEventId` or `response.recordId`. If top-level `eventId` matches but `eventMetadata.eventId` does not, the payload is rejected with `sql_payload_event_mismatch` warning.
+2. **Exact Redis live alert payload** (`alert:live:v3_6:{eventId}`) — used if `payload.eventId == requestedEventId`, hydrates `eventMetadata` and timestamp fallback
+3. **SQL row fields / safe partial mode** — only top-level fields, no session-derived evidence
+
+Session lifecycle fields (`sessionEndReason`, `sessionEndedExplicitly`, `sessionEndedAt`, `sessionDurationMs`, `sessionEventCount`) are enriched with this priority: (1) `session_analysis` entity columns by sessionId (session-scoped, always safe), (2) `session_analysis.investigationPayloadJson` lifecycle fields (for fields not in entity columns), (3) exact event payload lifecycle fields, (4) existing Redis/stale detail values (lowest priority), (5) null + `session_lifecycle_unavailable` warning. Session `_analysis` entity column values always override stale Redis lifecycle data.
 
 **Evidence hydration**: When the investigation response is missing evidence fields (`sequenceEvidence`, `tabularEvidence`, `ruleEvidence`, `churnContext`, `forecastContext`, `anomalyTypeAttribution`, `modelScores`, `modelContributions`), the API attempts to hydrate them from the LLM evidence payload (`alert:llm-evidence:{eventId}` or SQL `llm_explanation_evidence_payload_json`). `eventMetadata` is hydrated from evidence only if the detail's `eventMetadata` is null and the evidence contains an `eventMetadata` field. If `eventMetadata` is already present (from Redis or SQL `event_json`), it is preserved unchanged. `eventMetadata` is **never** mapped from `evidence.risk`.
 
 The response includes `sessionLifecycle` metadata when available from Redis or SQL payload. Both source shapes are supported:
 - **Nested:** `payload.sessionLifecycle` as an object containing `sessionEndReason`, `sessionEndedExplicitly`, `sessionEndedAt`, `sessionDurationMs`, `sessionEventCount`
 - **Flat:** individual fields at the payload root: `sessionEndReason`, `sessionEndedExplicitly`, `sessionEndedAt`, `sessionDurationMs`, `sessionEventCount`
+
+**`sessionLifecycle` object synchronization**: After lifecycle enrichment, the nested `sessionLifecycle` object is rebuilt from the authoritative top-level lifecycle fields. This ensures the nested object never contains stale Redis/model payload values. The nested object is always consistent with the top-level fields. If all lifecycle fields are null, `sessionLifecycle` is null.
+
+**Exact-event scoping**: When no investigation payload with matching `eventId` exists (neither in Redis, `anomaly_event.investigationPayloadJson`, nor `session_analysis.investigationPayloadJson`), the API tries the **Redis live alert payload** (`alert:live:v3_6:{eventId}`) before falling back to **safe SQL-only mode**:
+
+- If the Redis live payload exists and its `eventId` matches, `eventMetadata` is hydrated from its event fields (`eventAction`, `apiTemplate`, `apiFamily`, `controller`, `page`, `country`, `device`, `browser`, `os`, `httpMethod`, `status`), source is set to `sql+redis-payload`, and the `redis_event_payload_used` warning replaces `exact_event_payload_unavailable`
+- If the Redis live payload exists but its `eventId` does not match, `redis_event_payload_mismatch` is added and the API falls through to safe SQL-only mode
+- If no Redis live payload exists, the API enters **safe SQL-only mode**:
+  - `rawPayload` is set to `null` (never falls back to a session-finalization payload from a different event)
+  - Session-derived evidence (`sequenceEvidence`, `tabularEvidence`, `forecastContext`, `ruleEvidence.ruleContributions`, `churnContext.featureWarnings`, `anomalyTypeAttribution.evidence`) is **not exposed**
+  - Only top-level SQL row fields are kept: `eventId`, `insuredId`, `sessionId`, `timestamp`, `riskLevel`, `finalRiskScore`, `anomalyType`, `triggeredRules`
+  - `eventMetadata` is built from the `event_json` column (event-level fields only, never session summary)
+
+Warnings are added to identify the reason:
+- `exact_event_payload_unavailable` — no payload with matching `eventId` exists in the session
+- `redis_event_payload_used` — event metadata hydrated from `alert:live:v3_6:{eventId}` (Redis live payload)
+- `redis_event_payload_mismatch` — Redis live payload exists but its `eventId` does not match the requested event
+- `raw_payload_event_mismatch` — a payload exists but its `eventId` does not match the requested event
+- `sql_payload_event_mismatch` — a parsed SQL investigation payload has matching top-level `eventId` but mismatched `eventMetadata.eventId`; payload is rejected
+- `anomaly_type_attribution_event_mismatch` — attribution evidence score differs from top-level `finalRiskScore`, or evidence cannot be verified as event-scoped
+- `session_lifecycle_unavailable` — no session lifecycle data could be extracted from any payload or `session_analysis` entity
+
+**Source values:**
+- `sql-payload` — exact event investigation payload matched requested eventId and `eventMetadata.eventId`
+- `sql+redis-payload` — SQL row enriched with Redis live alert payload
+- `sql` — SQL row only (safe mode, no Redis live payload)
 
 SQL fallback preserves session lifecycle fields, runtimeWarnings, modelScores/modelContributions, and triggeredRules from the investigation payload without overwriting with null when Redis has richer data.
 
@@ -803,6 +903,23 @@ Reads `user:360:{insuredId}` from Redis first, then falls back to `SessionAnalys
 
 When falling back to SQL (`source: "sql_fallback"`), the response includes a warning field in `churn` and `risk` maps documenting that historical rows may contain pre-correction data (TCN scores before Level-E may be inflated). Redis sources do not include this warning.
 
+**Baseline enrichment (SQL fallback):**
+- `usualActiveHours`: computed from session `startTime`/`endTime` and anomaly `eventTime` — returns top 1-3 most common hours as integer list, or `[]` if no timestamps exist.
+- `topApiFamilies`: extracted from anomaly `eventJson`, `investigationPayloadJson`, or `llmExplanationEvidencePayloadJson` — returns top 3-5 API families by frequency, or `[]` if none found.
+- `usualDevice`/`usualBrowser`: extracted from anomaly `eventJson` when available.
+- No hardcoded `"n/a"` values are returned.
+
+**`topApiFamilies` extraction sources (in priority order):**
+1. Anomaly `eventJson` — fields `apiFamily`, `apiTemplate`
+2. Anomaly `investigationPayloadJson` → `eventMetadata.apiFamily` / `eventMetadata.apiTemplate`
+3. Anomaly `llmExplanationEvidencePayloadJson` → `eventMetadata.apiFamily` / `eventMetadata.apiTemplate`
+4. Session `llmExplanationEvidencePayloadJson` → `eventMetadata.apiFamily` / `eventMetadata.apiTemplate`
+5. Session `investigationPayloadJson` → `eventMetadata.apiFamily` / `eventMetadata.apiTemplate`
+6. Session `anomalyTypeEvidenceJson` → `apiFamily` / `apiTemplate`
+7. Session `routeSequenceJson` — route names mapped to families (e.g. `login`/`logout` → `auth`, `refunds` → `insured`, `documents` → `documents`)
+
+Values are lowercased, trimmed, and normalized (e.g. `/auth/login` → `auth`). Returns top 3-5 by frequency descending. Returns `[]` if none found.
+
 ```json
 {
   "schemaVersion": "v3.6.1",
@@ -834,11 +951,61 @@ When falling back to SQL (`source: "sql_fallback"`), the response includes a war
 }
 ```
 
+**riskTimeline fields (SQL fallback):** Each timeline point is a map with:
+- `finalRiskScore`: numeric risk score (0-100)
+- `riskLevel`: severity tier — `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`. Derived from persisted `risk_level` if valid, otherwise computed from `finalRiskScore` using thresholds (>=80 CRITICAL, >=60 HIGH, >=35 MEDIUM, <35 LOW).
+- `pointType`: type/scope of the timeline point, e.g. `SESSION_RUNTIME`, `RULE`, etc. (maps from `anomalyTier` column)
+- `eventId`: identifier of the anomaly event
+- `source`: `"sql_fallback"`
+- `warning`: disclaimer about potential pre-correction data
+
+**`nextEventPrediction` field (SQL fallback):** Contains the latest next-event prediction for the user's most recent active session. Prefers session-level prediction; falls back to insured-level prediction. Populated via `next_event_predictions` table. If no prediction exists, the field is `null`. Prediction is evidence-only and does not affect `finalRiskScore`.
+
 ## User Alerts
 
 `GET /api/v1/users/{insuredId}/alerts`
 
 Reads `alerts:user:{insuredId}`, then falls back to SQL alert search.
+
+**Event metadata hydration (SQL fallback):** alert rows are hydrated with `eventAction`, `apiTemplate`, `apiFamily`, `controller`, `page`, `country`, `device`, `browser`, `os`, `httpMethod`, `status` from the following sources in priority order:
+
+1. `anomaly_event.eventJson` (raw event payload)
+2. `anomaly_event.investigationPayloadJson` (processed investigation detail — `eventMetadata` map)
+3. `anomaly_event.llmExplanationEvidencePayloadJson` (LLM evidence payload — `eventMetadata` map)
+4. Session `llmExplanationEvidencePayloadJson` / `investigationPayloadJson` — when the anomaly row lacks payloads, the related session is queried by `insuredId` + `sessionId`. Payloads are only used if `payload.eventId` matches the alert's `eventId` (exact event-level match). If no exact match exists, session-level data is used as a last resort without overwriting non-null fields.
+5. `anomalyTypeEvidenceJson` — `apiFamily` / `apiTemplate` fields for baseline extraction.
+
+Non-null fields are never overwritten. If all sources are empty, the fields remain `null`.
+
+**`llmEvidencePayloadAvailable`:** Set to `true` if either the anomaly or its related session has `llmExplanationEvidencePayloadJson`.
+
+## Next Event Prediction
+
+`GET /api/v1/users/{insuredId}/next-event-prediction`
+
+`GET /api/v1/sessions/{sessionId}/next-event-prediction`
+
+Reads `next_event_prediction:session:{sessionId}` from Redis first, then falls back to `next_event_predictions` SQL table by `sessionId`, then by `insuredId`.
+
+**User360 integration** (`GET /api/v1/users/{insuredId}/360`):
+- `nextEventPrediction` field contains the latest prediction for the user's most recent session.
+- Falls back to latest insured-level prediction if session-level is unavailable.
+
+**Alert Investigation integration** (`GET /api/v1/alerts/{eventId}`):
+- `nextEventPredictionEvidence` field contains the prediction context before the investigated event.
+- `prediction` (or `predictionAfterEvent`) — prediction generated after the investigated event (heads for what comes next, contextEventId = current event).
+- `deviation` — comparison of the actual event against the previous prediction. Contains:
+  - `previousPrediction` — snapshot of the prediction used before this event (contextEventId = previous event, heads = what was predicted).
+  - `previousPredictionContextEventId` — the event ID that the previous prediction was generated for.
+  - `evaluatedEventId` — the current event being investigated.
+  - `actual` — actual attributes of the investigated event.
+  - `actualProbabilities` — probability assigned by the previous prediction to each actual value.
+  - `predictionMatch` — top-K match flags per field.
+  - `deviationScore` — evidence-only score (does not affect final risk score).
+
+**Does not affect `finalRiskScore`.** Prediction is context/evidence only.
+
+**Schema alignment:** api-service reads `next_event_predictions.predictions_json` written by dataprocessor. Deviation is optional and embedded in `predictions_json` when available. The `deviation.previousPrediction` field is preserved and passed through to the response without data loss. Unknown fields in deviation are not dropped. Next Event Prediction is optional evidence and must not fail parent alert/user endpoints.
 
 ## Churn Dashboard
 
@@ -861,7 +1028,33 @@ The response includes a `source` field: `"redis"`, `"sql_fallback"`, or `"genera
 }
 ```
 
-`GET /api/v1/churn/users?riskLevel=HIGH&limit=50` returns stored churn-risk users.
+When falling back to SQL (`source: "generated_fallback"`), `topChurnRiskUsers` entries are deduplicated by `insuredId` (winner rule: latest `endTime`, then latest `createdAt`, then highest `churnProbability`) and enriched with 30-day risk fields (`averageRiskScoreLast30d`, `alertCountLast30d`, `criticalAlertCountLast30d`, `latestFinalRiskScore`, `latestRiskLevel`).
+
+`GET /api/v1/churn/users?riskLevel=HIGH&limit=50` returns churn-risk users deduplicated by `insuredId`, enriched with 30-day security risk context.
+
+Each row in the response:
+
+```json
+{
+  "schemaVersion": "v3.6.1",
+  "insuredId": "insured-anom-00057-252ff6",
+  "sessionId": "sess-...",
+  "churnProbability": 0.86,
+  "churnRiskLevel": "HIGH",
+  "averageRiskScoreLast30d": 66.6,
+  "alertCountLast30d": 5,
+  "criticalAlertCountLast30d": 0,
+  "latestFinalRiskScore": 88.57,
+  "latestRiskLevel": "CRITICAL",
+  "source": "sql_fallback"
+}
+```
+
+**Deduplication**: Rows are grouped by `insuredId`. For each insuredId, the winning session is selected by latest `endTime`, then latest `createdAt`, then highest `churnProbability`. Final results are sorted by `churnProbability` descending.
+
+**30-day risk hydration**: `averageRiskScoreLast30d`, `alertCountLast30d`, and `criticalAlertCountLast30d` are computed from the same SQL fallback logic used by `GET /api/v1/users/{insuredId}/360`. If no risk history exists within the last 30 days, `averageRiskScoreLast30d` is `null` and the count fields are `0`.
+
+**Dashboard**: `GET /api/v1/churn/dashboard` applies the same deduplication and enrichment to `topChurnRiskUsers` when falling back to SQL (`source: "generated_fallback"`).
 
 ## Forecast Dashboard
 
@@ -947,7 +1140,7 @@ These events are small invalidation payloads such as:
 
 ### Where the fields appear
 
-- **Alert Investigation** (`GET /api/v1/alerts/{eventId}`): the flat fields `sessionEndReason`, `sessionEndedExplicitly`, `sessionEndedAt`, `sessionDurationMs`, `sessionEventCount` are stored in the investigation payload JSON by `dataprocessor`. The API maps them into a `sessionLifecycle` object when present.
+- **Alert Investigation** (`GET /api/v1/alerts/{eventId}`): the flat fields `sessionEndReason`, `sessionEndedExplicitly`, `sessionEndedAt`, `sessionDurationMs`, `sessionEventCount` are stored in the investigation payload JSON by `dataprocessor`. The API maps them into a `sessionLifecycle` object synchronized from the authoritative top-level fields after enrichment.
 - **Runtime Health** (`GET /api/v1/ai/runtime-health`): `sessionFinalization` counters appear when the `dataprocessor` has written them to the health snapshot.
 - **Diagnostics** (`GET /api/v1/security/diagnostics`): `sessionFinalization` counters are available inside the embedded `runtimeHealth`.
 - **Live Alerts** (`GET /api/v1/alerts/live`): optional `sessionEndReason` and `sessionEndedExplicitly` fields may appear when present in the Redis snapshot.

@@ -10,8 +10,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -82,5 +84,55 @@ class V36RedisReadServiceTest {
 
         assertThat(result).hasSize(2);
         assertThat(result.getFirst().getEventId()).isEqualTo("evt-1");
+    }
+
+    @Test
+    void readZSetAlertItemsReturnsDeserializedPayloads() {
+        Set<String> zsetMembers = new LinkedHashSet<>();
+        zsetMembers.add("evt-1");
+        zsetMembers.add("evt-2");
+        when(zSetOperations.reverseRange("alerts:live:zset:v3_6", 0, 4))
+                .thenReturn(zsetMembers);
+        when(valueOperations.get("alert:live:v3_6:evt-1"))
+                .thenReturn("{\"eventId\":\"evt-1\",\"riskLevel\":\"CRITICAL\"}");
+        when(valueOperations.get("alert:live:v3_6:evt-2"))
+                .thenReturn("{\"eventId\":\"evt-2\",\"riskLevel\":\"HIGH\"}");
+
+        List<V36LiveAlertSummaryDto> result = service.readZSetAlertItems(
+                "alerts:live:zset:v3_6", "alert:live:v3_6:", V36LiveAlertSummaryDto.class, 5);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getEventId()).isEqualTo("evt-1");
+        assertThat(result.get(1).getEventId()).isEqualTo("evt-2");
+    }
+
+    @Test
+    void readZSetAlertItemsHandlesWronTypeGracefully() {
+        when(zSetOperations.reverseRange("alerts:live:zset:v3_6", 0, 4))
+                .thenThrow(new RuntimeException("WRONGTYPE Operation against a key holding the wrong kind of value"));
+
+        List<V36LiveAlertSummaryDto> result = service.readZSetAlertItems(
+                "alerts:live:zset:v3_6", "alert:live:v3_6:", V36LiveAlertSummaryDto.class, 5);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void readZSetAlertItemsSkipsMembersWithMissingPayloads() {
+        Set<String> zsetMembers = new LinkedHashSet<>();
+        zsetMembers.add("evt-1");
+        zsetMembers.add("evt-2");
+        when(zSetOperations.reverseRange("alerts:live:zset:v3_6", 0, 4))
+                .thenReturn(zsetMembers);
+        when(valueOperations.get("alert:live:v3_6:evt-1"))
+                .thenReturn("{\"eventId\":\"evt-1\",\"riskLevel\":\"CRITICAL\"}");
+        when(valueOperations.get("alert:live:v3_6:evt-2"))
+                .thenReturn(null);
+
+        List<V36LiveAlertSummaryDto> result = service.readZSetAlertItems(
+                "alerts:live:zset:v3_6", "alert:live:v3_6:", V36LiveAlertSummaryDto.class, 5);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEventId()).isEqualTo("evt-1");
     }
 }

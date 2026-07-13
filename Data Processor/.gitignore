@@ -36,3 +36,14 @@ build/
 .env
 .env.*
 !.env.example
+
+### OS files ###
+.DS_Store
+Thumbs.db
+
+### Logs ###
+*.log
+
+### Local runtime ###
+tmp/
+logs/

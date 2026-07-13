@@ -14,8 +14,28 @@ public final class CacheKeys {
     public static final String DASHBOARD_SECURITY_OVERVIEW_V36 = "dashboard:security-overview:v3_6";
     public static final String DASHBOARD_CHURN_V36 = "dashboard:churn:v3_6";
     public static final String DASHBOARD_FORECAST_V36 = "dashboard:forecast:v3_6";
+    /** @deprecated Legacy LIST key — use {@link #ALERTS_LIVE_V36_ZSET} */
+    @Deprecated
     public static final String ALERTS_LIVE_V36 = "alerts:live:v3_6";
+    /** @deprecated Legacy LIST key — use {@link #ALERTS_CRITICAL_V36_ZSET} */
+    @Deprecated
     public static final String ALERTS_CRITICAL_V36 = "alerts:critical:v3_6";
+
+    // Canonical ZSET keys (dataprocessor primary)
+    public static final String ALERTS_LIVE_V36_ZSET = "alerts:live:zset:v3_6";
+    public static final String ALERTS_CRITICAL_V36_ZSET = "alerts:critical:zset:v3_6";
+    public static final String ALERTS_HIGH_V36_ZSET = "alerts:high:zset:v3_6";
+
+    // Payload key for individual alert details stored by canonical ZSET member eventId.
+    public static final String ALERT_LIVE_V36_PAYLOAD_PREFIX = "alert:live:v3_6:";
+
+    public static String liveAlertPayloadKey(String eventId) {
+        return ALERT_LIVE_V36_PAYLOAD_PREFIX + eventId;
+    }
+
+    public static String userAlertsZSetKey(String insuredId) {
+        return "alerts:user:" + insuredId + ":zset:v3_6";
+    }
     public static final String AI_SEQUENCE_FIELD_COVERAGE_V36 = "ai:sequence:field-coverage:v3_6";
     public static final String AI_TABULAR_FIELD_COVERAGE_V36 = "ai:tabular:field-coverage:v3_6";
     public static final String AI_MODEL_LATENCY_V36 = "ai:model-latency:v3_6";
@@ -93,6 +113,11 @@ public final class CacheKeys {
         return "user:360:" + insuredId;
     }
 
+    /**
+     * Legacy LIST key — use {@link #userAlertsZSetKey(String)}.
+     * @deprecated Canonical ZSET key is alerts:user:{insuredId}:zset:v3_6
+     */
+    @Deprecated
     public static String userAlertsKey(String insuredId) {
         return "alerts:user:" + insuredId;
     }
@@ -107,6 +132,14 @@ public final class CacheKeys {
 
     public static String explanationLockKey(String eventId, String language, String style) {
         return "lock:llm-explanation:" + eventId + ":" + language + ":" + style;
+    }
+
+    public static String nextEventPredictionSessionKey(String sessionId) {
+        return "next_event_prediction:session:" + sessionId;
+    }
+
+    public static String nextEventPredictionInsuredKey(String insuredId) {
+        return "next_event_prediction:insured:" + insuredId;
     }
 
     public static String detectedAnomalyKey(String insuredId, String sessionId) {

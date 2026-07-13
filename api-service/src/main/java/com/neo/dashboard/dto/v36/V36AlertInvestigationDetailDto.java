@@ -2,13 +2,13 @@ package com.neo.dashboard.dto.v36;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.neo.dashboard.redis.CacheKeys;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,15 +47,25 @@ public class V36AlertInvestigationDetailDto {
     @JsonAlias({"llmEvidencePayloadRedisKey", "llmEvidenceRedisKey"})
     private String llmEvidenceRedisKey;
     private Map<String, Object> llm;
+    private Map<String, Object> nextEventPredictionEvidence;
     private String source;
     private List<String> warnings;
-    private JsonNode rawPayload;
+    private Map<String, Object> rawPayload;
     private String sessionEndReason;
     private Boolean sessionEndedExplicitly;
     private Instant sessionEndedAt;
     private Long sessionDurationMs;
     private Integer sessionEventCount;
     private Map<String, Object> sessionLifecycle;
+
+    public void addWarning(String warning) {
+        if (warnings == null) {
+            warnings = new ArrayList<>();
+        } else if (!(warnings instanceof java.util.ArrayList)) {
+            warnings = new ArrayList<>(warnings);
+        }
+        warnings.add(warning);
+    }
 
     public void buildSessionLifecycle() {
         Map<String, Object> lifecycle = new LinkedHashMap<>();

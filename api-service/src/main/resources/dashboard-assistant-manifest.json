@@ -1,0 +1,3236 @@
+﻿{
+    "panels":  [
+                   {
+                       "label":  "AI Explanation Panel",
+                       "description":  "Modal panel that displays AI-generated explanations for alerts.",
+                       "id":  "explain-ai",
+                       "synonyms":  [
+                                        "ai explanation",
+                                        "explain ai panel",
+                                        "ai modal"
+                                    ],
+                       "actionsSupported":  [
+                                                "OPEN_PANEL"
+                                            ]
+                   },
+                   {
+                       "label":  "Evidence Payload Panel",
+                       "description":  "Sub-panel within the AI explanation modal showing raw evidence payload JSON.",
+                       "id":  "evidence-payload",
+                       "synonyms":  [
+                                        "evidence payload",
+                                        "evidence panel",
+                                        "raw evidence"
+                                    ],
+                       "actionsSupported":  [
+                                                "OPEN_PANEL"
+                                            ]
+                   },
+                   {
+                       "label":  "Advanced Context Panel",
+                       "description":  "Expanded section within alert investigation showing additional context data.",
+                       "id":  "advanced-context",
+                       "synonyms":  [
+                                        "advanced context",
+                                        "context panel",
+                                        "more context"
+                                    ],
+                       "actionsSupported":  [
+                                                "OPEN_PANEL"
+                                            ]
+                   }
+               ],
+    "elements":  [
+                     {
+                         "id":  "account-summary-section",
+                         "routeId":  "account",
+                         "routeName":  "AccountPage",
+                         "type":  "card",
+                         "label":  "Profile Summary",
+                         "description":  "Account section showing the user profile summary with full name, email and role.",
+                         "synonyms":  [
+                                          "profile summary",
+                                          "account summary",
+                                          "user profile info"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight profile summary",
+                                                      "show account summary",
+                                                      "what is my profile"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "account-password-section",
+                         "routeId":  "account",
+                         "routeName":  "AccountPage",
+                         "type":  "card",
+                         "label":  "Password Change Form",
+                         "description":  "Account section with the password change form including current password, new password, and confirm password fields.",
+                         "synonyms":  [
+                                          "password section",
+                                          "change password form",
+                                          "password change area"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight password change form",
+                                                      "where to change my password",
+                                                      "show password section"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "account-current-password-input",
+                         "routeId":  "account",
+                         "routeName":  "AccountPage",
+                         "type":  "input",
+                         "label":  "Current Password Input",
+                         "description":  "Text input field for entering the current password.",
+                         "synonyms":  [
+                                          "current password",
+                                          "current password field"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to enter current password"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "account-new-password-input",
+                         "routeId":  "account",
+                         "routeName":  "AccountPage",
+                         "type":  "input",
+                         "label":  "New Password Input",
+                         "description":  "Text input field for entering a new password.",
+                         "synonyms":  [
+                                          "new password",
+                                          "new password field"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to enter new password"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "account-confirm-password-input",
+                         "routeId":  "account",
+                         "routeName":  "AccountPage",
+                         "type":  "input",
+                         "label":  "Confirm New Password Input",
+                         "description":  "Text input field for confirming the new password.",
+                         "synonyms":  [
+                                          "confirm password",
+                                          "confirm new password field"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to confirm new password"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "account-change-password-button",
+                         "routeId":  "account",
+                         "routeName":  "AccountPage",
+                         "type":  "button",
+                         "label":  "Change Password Submit Button",
+                         "description":  "Button that submits the password change form.",
+                         "synonyms":  [
+                                          "change password button",
+                                          "save password",
+                                          "update password button"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "click change password",
+                                                      "highlight change password button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "btn-explain-ai",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "button",
+                         "label":  "Explain with AI Button",
+                         "description":  "Button that opens the AI explanation modal for the current alert.",
+                         "synonyms":  [
+                                          "explain ai",
+                                          "ai explain",
+                                          "explain with ai",
+                                          "ai button",
+                                          "ai explanation"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight where should i click to explain an alert with AI",
+                                                      "show me the explain with AI button",
+                                                      "where is the AI explain button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "btn-evidence-payload",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "button",
+                         "label":  "Evidence Payload Button",
+                         "description":  "Button within the AI explanation modal that shows the raw evidence payload JSON.",
+                         "synonyms":  [
+                                          "evidence payload button",
+                                          "raw evidence",
+                                          "evidence json",
+                                          "show evidence payload"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "show evidence payload for this alert",
+                                                      "highlight evidence payload button",
+                                                      "where is the raw evidence"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "btn-advanced-context",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "button",
+                         "label":  "Advanced Context Button",
+                         "description":  "Button that expands the advanced context section within the alert investigation view.",
+                         "synonyms":  [
+                                          "advanced context button",
+                                          "more context",
+                                          "expand context",
+                                          "show more details"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight advanced context button",
+                                                      "show advanced context",
+                                                      "where is the more context button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "investigation-back-button",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "button",
+                         "label":  "Back to Alerts Button",
+                         "description":  "Button that navigates back to the Alerts list page.",
+                         "synonyms":  [
+                                          "back to alerts",
+                                          "go back",
+                                          "return to alerts"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "go back to alerts",
+                                                      "highlight back button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "investigation-refresh-button",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "button",
+                         "label":  "Refresh Investigation",
+                         "description":  "Button that refreshes the investigation data for the current alert.",
+                         "synonyms":  [
+                                          "refresh investigation",
+                                          "reload investigation",
+                                          "refresh alert"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "refresh investigation data",
+                                                      "highlight investigation refresh"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "REFRESH_VIEW"
+                                              ]
+                     },
+                     {
+                         "id":  "investigation-alert-header",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Alert Header Section",
+                         "description":  "Header showing the risk level badge, event ID, anomaly type, timestamp, and final risk score with progress bar.",
+                         "synonyms":  [
+                                          "alert header",
+                                          "risk badge",
+                                          "event id header",
+                                          "risk score progress"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "show alert header",
+                                                      "highlight risk badge"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-event-metadata",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Event Metadata",
+                         "description":  "Card showing event metadata fields such as event action, API template, API family, country, device, browser, OS, HTTP method, and status.",
+                         "synonyms":  [
+                                          "event metadata",
+                                          "event info",
+                                          "metadata card"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight event metadata card",
+                                                      "show event metadata"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-model-scores",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Model Scores",
+                         "description":  "Card showing anomaly detection model scores including XGBoost, LightGBM, Transformer, TCN, and rule-based scores.",
+                         "synonyms":  [
+                                          "model scores",
+                                          "score card",
+                                          "model scores card",
+                                          "detection scores"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight model scores card",
+                                                      "show model scores"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "investigation-model-contributions",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Model Contributions",
+                         "description":  "Card showing the contribution breakdown of each model to the final risk score.",
+                         "synonyms":  [
+                                          "model contributions",
+                                          "model contribution chart",
+                                          "score contributions"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight model contributions",
+                                                      "what contributed to this score"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-sequence-evidence",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Sequence Evidence",
+                         "description":  "Card showing sequence-based evidence, selected model, scores, top surprise fields, and context metrics.",
+                         "synonyms":  [
+                                          "sequence evidence",
+                                          "evidence card",
+                                          "sequence card"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight sequence evidence card",
+                                                      "show sequence evidence"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "investigation-tabular-evidence",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Tabular Evidence",
+                         "description":  "Card showing tabular evidence including available models, unavailable models, and feature warnings.",
+                         "synonyms":  [
+                                          "tabular evidence",
+                                          "tabular card",
+                                          "feature evidence"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight tabular evidence",
+                                                      "show tabular evidence"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "investigation-rule-evidence",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Rule Evidence",
+                         "description":  "Card showing triggered rules, rule contributions, and rule evidence details.",
+                         "synonyms":  [
+                                          "rule evidence",
+                                          "triggered rules",
+                                          "rule contributions"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight rule evidence",
+                                                      "what rules were triggered"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-anomaly-attribution",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Anomaly Attribution",
+                         "description":  "Card showing anomaly type attribution source, confidence, and triggered anomaly type.",
+                         "synonyms":  [
+                                          "anomaly attribution",
+                                          "attribution card",
+                                          "anomaly type attribution",
+                                          "rule contributions"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight anomaly attribution card",
+                                                      "why was this anomaly detected"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-session-lifecycle",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Session Lifecycle",
+                         "description":  "Card showing the session lifecycle events, end reason, duration, event count, and finalization status.",
+                         "synonyms":  [
+                                          "session lifecycle",
+                                          "session card",
+                                          "session events",
+                                          "session status"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight session lifecycle card",
+                                                      "show session details"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-next-event-prediction",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "Next Event Prediction",
+                         "description":  "Card showing next event prediction results, deviation evidence, expected vs actual actions, predicted probabilities, and top-K matches.",
+                         "synonyms":  [
+                                          "next event prediction",
+                                          "prediction card",
+                                          "deviation evidence",
+                                          "next event card"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight next event prediction card",
+                                                      "show deviation evidence",
+                                                      "what was the expected action"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-user-business-context",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "card",
+                         "label":  "User Business Context",
+                         "description":  "Card showing user business context including churn risk, forecast context, and persona information.",
+                         "synonyms":  [
+                                          "user business context",
+                                          "business context",
+                                          "user context card",
+                                          "advanced context"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight user business context card",
+                                                      "show advanced context",
+                                                      "what is the user context"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "investigation-source-chip",
+                         "routeId":  "alert-investigation",
+                         "routeName":  "AlertInvestigationPage",
+                         "type":  "badge",
+                         "label":  "Data Source Chip",
+                         "description":  "Chip showing the data source for the investigation data.",
+                         "synonyms":  [
+                                          "data source",
+                                          "source chip",
+                                          "investigation source"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "what is the investigation data source"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-search-filters",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "filter",
+                         "label":  "Alerts Search Filters",
+                         "description":  "Search and filter section with risk level, anomaly type, insured ID, session ID, and date range inputs.",
+                         "synonyms":  [
+                                          "alert filters",
+                                          "alert search",
+                                          "filter alerts",
+                                          "search alerts"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where are the alert filters",
+                                                      "highlight the alert search section"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-risk-filter",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "filter",
+                         "label":  "Alerts Risk Filter",
+                         "description":  "Dropdown filter for risk level (critical, high, medium, low) on the alerts page.",
+                         "synonyms":  [
+                                          "risk filter",
+                                          "alert risk filter",
+                                          "filter by risk"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight risk filter on alerts",
+                                                      "filter by critical risk"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "SET_FILTER"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-filter-anomaly-type",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "input",
+                         "label":  "Anomaly Type Filter",
+                         "description":  "Text input to filter alerts by anomaly type.",
+                         "synonyms":  [
+                                          "anomaly type filter",
+                                          "filter by anomaly type"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "filter by anomaly type",
+                                                      "highlight anomaly type filter"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-filter-insured-id",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "input",
+                         "label":  "Insured ID Filter",
+                         "description":  "Text input to filter alerts by insured ID.",
+                         "synonyms":  [
+                                          "insured id filter",
+                                          "filter by insured id"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "filter by insured id",
+                                                      "highlight insured id filter"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-filter-session-id",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "input",
+                         "label":  "Session ID Filter",
+                         "description":  "Text input to filter alerts by session ID.",
+                         "synonyms":  [
+                                          "session id filter",
+                                          "filter by session id"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "filter by session id",
+                                                      "highlight session id filter"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-filter-date-from",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "input",
+                         "label":  "Date From Filter",
+                         "description":  "Date input to filter alerts from a start date.",
+                         "synonyms":  [
+                                          "from date",
+                                          "start date filter",
+                                          "filter from date"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "filter from date",
+                                                      "highlight from date filter"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-filter-date-to",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "input",
+                         "label":  "Date To Filter",
+                         "description":  "Date input to filter alerts until an end date.",
+                         "synonyms":  [
+                                          "to date",
+                                          "end date filter",
+                                          "filter to date"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "filter to date",
+                                                      "highlight to date filter"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-filter-apply-button",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "button",
+                         "label":  "Apply Filters Button",
+                         "description":  "Button that applies all alert filter criteria.",
+                         "synonyms":  [
+                                          "apply filters",
+                                          "apply filter button"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to apply filters",
+                                                      "highlight apply filter button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-table",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "table",
+                         "label":  "Alerts Table",
+                         "description":  "Main alerts data table with risk level, score, anomaly type, user, and action columns.",
+                         "synonyms":  [
+                                          "alerts table",
+                                          "alert list",
+                                          "recent alerts",
+                                          "critical alerts list",
+                                          "all alerts",
+                                          "alert table"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where should i look here to see the recent critical alerts",
+                                                      "highlight the alerts table",
+                                                      "show me the alert list"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-summary-result-count",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "card",
+                         "label":  "Alert Result Count",
+                         "description":  "Card showing the total result count for the current alert query.",
+                         "synonyms":  [
+                                          "result count",
+                                          "alert count",
+                                          "total alerts"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "how many alerts are there",
+                                                      "highlight result count"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-summary-critical-count",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "card",
+                         "label":  "Critical Alerts Count Summary",
+                         "description":  "Card showing the number of critical alerts in the current result set.",
+                         "synonyms":  [
+                                          "critical count",
+                                          "critical alert summary"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "how many critical alerts",
+                                                      "highlight critical count"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-summary-last-updated",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "card",
+                         "label":  "Last Updated Timestamp",
+                         "description":  "Card showing when the alerts data was last updated.",
+                         "synonyms":  [
+                                          "last updated",
+                                          "data freshness",
+                                          "last update time"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "when was alerts last updated",
+                                                      "highlight last updated"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-refresh-button",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "button",
+                         "label":  "Refresh Alerts",
+                         "description":  "Button that refreshes the alerts data.",
+                         "synonyms":  [
+                                          "refresh alerts",
+                                          "alerts refresh",
+                                          "reload alerts"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show me the alerts refresh button",
+                                                      "highlight refresh button on alerts"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "REFRESH_VIEW"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-pagination-previous",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "button",
+                         "label":  "Previous Page Button",
+                         "description":  "Button to navigate to the previous page of alerts.",
+                         "synonyms":  [
+                                          "previous",
+                                          "previous page",
+                                          "back"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "go to previous alerts page",
+                                                      "highlight previous button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-pagination-next",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "button",
+                         "label":  "Next Page Button",
+                         "description":  "Button to navigate to the next page of alerts.",
+                         "synonyms":  [
+                                          "next",
+                                          "next page",
+                                          "more"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "go to next alerts page",
+                                                      "highlight next button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-pagination-rows-per-page",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "select",
+                         "label":  "Rows Per Page Selector",
+                         "description":  "Dropdown selector to choose the number of rows per page (25, 50, 100).",
+                         "synonyms":  [
+                                          "rows per page",
+                                          "page size",
+                                          "items per page"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "change rows per page",
+                                                      "highlight page size selector"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-live-connection-badge",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "status-indicator",
+                         "label":  "Live Connection Badge",
+                         "description":  "Badge showing the SSE live connection status for real-time alert updates.",
+                         "synonyms":  [
+                                          "live connection",
+                                          "sse status",
+                                          "realtime badge"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show live connection on alerts",
+                                                      "is alerts connected"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "alerts-source-chip",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "badge",
+                         "label":  "Data Source Chip",
+                         "description":  "Chip showing the data source for the alerts data.",
+                         "synonyms":  [
+                                          "data source",
+                                          "source chip",
+                                          "alerts source"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "what is the alerts data source"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-kpi-0",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "card",
+                         "label":  "Total Users KPI",
+                         "description":  "Shows the total number of users being monitored for churn.",
+                         "synonyms":  [
+                                          "total users",
+                                          "churn total users",
+                                          "monitored users"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "how many users are monitored",
+                                                      "highlight total users"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-kpi-1",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "card",
+                         "label":  "High Risk Users KPI",
+                         "description":  "Shows the number of high churn risk users.",
+                         "synonyms":  [
+                                          "high risk users",
+                                          "high churn risk",
+                                          "high risk count"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "how many high risk users",
+                                                      "highlight high risk users"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-kpi-2",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "card",
+                         "label":  "Medium Risk Users KPI",
+                         "description":  "Shows the number of medium churn risk users.",
+                         "synonyms":  [
+                                          "medium risk users",
+                                          "medium churn risk",
+                                          "medium risk count"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "how many medium risk users",
+                                                      "highlight medium risk users"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-kpi-3",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "card",
+                         "label":  "Low Risk Users KPI",
+                         "description":  "Shows the number of low churn risk users.",
+                         "synonyms":  [
+                                          "low risk users",
+                                          "low churn risk",
+                                          "low risk count"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "how many low risk users",
+                                                      "highlight low risk users"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-kpi-4",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "card",
+                         "label":  "Churn Rate / Average Probability KPI",
+                         "description":  "Shows the overall average churn probability percentage.",
+                         "synonyms":  [
+                                          "churn rate",
+                                          "overall churn rate",
+                                          "average probability",
+                                          "average churn probability"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "what is the churn rate",
+                                                      "highlight average churn probability"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-distribution-chart",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "card",
+                         "label":  "Churn Distribution Chart",
+                         "description":  "Donut chart showing the distribution of users by churn risk level (high, medium, low).",
+                         "synonyms":  [
+                                          "churn distribution",
+                                          "distribution chart",
+                                          "churn donut chart",
+                                          "risk distribution"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight churn distribution chart",
+                                                      "show risk distribution"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-risk-filter",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "filter",
+                         "label":  "Churn Risk Filter",
+                         "description":  "Dropdown filter for churn risk level (high, medium, low) on the churn page.",
+                         "synonyms":  [
+                                          "churn risk filter",
+                                          "filter churn",
+                                          "churn filter"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "filter churn table to medium risk users",
+                                                      "highlight churn risk filter"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "SET_FILTER"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-table",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "table",
+                         "label":  "Churn Users Table",
+                         "description":  "Table listing users with churn risk, final risk score, anomaly count, and last activity.",
+                         "synonyms":  [
+                                          "churn table",
+                                          "churn users",
+                                          "churn list",
+                                          "high risk users table"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight churn users table",
+                                                      "show me churn list"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-refresh-button",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "button",
+                         "label":  "Refresh Churn Data",
+                         "description":  "Button that refreshes churn data.",
+                         "synonyms":  [
+                                          "refresh churn",
+                                          "churn refresh",
+                                          "reload churn"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show me the churn refresh button",
+                                                      "refresh churn data"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "REFRESH_VIEW"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-pagination-previous",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "button",
+                         "label":  "Previous Page Button",
+                         "description":  "Button to navigate to the previous page of churn users.",
+                         "synonyms":  [
+                                          "previous",
+                                          "previous page",
+                                          "churn previous"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "go to previous churn page",
+                                                      "highlight churn previous"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-pagination-next",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "button",
+                         "label":  "Next Page Button",
+                         "description":  "Button to navigate to the next page of churn users.",
+                         "synonyms":  [
+                                          "next",
+                                          "next page",
+                                          "churn next"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "go to next churn page",
+                                                      "highlight churn next"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-live-connection-badge",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "status-indicator",
+                         "label":  "Live Connection Badge",
+                         "description":  "Badge showing the SSE live connection status for churn data.",
+                         "synonyms":  [
+                                          "live connection",
+                                          "sse status",
+                                          "realtime badge"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show live connection on churn"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "churn-source-chip",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "badge",
+                         "label":  "Data Source Chip",
+                         "description":  "Chip showing the data source for the churn data.",
+                         "synonyms":  [
+                                          "data source",
+                                          "source chip",
+                                          "churn source"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "what is the churn data source"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-refresh-button",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "button",
+                         "label":  "Refresh Forecast",
+                         "description":  "Button that refreshes forecast data.",
+                         "synonyms":  [
+                                          "refresh forecast",
+                                          "forecast refresh",
+                                          "reload forecast"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "refresh the forecast",
+                                                      "highlight forecast refresh button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "REFRESH_VIEW"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-kpi-0",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "card",
+                         "label":  "Forecast Date KPI",
+                         "description":  "Shows the date of the forecast.",
+                         "synonyms":  [
+                                          "forecast date",
+                                          "forecast day"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "what is the forecast date",
+                                                      "highlight forecast date"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-kpi-1",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "card",
+                         "label":  "Predicted Total Events KPI",
+                         "description":  "Shows the predicted total number of events from the XGBoost model.",
+                         "synonyms":  [
+                                          "predicted total events",
+                                          "forecast total events",
+                                          "predicted events count"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight predicted total events",
+                                                      "how many events are predicted"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-kpi-2",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "card",
+                         "label":  "Predicted Anomaly Rate KPI",
+                         "description":  "Shows the predicted anomaly rate percentage from the Ridge model.",
+                         "synonyms":  [
+                                          "predicted anomaly rate",
+                                          "forecast anomaly rate",
+                                          "anomaly rate prediction"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight predicted anomaly rate",
+                                                      "what is the anomaly rate forecast"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-kpi-3",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "card",
+                         "label":  "Expected Alert Volume KPI",
+                         "description":  "Shows the expected alert volume.",
+                         "synonyms":  [
+                                          "expected alert volume",
+                                          "forecast alert volume",
+                                          "alert volume"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight expected alert volume",
+                                                      "how many alerts are expected"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-chart",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "card",
+                         "label":  "Forecast Total Events Chart",
+                         "description":  "Spark area chart showing historical total events with forecast overlay.",
+                         "synonyms":  [
+                                          "forecast chart",
+                                          "forecast graph",
+                                          "events chart",
+                                          "total events chart"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where can i see forecast chart",
+                                                      "highlight forecast chart",
+                                                      "show total events chart"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-chart-anomaly-rate",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "card",
+                         "label":  "Forecast Anomaly Rate Chart",
+                         "description":  "Spark area chart showing historical anomaly rate with forecast overlay.",
+                         "synonyms":  [
+                                          "anomaly rate chart",
+                                          "anomaly rate history",
+                                          "forecast anomaly chart"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show anomaly rate chart",
+                                                      "highlight anomaly rate history"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-live-connection-badge",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "status-indicator",
+                         "label":  "Live Connection Badge",
+                         "description":  "Badge showing the SSE live connection status for forecast data.",
+                         "synonyms":  [
+                                          "live connection",
+                                          "sse status",
+                                          "realtime badge"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show live connection on forecast"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "forecast-source-chip",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "badge",
+                         "label":  "Data Source Chip",
+                         "description":  "Chip showing the data source for the forecast data.",
+                         "synonyms":  [
+                                          "data source",
+                                          "source chip",
+                                          "forecast source"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "what is the forecast data source"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "nav-security-overview",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "navigation-item",
+                         "label":  "Security Overview Nav",
+                         "description":  "Sidebar navigation item that opens the Security Overview page.",
+                         "synonyms":  [
+                                          "overview button",
+                                          "overview link",
+                                          "dashboard nav",
+                                          "security overview nav"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click to go to overview",
+                                                      "show me where to click for overview",
+                                                      "highlight overview navigation"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "nav-alerts",
+                         "routeId":  "alerts",
+                         "routeName":  "AlertsPage",
+                         "type":  "navigation-item",
+                         "label":  "Alerts Nav",
+                         "description":  "Sidebar navigation item that opens the Alerts page.",
+                         "synonyms":  [
+                                          "alerts button",
+                                          "alerts link",
+                                          "anomalies nav",
+                                          "alerts navigation"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click to see alerts",
+                                                      "highlight alerts navigation"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "nav-user360",
+                         "routeId":  "user360",
+                         "routeName":  "User360Page",
+                         "type":  "navigation-item",
+                         "label":  "User 360 Nav",
+                         "description":  "Sidebar navigation item that opens the User 360 search page.",
+                         "synonyms":  [
+                                          "user 360 button",
+                                          "user 360 link",
+                                          "user 360 nav",
+                                          "users nav"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click for user 360",
+                                                      "highlight user 360 navigation"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "nav-churn",
+                         "routeId":  "churn",
+                         "routeName":  "ChurnPage",
+                         "type":  "navigation-item",
+                         "label":  "Churn Nav",
+                         "description":  "Sidebar navigation item that opens the Churn page.",
+                         "synonyms":  [
+                                          "churn button",
+                                          "churn link",
+                                          "churn nav"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click for churn",
+                                                      "highlight churn navigation"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "nav-forecast",
+                         "routeId":  "forecast",
+                         "routeName":  "ForecastPage",
+                         "type":  "navigation-item",
+                         "label":  "Forecast Nav",
+                         "description":  "Sidebar navigation item that opens the Forecast page.",
+                         "synonyms":  [
+                                          "forecast button",
+                                          "forecast link",
+                                          "forecast nav"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click for forecast",
+                                                      "highlight forecast navigation"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "nav-runtime",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "navigation-item",
+                         "label":  "Runtime Health Nav",
+                         "description":  "Sidebar navigation item that opens the Runtime Health page.",
+                         "synonyms":  [
+                                          "runtime button",
+                                          "runtime link",
+                                          "runtime nav",
+                                          "health nav"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click for runtime health",
+                                                      "highlight runtime navigation"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "theme-toggle",
+                         "routeId":  null,
+                         "routeName":  null,
+                         "type":  "button",
+                         "label":  "Theme Toggle",
+                         "description":  "Toggle button in the top toolbar that switches between light and dark theme.",
+                         "synonyms":  [
+                                          "theme toggle",
+                                          "dark mode button",
+                                          "light mode button",
+                                          "theme button"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight theme toggle",
+                                                      "where is the dark mode button",
+                                                      "show theme switch"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "btn-grafana",
+                         "routeId":  null,
+                         "routeName":  null,
+                         "type":  "button",
+                         "label":  "Grafana External Link",
+                         "description":  "Button in the top toolbar that opens Grafana dashboards in a new tab.",
+                         "synonyms":  [
+                                          "grafana button",
+                                          "open grafana",
+                                          "monitoring link"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight grafana button",
+                                                      "where is grafana"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "btn-kibana",
+                         "routeId":  null,
+                         "routeName":  null,
+                         "type":  "button",
+                         "label":  "Kibana External Link",
+                         "description":  "Button in the top toolbar that opens Kibana overview in a new tab.",
+                         "synonyms":  [
+                                          "kibana button",
+                                          "open kibana",
+                                          "log analysis link"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight kibana button",
+                                                      "where is kibana"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "btn-user-avatar",
+                         "routeId":  null,
+                         "routeName":  null,
+                         "type":  "button",
+                         "label":  "User Avatar",
+                         "description":  "Avatar button in the top-right header that opens the user dropdown menu with Account Settings and Sign Out options.",
+                         "synonyms":  [
+                                          "avatar",
+                                          "user avatar",
+                                          "profile button",
+                                          "user menu",
+                                          "account button"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click for account settings",
+                                                      "highlight user avatar",
+                                                      "show me where to access my profile"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "nav-account-settings",
+                         "routeId":  "account",
+                         "routeName":  "AccountPage",
+                         "type":  "navigation-item",
+                         "label":  "Account Settings Menu Item",
+                         "description":  "Menu item in the user avatar dropdown that navigates to the Account Settings page.",
+                         "synonyms":  [
+                                          "account settings menu",
+                                          "account settings link"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "where is account settings in the menu"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "btn-sign-out",
+                         "routeId":  null,
+                         "routeName":  null,
+                         "type":  "button",
+                         "label":  "Sign Out Menu Item",
+                         "description":  "Menu item in the user avatar dropdown that signs the user out.",
+                         "synonyms":  [
+                                          "sign out",
+                                          "logout",
+                                          "sign out menu"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "how to sign out",
+                                                      "highlight sign out"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-refresh-button",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "button",
+                         "label":  "Refresh Runtime Health",
+                         "description":  "Button that refreshes runtime health data.",
+                         "synonyms":  [
+                                          "refresh runtime",
+                                          "runtime refresh",
+                                          "reload runtime"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show me the refresh button on runtime",
+                                                      "highlight runtime refresh"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "REFRESH_VIEW"
+                                              ]
+                     },
+                     {
+                         "id":  "card-runtime-summary",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Runtime Summary (Overall Status)",
+                         "description":  "Card showing overall runtime health status, version, and key feature flags.",
+                         "synonyms":  [
+                                          "runtime summary",
+                                          "overall status",
+                                          "diagnostics card",
+                                          "runtime diagnostics",
+                                          "system status"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show me the diagnostics card here",
+                                                      "highlight runtime summary",
+                                                      "what is the system status"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-kpi-persona",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Persona Enabled",
+                         "description":  "Card showing whether persona feature is enabled or disabled.",
+                         "synonyms":  [
+                                          "persona enabled",
+                                          "persona status",
+                                          "persona feature"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "is persona enabled",
+                                                      "highlight persona status"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-kpi-evidence-payload",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Evidence Payload Enabled",
+                         "description":  "Card showing whether LLM evidence payload feature is enabled.",
+                         "synonyms":  [
+                                          "evidence payload",
+                                          "evidence payload status",
+                                          "llm payload enabled"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "is evidence payload enabled",
+                                                      "highlight evidence payload status"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-kpi-artifact-base-path",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Artifact Base Path",
+                         "description":  "Card showing the artifact base path for the runtime.",
+                         "synonyms":  [
+                                          "artifact path",
+                                          "artifact base path",
+                                          "runtime artifact path"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "what is the artifact path",
+                                                      "highlight artifact base path"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-kpi-llm-dataprocessor",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "LLM in Data Processor",
+                         "description":  "Card showing whether LLM explanation is enabled in the data processor.",
+                         "synonyms":  [
+                                          "llm dataprocessor",
+                                          "llm in data processor",
+                                          "llm explanation enabled"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "is llm in data processor enabled",
+                                                      "highlight llm dataprocessor"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-kpi-sequence-model",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Sequence Model (Fallback Mode)",
+                         "description":  "Card showing the current sequence model fallback mode.",
+                         "synonyms":  [
+                                          "sequence model",
+                                          "fallback mode",
+                                          "sequence fallback"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "what is the sequence model",
+                                                      "highlight sequence model",
+                                                      "show fallback mode"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-model-health",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Model Health",
+                         "description":  "Card showing the health status of all machine learning models including artifact status, inference, and availability.",
+                         "synonyms":  [
+                                          "model health",
+                                          "models health",
+                                          "ml models status",
+                                          "model status"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show model health",
+                                                      "highlight model health card",
+                                                      "are the models healthy"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-diagnostics-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Diagnostics Section",
+                         "description":  "Section showing diagnostics including field coverage, sequence coverage, tabular coverage, model latency, and benchmark data.",
+                         "synonyms":  [
+                                          "diagnostics",
+                                          "field coverage",
+                                          "model latency",
+                                          "benchmark"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show diagnostics",
+                                                      "highlight diagnostics section",
+                                                      "what is the field coverage"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "card-kafka-health",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Kafka Health",
+                         "description":  "Card showing Kafka consumer group health, topic details, partition assignment, concurrency, offset status, and processing metrics.",
+                         "synonyms":  [
+                                          "kafka health",
+                                          "kafka status",
+                                          "kafka diagnostics",
+                                          "consumer group"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show kafka health",
+                                                      "highlight kafka health card",
+                                                      "take me to the view that i can see the kafka health"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-idempotency-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Idempotency Section",
+                         "description":  "Section showing idempotency metrics including duplicate events, sequence appends, alerts, and SQL writes skipped.",
+                         "synonyms":  [
+                                          "idempotency",
+                                          "duplicate events",
+                                          "deduplication"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show idempotency metrics",
+                                                      "highlight idempotency section"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-performance-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Performance Section",
+                         "description":  "Section showing performance metrics including event processing, model inference, sequence inference, Redis write, and other latency measurements (Avg/P95).",
+                         "synonyms":  [
+                                          "performance",
+                                          "latency metrics",
+                                          "performance section",
+                                          "processing latency"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show performance metrics",
+                                                      "highlight performance section",
+                                                      "what is the processing latency"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-stats-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Stats Section",
+                         "description":  "Section showing live time basis statistics for the runtime.",
+                         "synonyms":  [
+                                          "stats",
+                                          "runtime stats",
+                                          "live time basis"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show runtime stats",
+                                                      "highlight stats section"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-next-event-prediction-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Next Event Prediction Section",
+                         "description":  "Section showing next event prediction configuration including enabled status, model, top-K, minimum context events, heads, and feature flags.",
+                         "synonyms":  [
+                                          "next event prediction",
+                                          "next action prediction",
+                                          "prediction config"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show next event prediction config",
+                                                      "highlight prediction section"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-session-finalization-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Session Finalization Section",
+                         "description":  "Section showing session finalization metrics including open sessions, explicit end, timeout, max duration, flush counts, and late events.",
+                         "synonyms":  [
+                                          "session finalization",
+                                          "session flush",
+                                          "session cleanup"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show session finalization",
+                                                      "highlight session finalization"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-final-winners-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "card",
+                         "label":  "Final Winners Section",
+                         "description":  "Section showing the final model winners and recommended approaches for each use case.",
+                         "synonyms":  [
+                                          "final winners",
+                                          "model winners",
+                                          "recommended approach"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "show final winners",
+                                                      "what model is recommended"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-reports-section",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "table",
+                         "label":  "Reports Table",
+                         "description":  "Table showing available runtime reports with name, availability status, generation timestamp, and path.",
+                         "synonyms":  [
+                                          "reports",
+                                          "runtime reports",
+                                          "report table"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show reports",
+                                                      "highlight reports table"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-live-connection-badge",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "status-indicator",
+                         "label":  "Live Connection Badge",
+                         "description":  "Badge showing the SSE live connection status for runtime health.",
+                         "synonyms":  [
+                                          "live connection",
+                                          "sse status",
+                                          "realtime badge"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show live connection on runtime"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "runtime-source-chip",
+                         "routeId":  "runtime-health",
+                         "routeName":  "RuntimeHealthPage",
+                         "type":  "badge",
+                         "label":  "Data Source Chip",
+                         "description":  "Chip showing the data source for the runtime health data.",
+                         "synonyms":  [
+                                          "data source",
+                                          "source chip",
+                                          "runtime source"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "what is the runtime data source"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-refresh-button",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "button",
+                         "label":  "Refresh Overview",
+                         "description":  "Button that refreshes all overview metrics and page data.",
+                         "synonyms":  [
+                                          "refresh overview",
+                                          "overview refresh",
+                                          "reload overview",
+                                          "update overview data",
+                                          "refresh data",
+                                          "refresh the data",
+                                          "refresh button",
+                                          "the refresh button"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click here to refresh overview data",
+                                                      "show me the refresh button on overview",
+                                                      "highlight the refresh button on overview"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "REFRESH_VIEW"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-total-events",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Total Events KPI",
+                         "description":  "Shows the total number of events processed today.",
+                         "synonyms":  [
+                                          "total events",
+                                          "events total",
+                                          "total events today",
+                                          "events processed"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where should i look here to see the total events processed today",
+                                                      "highlight total events today card",
+                                                      "show me total events"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-active-users",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Active Users KPI",
+                         "description":  "Shows active application users for today and the current period with trend indicators.",
+                         "synonyms":  [
+                                          "active users",
+                                          "users active",
+                                          "active users today"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight active users card",
+                                                      "show me active users"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-anomaly-rate",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Anomaly Rate KPI",
+                         "description":  "Shows the current anomaly detection rate.",
+                         "synonyms":  [
+                                          "anomaly rate",
+                                          "anomaly percentage",
+                                          "anomaly rate today"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight anomaly rate card",
+                                                      "show anomaly rate"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-critical-alerts",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Critical Alerts KPI",
+                         "description":  "Shows the count of recent critical alerts requiring immediate attention.",
+                         "synonyms":  [
+                                          "critical alerts",
+                                          "critical alerts count",
+                                          "critical alert card",
+                                          "critical alerts today"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight critical alerts card",
+                                                      "where should i look to see critical alerts",
+                                                      "show critical alerts count"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-high-risk-alerts",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "High Risk Alerts KPI",
+                         "description":  "Shows the count of high risk alerts.",
+                         "synonyms":  [
+                                          "high risk alerts",
+                                          "high risk alert count",
+                                          "high risk alerts today"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight high risk alerts",
+                                                      "show high risk alerts"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-average-risk",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Average Risk KPI",
+                         "description":  "Shows the average anomaly/risk score for today or recent events across all alerts.",
+                         "synonyms":  [
+                                          "average risk",
+                                          "average risk score",
+                                          "mean risk",
+                                          "average risk today"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight average risk card",
+                                                      "show average risk"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-predicted-anomaly-rate",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Predicted Anomaly Rate KPI",
+                         "description":  "Shows the predicted anomaly rate from the Ridge forecast model.",
+                         "synonyms":  [
+                                          "predicted anomaly rate",
+                                          "forecast anomaly rate",
+                                          "tomorrow anomaly rate"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight predicted anomaly rate",
+                                                      "show forecast anomaly rate"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-predicted-events",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Predicted Events KPI",
+                         "description":  "Shows the predicted total events from the XGBoost forecast model.",
+                         "synonyms":  [
+                                          "predicted events",
+                                          "predicted total events",
+                                          "tomorrow predicted events",
+                                          "future events"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight the card that indicates the tomorrow predicted total events",
+                                                      "show me predicted events"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-kpi-expected-alert-volume",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Expected Alert Volume KPI",
+                         "description":  "Shows the expected alert volume from the forecast model.",
+                         "synonyms":  [
+                                          "expected alert volume",
+                                          "alert volume",
+                                          "expected alerts",
+                                          "tomorrow alert volume"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight expected alert volume",
+                                                      "show expected alert volume"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-top-anomalies",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Top Anomaly Types",
+                         "description":  "Chart showing top anomaly types detected ranked by frequency.",
+                         "synonyms":  [
+                                          "top anomalies",
+                                          "top anomaly types",
+                                          "anomaly types chart",
+                                          "anomaly distribution",
+                                          "most common anomalies"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight top anomaly types card",
+                                                      "show me top anomalies",
+                                                      "highlight anomaly types",
+                                                      "what are the top anomalies"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-top-rules",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Top Triggered Rules",
+                         "description":  "Chart showing top triggered rules ranked by frequency.",
+                         "synonyms":  [
+                                          "top rules",
+                                          "top triggered rules",
+                                          "rules detected",
+                                          "triggered rules chart",
+                                          "most triggered rules"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight the top rules detected",
+                                                      "show me top rules",
+                                                      "highlight triggered rules"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-model-health",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Model Health Overview",
+                         "description":  "Panel showing the health status of ML models in the overview page.",
+                         "synonyms":  [
+                                          "model health",
+                                          "model health overview",
+                                          "ml model status"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight model health section",
+                                                      "show model health overview"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-field-coverage",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Field Coverage",
+                         "description":  "Panel showing field coverage metrics including sequence coverage, unknown ratios, missing features, and defaulted features.",
+                         "synonyms":  [
+                                          "field coverage",
+                                          "data coverage",
+                                          "sequence coverage",
+                                          "tabular coverage"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight field coverage section",
+                                                      "show field coverage"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-session-finalization",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "card",
+                         "label":  "Session Finalization Summary",
+                         "description":  "Panel showing open sessions, explicitly finalized, and timeout finalized session counts.",
+                         "synonyms":  [
+                                          "session finalization",
+                                          "session summary",
+                                          "session status"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight session finalization",
+                                                      "show session summary"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-recent-critical-alerts-table",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "table",
+                         "label":  "Recent Critical Alerts Table",
+                         "description":  "Table showing the most recent critical alerts with risk level, event ID, insured ID, anomaly type, risk score, timestamp, and investigate actions.",
+                         "synonyms":  [
+                                          "critical alerts table",
+                                          "recent critical alerts",
+                                          "critical alerts list",
+                                          "critical preview table"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "highlight recent critical alerts table",
+                                                      "show me critical alerts list",
+                                                      "where are the recent critical alerts"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-live-connection-badge",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "status-indicator",
+                         "label":  "Live Connection Badge",
+                         "description":  "Badge showing the SSE live connection status for real-time updates.",
+                         "synonyms":  [
+                                          "live connection",
+                                          "sse status",
+                                          "realtime badge",
+                                          "connection status"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show live connection status",
+                                                      "is the dashboard connected"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "overview-source-chip",
+                         "routeId":  "security-overview",
+                         "routeName":  "SecurityOverviewPage",
+                         "type":  "badge",
+                         "label":  "Data Source Chip",
+                         "description":  "Chip showing the data source for the overview data.",
+                         "synonyms":  [
+                                          "data source",
+                                          "source chip",
+                                          "overview source"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "where is the data coming from",
+                                                      "what is the data source"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-search-input",
+                         "routeId":  "user360",
+                         "routeName":  "User360Page",
+                         "type":  "search-input",
+                         "label":  "User 360 Search Input",
+                         "description":  "Text input for entering an insured ID to look up a user profile.",
+                         "synonyms":  [
+                                          "user search",
+                                          "search input",
+                                          "insured id input",
+                                          "lookup field",
+                                          "user lookup"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to enter insured ID",
+                                                      "highlight user search input"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-search-button",
+                         "routeId":  "user360",
+                         "routeName":  "User360Page",
+                         "type":  "button",
+                         "label":  "Search User Button",
+                         "description":  "Button that triggers the user search by insured ID.",
+                         "synonyms":  [
+                                          "search button",
+                                          "load user",
+                                          "find user button"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "where to click to search user",
+                                                      "highlight search button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-refresh-button",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "button",
+                         "label":  "Refresh User 360",
+                         "description":  "Button that refreshes the user 360 detail data.",
+                         "synonyms":  [
+                                          "refresh user",
+                                          "user 360 refresh",
+                                          "reload user data"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "refresh user 360 data",
+                                                      "highlight refresh button"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT",
+                                                  "REFRESH_VIEW"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-kpi-churn-probability",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "Churn Probability KPI",
+                         "description":  "Shows the churn probability and risk level for the user.",
+                         "synonyms":  [
+                                          "churn probability",
+                                          "user churn risk",
+                                          "churn risk"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight churn probability on user 360",
+                                                      "show churn risk"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-kpi-average-risk-last-30d",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "Average Risk Last 30 Days",
+                         "description":  "Shows the average risk score over the last 30 days.",
+                         "synonyms":  [
+                                          "average risk",
+                                          "risk last 30 days",
+                                          "30 day risk"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight average risk last 30 days",
+                                                      "show 30 day risk"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-kpi-alert-count-last-30d",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "Alert Count Last 30 Days",
+                         "description":  "Shows the total number of alerts for this user in the last 30 days.",
+                         "synonyms":  [
+                                          "alert count",
+                                          "user alerts count",
+                                          "30 day alerts"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight alert count",
+                                                      "show user alert count"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-kpi-critical-alert-count-last-30d",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "Critical Alert Count Last 30 Days",
+                         "description":  "Shows the number of critical alerts for this user in the last 30 days.",
+                         "synonyms":  [
+                                          "critical alert count",
+                                          "user critical alerts",
+                                          "30 day critical alerts"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight critical alert count",
+                                                      "show critical alerts for user"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-persona-card",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "User Persona",
+                         "description":  "Card showing the user persona classification and source.",
+                         "synonyms":  [
+                                          "persona",
+                                          "user persona",
+                                          "persona card"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight persona card",
+                                                      "what is this user persona"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-baseline-card",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "User Baseline",
+                         "description":  "Card showing user baseline data including usual country, active hours, and top API families.",
+                         "synonyms":  [
+                                          "baseline",
+                                          "user baseline",
+                                          "baseline card",
+                                          "user behavior baseline"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight baseline card",
+                                                      "show user baseline"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-next-event-prediction-card",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "Next Event Prediction",
+                         "description":  "Card showing predicted next event actions for this user with probabilities and rankings.",
+                         "synonyms":  [
+                                          "next event prediction",
+                                          "user prediction",
+                                          "predicted actions"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight next event prediction on user 360",
+                                                      "what will this user do next"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-recent-sessions-card",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "Recent Sessions",
+                         "description":  "Card showing the user\u0027s recent sessions with risk scores and session IDs.",
+                         "synonyms":  [
+                                          "recent sessions",
+                                          "user sessions",
+                                          "session history"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight recent sessions card",
+                                                      "show recent sessions for user"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-risk-timeline-card",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "card",
+                         "label":  "Risk Timeline",
+                         "description":  "Card showing the user\u0027s risk score timeline over time with timestamps and risk levels.",
+                         "synonyms":  [
+                                          "risk timeline",
+                                          "risk history",
+                                          "risk trend"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight risk timeline card",
+                                                      "show risk trend for user"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-alerts-table",
+                         "routeId":  "user-360",
+                         "routeName":  "User360DetailPage",
+                         "type":  "table",
+                         "label":  "User Alerts Table",
+                         "description":  "Table showing alerts for this user with risk level, score, timestamp, anomaly type, event action, and investigation actions.",
+                         "synonyms":  [
+                                          "user alerts",
+                                          "user alerts table",
+                                          "user alert history"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "highlight user alerts table",
+                                                      "show alerts for this user"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-live-connection-badge",
+                         "routeId":  "user360",
+                         "routeName":  "User360Page",
+                         "type":  "status-indicator",
+                         "label":  "Live Connection Badge",
+                         "description":  "Badge showing the SSE live connection status for user 360.",
+                         "synonyms":  [
+                                          "live connection",
+                                          "sse status",
+                                          "realtime badge"
+                                      ],
+                         "visibility":  "always",
+                         "exampleUserQuestions":  [
+                                                      "show live connection on user 360"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     },
+                     {
+                         "id":  "user360-source-chip",
+                         "routeId":  "user360",
+                         "routeName":  "User360Page",
+                         "type":  "badge",
+                         "label":  "Data Source Chip",
+                         "description":  "Chip showing the data source for the user 360 data.",
+                         "synonyms":  [
+                                          "data source",
+                                          "source chip",
+                                          "user 360 source"
+                                      ],
+                         "visibility":  "conditional",
+                         "exampleUserQuestions":  [
+                                                      "what is the user data source"
+                                                  ],
+                         "actionsSupported":  [
+                                                  "HIGHLIGHT_ELEMENT"
+                                              ]
+                     }
+                 ],
+    "filters":  [
+                    {
+                        "synonyms":  [
+                                         "filter alerts",
+                                         "alert risk",
+                                         "critical alerts",
+                                         "high risk alerts"
+                                     ],
+                        "id":  "alerts-risk-filter",
+                        "aliases": ["alerts-risk"],
+                        "routeId":  "alerts",
+                        "actionsSupported":  [
+                                                 "SET_FILTER"
+                                             ],
+                        "allowedValues":  [
+                                              "LOW",
+                                              "MEDIUM",
+                                              "HIGH",
+                                              "CRITICAL"
+                                          ],
+                        "routeName":  "AlertsPage",
+                        "description":  "Filters the alerts table by risk level.",
+                        "label":  "Alerts Risk Filter"
+                    },
+                    {
+                        "synonyms":  [
+                                         "filter churn",
+                                         "churn risk",
+                                         "medium risk churn"
+                                     ],
+                        "id":  "churn-risk-filter",
+                        "aliases": ["churn-risk"],
+                        "routeId":  "churn",
+                        "actionsSupported":  [
+                                                 "SET_FILTER"
+                                             ],
+                        "allowedValues":  [
+                                              "LOW",
+                                              "MEDIUM",
+                                              "HIGH"
+                                          ],
+                        "routeName":  "ChurnPage",
+                        "description":  "Filters the churn users table by risk level.",
+                        "label":  "Churn Risk Filter"
+                    }
+                ],
+    "version":  "1.0.0",
+    "updatedAt":  "2026-07-06",
+    "searchTargets":  [
+                          {
+                              "synonyms":  [
+                                               "search alerts",
+                                               "find alert",
+                                               "lookup alert"
+                                           ],
+                              "id":  "alert-search",
+                              "routeId":  "alerts",
+                              "actionsSupported":  [
+                                                       "SEARCH_ALERT"
+                                                   ],
+                              "routeName":  "AlertsPage",
+                              "params":  [
+                                             "q"
+                                         ],
+                              "description":  "Search alerts by query or event ID.",
+                              "label":  "Search Alerts"
+                          },
+                          {
+                              "synonyms":  [
+                                               "search user",
+                                               "find user",
+                                               "lookup user",
+                                               "search insured"
+                                           ],
+                              "id":  "user-search",
+                              "routeId":  "user360",
+                              "actionsSupported":  [
+                                                       "SEARCH_USER"
+                                                   ],
+                              "routeName":  "User360Page",
+                              "params":  [
+                                             "insuredId"
+                                         ],
+                              "description":  "Search for a user by insured ID.",
+                              "label":  "Search User"
+                          }
+                      ],
+    "tasks":  [
+                  {
+                      "actionsSupported":  [
+                                               "EXPLAIN_WITH_AI"
+                                           ],
+                      "id":  "explain-ai-with-context",
+                      "type":  "action",
+                      "missingContextMessage":  "I need an event ID to explain an alert with AI. Please navigate to an alert investigation page first.",
+                      "routeId":  "alert-investigation",
+                      "label":  "Explain Alert with AI",
+                      "description":  "Generates an AI-powered explanation for the current alert event being investigated.",
+                      "exampleUserQuestions":  [
+                                                   "explain this alert with AI",
+                                                   "why was this anomaly flagged",
+                                                   "what caused this event",
+                                                   "explain with AI"
+                                               ],
+                      "requiresContext":  [
+                                              "eventId"
+                                          ],
+                      "routeName":  "AlertInvestigationPage",
+                      "synonyms":  [
+                                       "explain ai",
+                                       "explain with ai",
+                                       "ai explanation",
+                                       "explain this alert",
+                                       "what caused this anomaly",
+                                       "why was this flagged"
+                                   ]
+                  },
+                  {
+                      "actionsSupported":  [
+                                               "TOGGLE_THEME"
+                                           ],
+                      "id":  "toggle-dark-mode",
+                      "type":  "action",
+                      "routeId":  null,
+                      "label":  "Toggle Dark Mode",
+                      "description":  "Toggles the dashboard theme between light and dark mode. The theme toggle button is located in the top toolbar.",
+                      "exampleUserQuestions":  [
+                                                   "switch to dark mode",
+                                                   "enable dark mode",
+                                                   "turn on dark mode",
+                                                   "switch to light mode",
+                                                   "change theme",
+                                                   "toggle theme"
+                                               ],
+                      "routeName":  null,
+                      "synonyms":  [
+                                       "dark mode",
+                                       "light mode",
+                                       "theme",
+                                       "switch theme",
+                                       "toggle theme",
+                                       "enable dark mode",
+                                       "enable light mode",
+                                       "dark theme",
+                                       "light theme"
+                                   ]
+                  },
+                  {
+                      "actionsSupported":  [
+                                               "CHANGE_PASSWORD"
+                                           ],
+                      "id":  "change-password",
+                      "type":  "action",
+                      "routeId":  "account",
+                      "label":  "Change Password",
+                      "description":  "Navigates to the Account Settings page and highlights the password change form section.",
+                      "exampleUserQuestions":  [
+                                                   "I want to change my password",
+                                                   "update my password",
+                                                   "how do I change my password"
+                                               ],
+                      "routeName":  "AccountPage",
+                      "synonyms":  [
+                                       "change password",
+                                       "update password",
+                                       "reset password",
+                                       "modify password",
+                                       "password change"
+                                   ]
+                  },
+                  {
+                      "actionsSupported":  [
+                                               "LIST_CAPABILITIES"
+                                           ],
+                      "id":  "list-capabilities",
+                      "type":  "action",
+                      "routeId":  null,
+                      "label":  "List Capabilities",
+                      "description":  "Lists all available dashboard assistant capabilities, routes, and highlightable items.",
+                      "exampleUserQuestions":  [
+                                                   "what can you do",
+                                                   "show me your capabilities",
+                                                   "list available commands",
+                                                   "help",
+                                                   "what features do you have"
+                                               ],
+                      "routeName":  null,
+                      "synonyms":  [
+                                       "what can you do",
+                                       "capabilities",
+                                       "help",
+                                       "features",
+                                       "available commands",
+                                       "list commands",
+                                       "what can i ask"
+                                   ]
+                  },
+                  {
+                      "actionsSupported":  [
+                                               "LIST_HIGHLIGHTABLE"
+                                           ],
+                      "id":  "list-highlightable-items",
+                      "type":  "action",
+                      "routeId":  null,
+                      "label":  "List Highlightable Items",
+                      "description":  "Lists all elements on the current page that can be highlighted or interacted with.",
+                      "exampleUserQuestions":  [
+                                                   "what can you highlight on this page",
+                                                   "list all items I can interact with",
+                                                   "which elements are available"
+                                               ],
+                      "routeName":  null,
+                      "synonyms":  [
+                                       "highlightable items",
+                                       "what can you highlight",
+                                       "list elements",
+                                       "show elements",
+                                       "what can i interact with"
+                                   ]
+                  }
+              ],
+    "routes":  [
+                   {
+                       "synonyms":  [
+                                        "overview",
+                                        "security overview",
+                                        "main dashboard",
+                                        "home dashboard",
+                                        "overview page",
+                                        "main page"
+                                    ],
+                       "id":  "security-overview",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+
+                                          ],
+                       "routeName":  "SecurityOverviewPage",
+                        "description":  "Summary dashboard. Shows global KPIs, anomaly rate, top anomaly types, and overview metrics. It does not list all anomaly records.",
+                        "label":  "Security Overview",
+                        "path":  "/security-overview"
+                    },
+                    {
+                        "synonyms":  [
+                                         "alerts",
+                                         "anomalies",
+                                         "alert list",
+                                         "anomaly list",
+                                         "all alerts",
+                                         "alert page"
+                                     ],
+                        "id":  "alerts",
+                        "actionsSupported":  [
+                                                 "NAVIGATE"
+                                             ],
+                        "requiresParams":  [
+
+                                           ],
+                        "routeName":  "AlertsPage",
+                        "description":  "Main page for viewing detected anomalies and alert records in a table/list. Use this page when user asks to see anomalies, problems detected, alerts list, or all anomaly events.",
+                        "label":  "Alerts",
+                       "path":  "/alerts"
+                   },
+                   {
+                       "synonyms":  [
+                                        "alert investigation",
+                                        "investigation",
+                                        "investigate",
+                                        "alert detail",
+                                        "event detail"
+                                    ],
+                       "id":  "alert-investigation",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+                                              "eventId"
+                                          ],
+                       "routeName":  "AlertInvestigationPage",
+                       "description":  "Deep alert investigation view with event metadata, model scores, sequence evidence, anomaly attribution, session lifecycle, next event prediction, and user business context.",
+                       "label":  "Alert Investigation",
+                       "path":  "/alerts/:eventId"
+                   },
+                   {
+                       "synonyms":  [
+                                        "user 360",
+                                        "user360",
+                                        "user search",
+                                        "users list",
+                                        "user lookup"
+                                    ],
+                       "id":  "user360",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+
+                                          ],
+                       "routeName":  "User360Page",
+                       "description":  "User 360 search page where you can look up users by insured ID and view their profiles.",
+                       "label":  "User 360 Search",
+                       "path":  "/users"
+                   },
+                   {
+                       "synonyms":  [
+                                        "user 360 detail",
+                                        "user profile",
+                                        "user detail",
+                                        "user 360 view"
+                                    ],
+                       "id":  "user-360",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+                                              "insuredId"
+                                          ],
+                       "routeName":  "User360DetailPage",
+                       "description":  "User 360 detail view showing churn probability, risk scores, persona, baseline, next event prediction, recent sessions, risk timeline, and user alerts.",
+                       "label":  "User 360 Detail",
+                       "path":  "/users/:insuredId/360"
+                   },
+                   {
+                       "synonyms":  [
+                                        "churn",
+                                        "churn page",
+                                        "user churn",
+                                        "abandon",
+                                        "users leaving"
+                                    ],
+                       "id":  "churn",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+
+                                          ],
+                       "routeName":  "ChurnPage",
+                       "description":  "Churn risk dashboard showing churn probability distribution, high-risk users table, and risk filtering.",
+                       "label":  "Churn",
+                       "path":  "/churn"
+                   },
+                   {
+                       "synonyms":  [
+                                        "forecast",
+                                        "forecast page",
+                                        "prediction",
+                                        "predictions",
+                                        "future events"
+                                    ],
+                       "id":  "forecast",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+
+                                          ],
+                       "routeName":  "ForecastPage",
+                       "description":  "Forecast dashboard with predicted total events, anomaly rate, expected alert volume, and historical charts.",
+                       "label":  "Forecast",
+                       "path":  "/forecast"
+                   },
+                   {
+                       "synonyms":  [
+                                        "runtime health",
+                                        "runtime",
+                                        "health",
+                                        "system health",
+                                        "health section",
+                                        "monitoring"
+                                    ],
+                       "id":  "runtime-health",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+
+                                          ],
+                       "routeName":  "RuntimeHealthPage",
+                       "description":  "Runtime health monitoring page showing overall status, model health, Kafka health, diagnostics, performance metrics, and feature flags.",
+                       "label":  "Runtime Health",
+                       "path":  "/runtime"
+                   },
+                   {
+                       "synonyms":  [
+                                        "account",
+                                        "account settings",
+                                        "my account",
+                                        "settings",
+                                        "profile"
+                                    ],
+                       "id":  "account",
+                       "actionsSupported":  [
+                                                "NAVIGATE"
+                                            ],
+                       "requiresParams":  [
+
+                                          ],
+                       "routeName":  "AccountPage",
+                       "description":  "User account settings page for profile summary and password change.",
+                       "label":  "Account Settings",
+                       "path":  "/account"
+                   }
+               ],
+    "refreshTargets":  [
+                           {
+                               "id":  "forecast",
+                               "label":  "Refresh Forecast",
+                               "description":  "Refreshes forecast dashboard data.",
+                               "routeName":  "ForecastPage",
+                               "synonyms":  [
+                                                "refresh forecast",
+                                                "forecast refresh"
+                                            ],
+                               "routeId":  "forecast",
+                               "actionsSupported":  [
+                                                        "REFRESH_VIEW"
+                                                    ]
+                           },
+                           {
+                               "id":  "alerts",
+                               "label":  "Refresh Alerts",
+                               "description":  "Refreshes alerts page data.",
+                               "routeName":  "AlertsPage",
+                               "synonyms":  [
+                                                "refresh alerts",
+                                                "alerts refresh"
+                                            ],
+                               "routeId":  "alerts",
+                               "actionsSupported":  [
+                                                        "REFRESH_VIEW"
+                                                    ]
+                           },
+                           {
+                               "id":  "churn",
+                               "label":  "Refresh Churn",
+                               "description":  "Refreshes churn page data.",
+                               "routeName":  "ChurnPage",
+                               "synonyms":  [
+                                                "refresh churn",
+                                                "churn refresh"
+                                            ],
+                               "routeId":  "churn",
+                               "actionsSupported":  [
+                                                        "REFRESH_VIEW"
+                                                    ]
+                           },
+                           {
+                               "id":  "runtime",
+                               "label":  "Refresh Runtime Health",
+                               "description":  "Refreshes runtime health data.",
+                               "routeName":  "RuntimeHealthPage",
+                               "synonyms":  [
+                                                "refresh runtime",
+                                                "runtime refresh"
+                                            ],
+                               "routeId":  "runtime-health",
+                               "actionsSupported":  [
+                                                        "REFRESH_VIEW"
+                                                    ]
+                           }
+                       ]
+}

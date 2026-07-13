@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neo.dashboard.dto.v36.ApiPageResponse;
 import com.neo.dashboard.dto.v36.V36AlertInvestigationDetailDto;
 import com.neo.dashboard.dto.v36.V36AnomalyTypeAttributionDto;
+import com.neo.dashboard.dto.v36.V36NextEventPredictionDto;
 import com.neo.dashboard.dto.v36.V36ChurnContextDto;
 import com.neo.dashboard.dto.v36.V36ForecastContextDto;
 import com.neo.dashboard.dto.v36.V36LiveAlertSummaryDto;
@@ -33,11 +34,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,23 +55,45 @@ public class V36AlertService {
     private final ObjectMapper objectMapper;
     private final DashboardSnapshotFallbackService snapshotFallbackService;
     private final LlmEvidenceReadService evidenceReadService;
+    private final V36NextEventPredictionService nextEventPredictionService;
 
     public ApiPageResponse<V36LiveAlertSummaryDto> getLiveAlerts(String riskLevel,
-                                                                  String anomalyType,
-                                                                  String insuredId,
-                                                                  String sessionId,
-                                                                  Instant from,
-                                                                  Instant to,
-                                                                  int limit,
-                                                                  int offset) {
-        List<V36LiveAlertSummaryDto> redisAlerts = readAlertList(CacheKeys.ALERTS_LIVE_V36, limit + offset);
+                                                                    String anomalyType,
+                                                                    String insuredId,
+                                                                    String sessionId,
+                                                                    Instant from,
+                                                                    Instant to,
+                                                                    int limit,
+                                                                    int offset) {
+        return queryLiveAlerts(riskLevel, anomalyType, insuredId, sessionId, from, to, limit, offset);
+    }
+
+    public ApiPageResponse<V36LiveAlertSummaryDto> getCriticalAlerts(int limit, int offset) {
+        return queryLiveAlerts("CRITICAL", null, null, null, null, null, limit, offset);
+    }
+
+    private ApiPageResponse<V36LiveAlertSummaryDto> queryLiveAlerts(String riskLevel,
+                                                                       String anomalyType,
+                                                                       String insuredId,
+                                                                       String sessionId,
+                                                                       Instant from,
+                                                                       Instant to,
+                                                                       int limit,
+                                                                       int offset) {
+        List<V36LiveAlertSummaryDto> redisAlerts = readCanonicalAlertList(
+                CacheKeys.ALERTS_LIVE_V36_ZSET,
+                CacheKeys.ALERTS_LIVE_V36,
+                CacheKeys.ALERT_LIVE_V36_PAYLOAD_PREFIX,
+                5000);
         if (!redisAlerts.isEmpty()) {
-            List<V36LiveAlertSummaryDto> filtered = filterAlerts(redisAlerts, riskLevel, anomalyType, insuredId, sessionId, from, to);
-            return page(filtered, limit, offset);
+            List<V36LiveAlertSummaryDto> merged = mergeCriticalAlerts(redisAlerts);
+            List<V36LiveAlertSummaryDto> sorted = sortByTimestampDesc(merged);
+            List<V36LiveAlertSummaryDto> filtered = filterAlerts(sorted, riskLevel, anomalyType, insuredId, sessionId, from, to);
+            return buildPageResponse(filtered, limit, offset);
         }
 
         List<V36LiveAlertSummaryDto> snapshotAlerts = snapshotFallbackService
-                .readListFromSql(V36LiveAlertSummaryDto.class, "alerts", "alerts:latest", normalizeLimit(limit) + Math.max(offset, 0));
+                .readListFromSql(V36LiveAlertSummaryDto.class, "alerts", "alerts:latest", 500);
         if (!snapshotAlerts.isEmpty()) {
             List<V36LiveAlertSummaryDto> processed = snapshotAlerts.stream()
                     .peek(a -> { if (!hasText(a.getSource())) a.setSource("sql_fallback"); })
@@ -76,31 +102,114 @@ public class V36AlertService {
                     .toList();
             List<V36LiveAlertSummaryDto> deduped = deduplicateByEventIdWithRichness(processed);
             List<V36LiveAlertSummaryDto> hydrated = hydrateLiveAlertsFromStoredPayloads(deduped);
-            List<V36LiveAlertSummaryDto> filtered = filterAlerts(hydrated, riskLevel, anomalyType, insuredId, sessionId, from, to);
-            return page(filtered, limit, offset);
+            List<V36LiveAlertSummaryDto> sorted = sortByTimestampDesc(hydrated);
+            List<V36LiveAlertSummaryDto> filtered = filterAlerts(sorted, riskLevel, anomalyType, insuredId, sessionId, from, to);
+            return buildPageResponse(filtered, limit, offset);
         }
 
         return getSqlAlerts(riskLevel, anomalyType, insuredId, sessionId, from, to, limit, offset);
     }
 
-    public ApiPageResponse<V36LiveAlertSummaryDto> getCriticalAlerts(int limit, int offset) {
-        List<V36LiveAlertSummaryDto> redisAlerts = readAlertList(CacheKeys.ALERTS_CRITICAL_V36, limit + offset);
-        if (!redisAlerts.isEmpty()) {
-            return page(redisAlerts, limit, offset);
+    private List<V36LiveAlertSummaryDto> mergeCriticalAlerts(List<V36LiveAlertSummaryDto> candidates) {
+        List<V36LiveAlertSummaryDto> criticalAlerts = readCanonicalAlertList(
+                CacheKeys.ALERTS_CRITICAL_V36_ZSET,
+                CacheKeys.ALERTS_CRITICAL_V36,
+                CacheKeys.ALERT_LIVE_V36_PAYLOAD_PREFIX,
+                5000);
+        if (criticalAlerts.isEmpty()) {
+            return candidates;
         }
-        return getSqlAlerts("CRITICAL", null, null, null, null, null, limit, offset);
+
+        Set<String> candidateEventIds = candidates.stream()
+                .map(V36LiveAlertSummaryDto::getEventId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<V36LiveAlertSummaryDto> missing = criticalAlerts.stream()
+                .filter(a -> a.getEventId() == null || !candidateEventIds.contains(a.getEventId()))
+                .toList();
+
+        if (missing.isEmpty()) {
+            return candidates;
+        }
+
+        log.warn("CRITICAL_ALERTS_MERGED_INTO_LIVE mergedCount={} liveCount={} criticalCount={}",
+                missing.size(), candidates.size(), criticalAlerts.size());
+        log.warn("Missing critical eventIds: {}",
+                missing.stream().map(V36LiveAlertSummaryDto::getEventId).toList());
+
+        List<V36LiveAlertSummaryDto> merged = new ArrayList<>(candidates);
+        merged.addAll(missing);
+        return merged;
+    }
+
+    /**
+     * Read alerts from canonical ZSET key with payload hydration.
+     * Falls back to legacy LIST key if ZSET is empty or unavailable.
+     */
+    private List<V36LiveAlertSummaryDto> readCanonicalAlertList(String zsetKey, String legacyListKey,
+                                                                  String payloadKeyPrefix, int maxFetch) {
+        List<V36LiveAlertSummaryDto> zsetAlerts = redisReadService.readZSetAlertItems(
+                zsetKey, payloadKeyPrefix, V36LiveAlertSummaryDto.class, maxFetch);
+        if (!zsetAlerts.isEmpty()) {
+            List<V36LiveAlertSummaryDto> processed = processAlertList(zsetAlerts, "redis_zset");
+            List<V36LiveAlertSummaryDto> deduped = deduplicateByEventIdWithRichness(processed);
+            List<V36LiveAlertSummaryDto> hydrated = hydrateLiveAlertsFromStoredPayloads(deduped);
+            logAlertRedisDiagnostics(zsetKey, legacyListKey, zsetAlerts.size(), true);
+            return hydrated;
+        }
+
+        List<V36LiveAlertSummaryDto> legacyAlerts = readAlertList(legacyListKey, maxFetch);
+        if (!legacyAlerts.isEmpty()) {
+            log.warn("CANONICAL_ZSET_EMPTY_LEGACY_LIST_USED zsetKey={} legacyListKey={} legacyCount={}",
+                    zsetKey, legacyListKey, legacyAlerts.size());
+            legacyAlerts.forEach(a -> {
+                a.setSource("redis_legacy_list");
+                a.getWarnings().add("canonical_zset_empty_legacy_list_used");
+            });
+            logAlertRedisDiagnostics(zsetKey, legacyListKey, 0, false);
+            return legacyAlerts;
+        }
+
+        logAlertRedisDiagnostics(zsetKey, legacyListKey, 0, false);
+        return List.of();
+    }
+
+    private List<V36LiveAlertSummaryDto> processAlertList(List<V36LiveAlertSummaryDto> alerts, String source) {
+        if (alerts == null || alerts.isEmpty()) return alerts;
+        return alerts.stream()
+                .peek(a -> { if (!hasText(a.getSource())) a.setSource(source); })
+                .map(this::normalizeAlert)
+                .map(this::hydrateAlertFields)
+                .toList();
+    }
+
+    private void logAlertRedisDiagnostics(String zsetKey, String legacyListKey, int zsetCount, boolean canonicalUsed) {
+        if (!log.isDebugEnabled()) return;
+        try {
+            Long legacyCount = redisReadService.countItems(legacyListKey);
+            log.debug("ALERT_REDIS_SOURCES zsetKey={} zsetCount={} legacyListKey={} legacyCount={} canonicalUsed={}",
+                    zsetKey, zsetCount, legacyListKey, legacyCount, canonicalUsed);
+        } catch (Exception e) {
+            log.debug("ALERT_REDIS_SOURCES diagnostics failed", e);
+        }
     }
 
     public ApiPageResponse<V36LiveAlertSummaryDto> getUserAlerts(String insuredId,
-                                                                 String riskLevel,
-                                                                 Instant from,
-                                                                 Instant to,
-                                                                 int limit,
-                                                                 int offset) {
-        List<V36LiveAlertSummaryDto> redisAlerts = readAlertList(CacheKeys.userAlertsKey(insuredId), limit + offset);
+                                                                   String riskLevel,
+                                                                   Instant from,
+                                                                   Instant to,
+                                                                   int limit,
+                                                                   int offset) {
+        List<V36LiveAlertSummaryDto> redisAlerts = readCanonicalAlertList(
+                CacheKeys.userAlertsZSetKey(insuredId),
+                CacheKeys.userAlertsKey(insuredId),
+                CacheKeys.ALERT_LIVE_V36_PAYLOAD_PREFIX,
+                5000);
         if (!redisAlerts.isEmpty()) {
-            List<V36LiveAlertSummaryDto> filtered = filterAlerts(redisAlerts, riskLevel, null, insuredId, null, from, to);
-            return page(filtered, limit, offset);
+            List<V36LiveAlertSummaryDto> sorted = sortByTimestampDesc(redisAlerts);
+            List<V36LiveAlertSummaryDto> filtered = filterAlerts(sorted, riskLevel, null, insuredId, null, from, to);
+            return buildPageResponse(filtered, limit, offset);
         }
         return getSqlAlerts(riskLevel, null, insuredId, null, from, to, limit, offset);
     }
@@ -109,37 +218,36 @@ public class V36AlertService {
     public V36AlertInvestigationDetailDto getAlertDetail(String eventId) {
         Optional<V36AlertInvestigationDetailDto> redisDetail = redisReadService
                 .readValue(CacheKeys.alertInvestigationKey(eventId), V36AlertInvestigationDetailDto.class)
+                .filter(d -> eventId.equals(d.getEventId()) || eventId.equals(d.getRecordId()))
+                .filter(d -> isDetailForRequestedEvent(d, eventId))
                 .map(this::normalizeInvestigation)
                 .map(detail -> hydrateEvidenceFields(detail, eventId));
         if (redisDetail.isPresent()) {
-            return redisDetail.get();
+            V36AlertInvestigationDetailDto detail = redisDetail.get();
+            AnomalyEvent anomaly = anomalyEventRepository
+                    .findTopByEventIdOrderByDetectedAtDesc(eventId).orElse(null);
+            enrichSessionLifecycle(detail, anomaly, null);
+            enrichTimestamp(detail, anomaly, eventId);
+            enrichNextEventPrediction(detail, anomaly);
+            applyHardGuards(detail, eventId);
+            return detail;
         }
 
         AnomalyEvent anomaly = anomalyEventRepository.findTopByEventIdOrderByDetectedAtDesc(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Alert not found"));
 
-        Optional<V36AlertInvestigationDetailDto> eventPayload = parseInvestigationPayload(anomaly.getInvestigationPayloadJson());
-        if (eventPayload.isPresent()) {
-            V36AlertInvestigationDetailDto detail = eventPayload.get();
-            if (!hasText(detail.getSource())) {
-                detail.setSource("sql-payload");
-            }
-            if (detail.getId() == null) {
-                detail.setId(anomaly.getId());
-            }
-            if (detail.getAnomalyDbId() == null) {
-                detail.setAnomalyDbId(anomaly.getId());
-            }
-            return hydrateEvidenceFields(hydrateDetailTimestamp(normalizeInvestigation(detail), anomaly), eventId);
+        V36AlertInvestigationDetailDto detail;
+        SessionAnalysis session = null;
+        String rawInvestigationJson = anomaly.getInvestigationPayloadJson();
+        boolean payloadForEvent = false;
+        if (hasText(rawInvestigationJson)) {
+            JsonNode rawNode = parseJson(rawInvestigationJson);
+            payloadForEvent = rawNode != null && rawNode.isObject() && isPayloadForRequestedEvent(rawNode, eventId, eventId);
         }
-
-        SessionAnalysis session = sessionAnalysisRepository
-                .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(anomaly.getInsuredId(), anomaly.getSessionId())
-                .orElse(null);
-        if (session != null) {
-            Optional<V36AlertInvestigationDetailDto> sessionPayload = parseInvestigationPayload(session.getInvestigationPayloadJson());
-            if (sessionPayload.isPresent()) {
-                V36AlertInvestigationDetailDto detail = sessionPayload.get();
+        if (payloadForEvent) {
+            Optional<V36AlertInvestigationDetailDto> eventPayload = parseInvestigationPayload(rawInvestigationJson);
+            if (eventPayload.isPresent()) {
+                detail = eventPayload.get();
                 if (!hasText(detail.getSource())) {
                     detail.setSource("sql-payload");
                 }
@@ -149,11 +257,130 @@ public class V36AlertService {
                 if (detail.getAnomalyDbId() == null) {
                     detail.setAnomalyDbId(anomaly.getId());
                 }
-                return hydrateEvidenceFields(hydrateDetailTimestamp(normalizeInvestigation(detail), anomaly), eventId);
+                detail = hydrateEvidenceFields(hydrateDetailTimestamp(normalizeInvestigation(detail), anomaly), eventId);
+            } else {
+                detail = buildInvestigationFromSql(anomaly, null);
+                detail.addWarning("exact_event_payload_unavailable");
+                detail = hydrateEvidenceFields(detail, eventId);
+                enrichFromLivePayloadIfNeeded(detail, eventId, anomaly);
+                enrichTimestamp(detail, anomaly, eventId);
+                enrichSessionLifecycle(detail, anomaly, null);
+                enrichNextEventPrediction(detail, anomaly);
+                applyHardGuards(detail, eventId);
+                return detail;
+            }
+        } else if (hasText(rawInvestigationJson)) {
+            detail = buildInvestigationFromSql(anomaly, null);
+            detail.addWarning("sql_payload_event_mismatch");
+            detail = hydrateEvidenceFields(detail, eventId);
+            enrichFromLivePayloadIfNeeded(detail, eventId, anomaly);
+            enrichTimestamp(detail, anomaly, eventId);
+            enrichSessionLifecycle(detail, anomaly, null);
+            enrichNextEventPrediction(detail, anomaly);
+            applyHardGuards(detail, eventId);
+            return detail;
+        } else {
+            session = sessionAnalysisRepository
+                    .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(anomaly.getInsuredId(), anomaly.getSessionId())
+                    .orElse(null);
+            if (session != null) {
+                String sessionInvestigationJson = session.getInvestigationPayloadJson();
+                boolean sessionPayloadForEvent = false;
+                if (hasText(sessionInvestigationJson)) {
+                    JsonNode sessionRawNode = parseJson(sessionInvestigationJson);
+                    sessionPayloadForEvent = sessionRawNode != null && sessionRawNode.isObject() && isPayloadForRequestedEvent(sessionRawNode, eventId, eventId);
+                }
+                if (sessionPayloadForEvent) {
+                    Optional<V36AlertInvestigationDetailDto> sessionPayload = parseInvestigationPayload(sessionInvestigationJson);
+                    if (sessionPayload.isPresent()) {
+                        detail = sessionPayload.get();
+                        if (!hasText(detail.getSource())) {
+                            detail.setSource("sql-payload");
+                        }
+                        if (detail.getId() == null) {
+                            detail.setId(anomaly.getId());
+                        }
+                        if (detail.getAnomalyDbId() == null) {
+                            detail.setAnomalyDbId(anomaly.getId());
+                        }
+                        detail = hydrateEvidenceFields(hydrateDetailTimestamp(normalizeInvestigation(detail), anomaly), eventId);
+                    } else {
+                        detail = buildInvestigationFromSql(anomaly, session);
+                        detail = hydrateEvidenceFields(detail, eventId);
+                    }
+                } else if (hasText(sessionInvestigationJson)) {
+                    detail = buildInvestigationFromSql(anomaly, session);
+                    detail.addWarning("sql_payload_event_mismatch");
+                    detail = hydrateEvidenceFields(detail, eventId);
+                } else {
+                    detail = buildInvestigationFromSql(anomaly, session);
+                    detail = hydrateEvidenceFields(detail, eventId);
+                }
+            } else {
+                detail = buildInvestigationFromSql(anomaly, null);
+                detail.addWarning("exact_event_payload_unavailable");
+                detail = hydrateEvidenceFields(detail, eventId);
+            }
+        }
+        enrichTimestamp(detail, anomaly, eventId);
+        enrichSessionLifecycle(detail, anomaly, session);
+        enrichFromLivePayloadIfNeeded(detail, eventId, anomaly);
+        enrichNextEventPrediction(detail, anomaly);
+        applyHardGuards(detail, eventId);
+        return detail;
+    }
+
+    private void applyHardGuards(V36AlertInvestigationDetailDto detail, String eventId) {
+        if (detail == null) return;
+
+        // Hard response-level guard: never return mismatched eventMetadata.eventId
+        if (detail.getEventMetadata() != null) {
+            Object metaId = detail.getEventMetadata().get("eventId");
+            if (metaId instanceof String && !eventId.equals(metaId) && !Objects.equals(detail.getRecordId(), metaId)) {
+                detail.setEventMetadata(buildPartialEventMetadataFromSql(detail));
+                detail.addWarning("event_metadata_event_mismatch_suppressed");
+                if ("sql-payload".equals(detail.getSource())) {
+                    detail.setSource("sql");
+                }
             }
         }
 
-        return hydrateEvidenceFields(buildInvestigationFromSql(anomaly, session), eventId);
+        // Hard guard: anomalyTypeAttribution evidence must not reference a different event
+        if (detail.getAnomalyTypeAttribution() != null && detail.getAnomalyTypeAttribution().getEvidence() != null) {
+            Map<String, Object> evidence = detail.getAnomalyTypeAttribution().getEvidence();
+            Object scoreInEvidence = evidence.get("finalRiskScore");
+            if (scoreInEvidence instanceof Number && detail.getFinalRiskScore() != null
+                    && Math.abs(((Number) scoreInEvidence).doubleValue() - detail.getFinalRiskScore()) > 0.001) {
+                detail.getAnomalyTypeAttribution().setEvidence(null);
+                detail.addWarning("anomaly_type_attribution_event_mismatch");
+            }
+        }
+
+        // Hard guard: nextEventPredictionEvidence context must match (uses same logic as enrichNextEventPrediction)
+        if (detail.getNextEventPredictionEvidence() != null && eventId != null) {
+            Map<String, Object> predictionEv = detail.getNextEventPredictionEvidence();
+            if (predictionEv.containsKey("prediction")) {
+                try {
+                    V36NextEventPredictionDto prediction = objectMapper.convertValue(
+                            predictionEv.get("prediction"), V36NextEventPredictionDto.class);
+                    if (!isPredictionMatchingEvent(prediction, eventId)) {
+                        detail.setNextEventPredictionEvidence(null);
+                        detail.addWarning("next_event_prediction_context_mismatch");
+                    }
+                } catch (Exception e) {
+                    detail.setNextEventPredictionEvidence(null);
+                    detail.addWarning("next_event_prediction_context_mismatch");
+                }
+            }
+        }
+    }
+
+    private Map<String, Object> buildPartialEventMetadataFromSql(V36AlertInvestigationDetailDto detail) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+        if (detail.getEventId() != null) meta.put("eventId", detail.getEventId());
+        if (detail.getRecordId() != null) meta.put("recordId", detail.getRecordId());
+        if (detail.getTimestamp() != null) meta.put("timestamp", detail.getTimestamp().toString());
+        return meta;
     }
 
     private V36AlertInvestigationDetailDto hydrateEvidenceFields(V36AlertInvestigationDetailDto detail, String eventId) {
@@ -299,7 +526,7 @@ public class V36AlertService {
         PageRequest pageable = PageRequest.of(
                 Math.max(offset, 0) / normalizeLimit(limit),
                 normalizeLimit(limit),
-                Sort.by(Sort.Direction.DESC, "eventTime")
+                Sort.by(Sort.Direction.DESC, "eventTime", "id")
         );
         Page<AnomalyEvent> page = anomalyEventRepository.searchV36Alerts(
                 blankToNull(riskLevel),
@@ -313,17 +540,32 @@ public class V36AlertService {
         List<V36LiveAlertSummaryDto> items = page.getContent().stream()
                 .map(this::toLiveAlert)
                 .toList();
-        return ApiPageResponse.of(items, normalizeLimit(limit), offset, page.hasNext());
+        return ApiPageResponse.of(items, normalizeLimit(limit), offset, (int) page.getTotalElements());
     }
 
-    private ApiPageResponse<V36LiveAlertSummaryDto> page(List<V36LiveAlertSummaryDto> source, int limit, int offset) {
+    private List<V36LiveAlertSummaryDto> sortByTimestampDesc(List<V36LiveAlertSummaryDto> alerts) {
+        if (alerts == null || alerts.size() <= 1) return alerts;
+        return alerts.stream()
+                .sorted(Comparator
+                        .comparing(V36LiveAlertSummaryDto::getTimestamp,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(V36LiveAlertSummaryDto::getCreatedAt,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(V36LiveAlertSummaryDto::getEventId,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                )
+                .toList();
+    }
+
+    private ApiPageResponse<V36LiveAlertSummaryDto> buildPageResponse(List<V36LiveAlertSummaryDto> candidates, int limit, int offset) {
         int normalizedLimit = normalizeLimit(limit);
         int normalizedOffset = Math.max(offset, 0);
-        if (source == null || source.isEmpty() || normalizedOffset >= source.size()) {
-            return ApiPageResponse.of(List.of(), normalizedLimit, normalizedOffset, false);
+        int totalCount = candidates == null ? 0 : candidates.size();
+        if (candidates == null || candidates.isEmpty() || normalizedOffset >= totalCount) {
+            return ApiPageResponse.of(List.of(), normalizedLimit, normalizedOffset, totalCount);
         }
-        int end = Math.min(normalizedOffset + normalizedLimit, source.size());
-        return ApiPageResponse.of(source.subList(normalizedOffset, end), normalizedLimit, normalizedOffset, end < source.size());
+        int end = Math.min(normalizedOffset + normalizedLimit, totalCount);
+        return ApiPageResponse.of(candidates.subList(normalizedOffset, end), normalizedLimit, normalizedOffset, totalCount);
     }
 
     private List<V36LiveAlertSummaryDto> filterAlerts(List<V36LiveAlertSummaryDto> source,
@@ -374,7 +616,58 @@ public class V36AlertService {
         dto.setCreatedAt(anomaly.getDetectedAt());
         dto.setSource("sql");
         populateEventMetadataFields(dto, anomaly.getEventJson());
+
+        if (!hasText(dto.getEventAction()) && hasText(anomaly.getInvestigationPayloadJson())) {
+            try {
+                V36AlertInvestigationDetailDto detail = objectMapper.readValue(
+                        anomaly.getInvestigationPayloadJson(), V36AlertInvestigationDetailDto.class);
+                hydrateFromInvestigationDetail(dto, detail);
+            } catch (Exception ignored) {}
+        }
+
+        if (!hasText(dto.getEventAction()) && hasText(anomaly.getLlmExplanationEvidencePayloadJson())) {
+            try {
+                JsonNode evidenceNode = objectMapper.readTree(anomaly.getLlmExplanationEvidencePayloadJson());
+                hydrateFromEvidenceNode(dto, evidenceNode);
+            } catch (Exception ignored) {}
+        }
+
+        if (!hasText(dto.getEventAction()) && hasText(anomaly.getSessionId())) {
+            tryHydrateFromSession(dto, anomaly);
+        }
+
         return normalizeAlert(dto);
+    }
+
+    private void tryHydrateFromSession(V36LiveAlertSummaryDto dto, AnomalyEvent anomaly) {
+        String eventId = anomaly.getEventId();
+        sessionAnalysisRepository
+                .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(anomaly.getInsuredId(), anomaly.getSessionId())
+                .ifPresent(session -> {
+                    if (hasText(session.getInvestigationPayloadJson())) {
+                        try {
+                            V36AlertInvestigationDetailDto sessionDetail = objectMapper.readValue(
+                                    session.getInvestigationPayloadJson(), V36AlertInvestigationDetailDto.class);
+                            if (sessionDetail.getEventId() != null && sessionDetail.getEventId().equals(eventId)) {
+                                hydrateFromInvestigationDetail(dto, sessionDetail);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
+                    if (!hasText(dto.getEventAction()) && hasText(session.getLlmExplanationEvidencePayloadJson())) {
+                        try {
+                            JsonNode evNode = objectMapper.readTree(session.getLlmExplanationEvidencePayloadJson());
+                            String payloadEventId = textAt(evNode, "eventId");
+                            if (payloadEventId != null && payloadEventId.equals(eventId)) {
+                                hydrateFromEvidenceNode(dto, evNode);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
+                    if (dto.getLlmEvidencePayloadAvailable() == null || !dto.getLlmEvidencePayloadAvailable()) {
+                        dto.setLlmEvidencePayloadAvailable(hasText(session.getLlmExplanationEvidencePayloadJson()));
+                    }
+                });
     }
 
     private void populateEventMetadataFields(V36LiveAlertSummaryDto dto, String eventJson) {
@@ -409,30 +702,68 @@ public class V36AlertService {
         detail.setAnomalyType(anomaly.getAnomalyType());
         detail.setAnomalyTypeConfidence(firstNonNull(anomaly.getAnomalyTypeConfidence(), anomaly.getTypeConfidence()));
         detail.setTriggeredRules(parseStringList(firstText(anomaly.getTriggeredRulesJson(), anomaly.getRuleType(), session == null ? null : session.getTriggeredRulesJson())));
-        detail.setEventMetadata(parseObjectMap(anomaly.getEventJson()));
-        detail.setModelScores(buildModelScores(anomaly, session));
-        detail.setModelContributions(buildModelContributions(anomaly.getModelContributionsJson(), session == null ? null : session.getModelContributionsJson()));
-        detail.setSequenceEvidence(buildSequenceEvidence(session));
-        detail.setTabularEvidence(buildTabularEvidence(session));
-        detail.setRuleEvidence(buildRuleEvidence(anomaly, session));
-        detail.setAnomalyTypeAttribution(buildAttribution(anomaly, session));
-        detail.setChurnContext(buildChurnContext(anomaly, session));
-        detail.setForecastContext(buildForecastContext(session));
-        detail.setPersona(buildPersona(session, anomaly));
-        detail.setRuntimeWarnings(parseStringList(firstText(anomaly.getRuntimeWarningsJson(), session == null ? null : session.getWarningsJson())));
-        detail.setLlmEvidencePayloadAvailable(hasText(anomaly.getLlmExplanationEvidencePayloadJson())
-                || (session != null && hasText(session.getLlmExplanationEvidencePayloadJson())));
-        detail.setLlmEvidenceRedisKey(CacheKeys.alertLlmEvidenceKey(anomaly.getEventId()));
+        detail.setEventMetadata(buildEventMetadataFromEventJson(anomaly.getEventJson()));
+        // Validate eventMetadata.eventId matches the requested event
+        if (detail.getEventMetadata() != null) {
+            Object metaEventId = detail.getEventMetadata().get("eventId");
+            if (metaEventId instanceof String metaId && !anomaly.getEventId().equals(metaId)) {
+                detail.setEventMetadata(null);
+                detail.addWarning("sql_payload_event_mismatch");
+            }
+        }
         detail.setSource("sql");
-        detail.setRawPayload(parseJson(firstText(anomaly.getInvestigationPayloadJson(), session == null ? null : session.getInvestigationPayloadJson())));
-        enrichSessionLifecycleFromPayload(detail, anomaly.getInvestigationPayloadJson());
-        enrichSessionLifecycleFromPayload(detail, session == null ? null : session.getInvestigationPayloadJson());
+
+        // Raw payload: only from anomaly's investigationPayloadJson, verify eventId + eventMetadata.eventId match
+        // Never use session.getInvestigationPayloadJson() - belongs to session-finalization event
+        boolean hasExactPayload = false;
+        boolean hasMismatchedRawPayload = false;
+        if (hasText(anomaly.getInvestigationPayloadJson())) {
+            Map<String, Object> parsed = parseObjectMap(anomaly.getInvestigationPayloadJson());
+            if (!parsed.isEmpty()) {
+                String parsedEventId = mapText(parsed, "eventId");
+                if (parsedEventId != null && anomaly.getEventId().equals(parsedEventId) && isRawPayloadForEvent(parsed, anomaly.getEventId())) {
+                    detail.setRawPayload(parsed);
+                    hasExactPayload = true;
+                } else {
+                    hasMismatchedRawPayload = true;
+                }
+            }
+        }
+
+        // Extract session lifecycle from any available payload (session-level, not event-scoped)
+        extractLifecycleFromPayload(detail, anomaly.getInvestigationPayloadJson());
+        extractLifecycleFromPayload(detail, session == null ? null : session.getInvestigationPayloadJson());
+
+        // Explicit session-level fields
         if (session != null && session.getSessionDurationSeconds() != null) {
             detail.setSessionDurationMs(session.getSessionDurationSeconds() * 1000L);
         }
         if (session != null && session.getTotalEvents() != null) {
             detail.setSessionEventCount(session.getTotalEvents());
         }
+
+        // Evidence: only use session data if exact payload is available
+        // Prevents session-level data leaking as event-level evidence
+        SessionAnalysis evidenceSession = hasExactPayload ? session : null;
+
+        detail.setModelScores(buildModelScores(anomaly, evidenceSession));
+        detail.setModelContributions(buildModelContributions(anomaly.getModelContributionsJson(), evidenceSession == null ? null : evidenceSession.getModelContributionsJson()));
+        detail.setSequenceEvidence(buildSequenceEvidence(evidenceSession));
+        detail.setTabularEvidence(buildTabularEvidence(evidenceSession));
+        detail.setRuleEvidence(buildRuleEvidence(anomaly, evidenceSession));
+        detail.setAnomalyTypeAttribution(buildAttribution(anomaly, evidenceSession));
+        detail.setChurnContext(buildChurnContext(anomaly, evidenceSession));
+        detail.setForecastContext(buildForecastContext(evidenceSession));
+        detail.setPersona(buildPersona(evidenceSession, anomaly));
+        detail.setRuntimeWarnings(parseStringList(firstText(anomaly.getRuntimeWarningsJson(), evidenceSession == null ? null : evidenceSession.getWarningsJson())));
+        detail.setLlmEvidencePayloadAvailable(hasText(anomaly.getLlmExplanationEvidencePayloadJson())
+                || (evidenceSession != null && hasText(evidenceSession.getLlmExplanationEvidencePayloadJson())));
+        detail.setLlmEvidenceRedisKey(CacheKeys.alertLlmEvidenceKey(anomaly.getEventId()));
+
+        if (hasMismatchedRawPayload) {
+            detail.addWarning("raw_payload_event_mismatch");
+        }
+        guardEventScoping(detail, anomaly, session);
         return normalizeInvestigation(detail);
     }
 
@@ -636,7 +967,7 @@ public class V36AlertService {
             detail.setTriggeredRules(List.of());
         }
         if (detail.getWarnings() == null) {
-            detail.setWarnings(List.of());
+            detail.setWarnings(new ArrayList<>());
         }
         if (detail.getLlm() == null && hasText(detail.getEventId())) {
             detail.setLlm(buildLlmSection(detail.getEventId(), detail.getLlmEvidencePayloadAvailable(), detail.getLlmEvidenceRedisKey()));
@@ -721,6 +1052,88 @@ public class V36AlertService {
         } else {
             alert.setRiskLevel("LOW");
         }
+    }
+
+    private void enrichNextEventPrediction(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly) {
+        if (detail == null) return;
+        String sessionId = detail.getSessionId();
+        if (sessionId == null && anomaly != null) {
+            sessionId = anomaly.getSessionId();
+        }
+        if (sessionId == null || sessionId.isBlank()) return;
+        try {
+            String eventId = detail.getEventId();
+            V36NextEventPredictionDto prediction = nextEventPredictionService
+                    .getPredictionByContextEventId(sessionId, eventId);
+            if (prediction.getHeads() == null || prediction.getHeads().isEmpty()) {
+                detail.addWarning("next_event_prediction_evidence_unavailable_for_event");
+                return;
+            }
+            if (!isPredictionMatchingEvent(prediction, eventId)) {
+                detail.addWarning("next_event_prediction_context_mismatch");
+                return;
+            }
+            Map<String, Object> evidence = new java.util.LinkedHashMap<>();
+            evidence.put("prediction", objectMapper.convertValue(prediction, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {}));
+            if (prediction.getDeviation() != null) {
+                Map<String, Object> deviationMap = objectMapper.convertValue(prediction.getDeviation(), Map.class);
+                if (isDeviationActualMismatch(detail.getEventMetadata(), deviationMap)) {
+                    detail.addWarning("next_event_prediction_actual_mismatch");
+                    return;
+                }
+                if (isSameContextDeviation(deviationMap)) {
+                    detail.addWarning("next_event_prediction_same_context_deviation_ignored");
+                } else {
+                    evidence.put("deviation", deviationMap);
+                }
+            }
+            detail.setNextEventPredictionEvidence(evidence);
+        } catch (Exception e) {
+            log.debug("Failed to enrich nextEventPredictionEvidence for eventId={}", detail.getEventId(), e);
+        }
+    }
+
+    private boolean isPredictionMatchingEvent(V36NextEventPredictionDto prediction, String eventId) {
+        if (eventId == null) return true;
+        if (eventId.equals(prediction.getContextEventId())) return true;
+        if (prediction.getDeviation() != null) {
+            if (eventId.equals(prediction.getDeviation().getEvaluatedEventId())) return true;
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean isDeviationActualMismatch(Map<String, Object> eventMetadata, Map<String, Object> deviationMap) {
+        if (eventMetadata == null || deviationMap == null) return false;
+        Object actual = deviationMap.get("actual");
+        if (!(actual instanceof Map<?, ?> actualMap)) return false;
+        Map<String, Object> typedActual = (Map<String, Object>) actualMap;
+        if (matchesMetadata(eventMetadata, typedActual, "apiTemplate", "api_template")) return false;
+        if (matchesMetadata(eventMetadata, typedActual, "apiFamily", "api_family")) return false;
+        if (matchesMetadata(eventMetadata, typedActual, "status", "status")) return false;
+        if (matchesMetadata(eventMetadata, typedActual, "httpMethod", "http_method")) return false;
+        return true;
+    }
+
+    private boolean matchesMetadata(Map<String, Object> metadata, Map<String, Object> actual,
+                                     String metadataKey, String actualKey) {
+        Object meta = metadata.get(metadataKey);
+        Object act = actual.get(actualKey);
+        if (meta == null || act == null) return true;
+        return meta.toString().equals(act.toString());
+    }
+
+    private boolean isSameContextDeviation(Map<String, Object> deviationMap) {
+        String evaluatedEventId = deviationMap.get("evaluatedEventId") instanceof String s ? s : null;
+        if (evaluatedEventId == null) return false;
+        String previousContextId = deviationMap.get("previousPredictionContextEventId") instanceof String s ? s : null;
+        if (evaluatedEventId.equals(previousContextId)) return true;
+        Object previousPrediction = deviationMap.get("previousPrediction");
+        if (previousPrediction instanceof Map<?, ?> pp) {
+            Object contextId = pp.get("contextEventId");
+            return contextId instanceof String && evaluatedEventId.equals(contextId);
+        }
+        return false;
     }
 
     private List<V36LiveAlertSummaryDto> hydrateLiveAlertsFromStoredPayloads(List<V36LiveAlertSummaryDto> alerts) {
@@ -1065,6 +1478,369 @@ public class V36AlertService {
             }
         }
         return values;
+    }
+
+    private Map<String, Object> buildEventMetadataFromEventJson(String eventJson) {
+        JsonNode node = parseJson(eventJson);
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        boolean isSessionSummary = textAt(node, "lastEventId") != null;
+        if (isSessionSummary) {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            putIfPresent(meta, "eventId", textAt(node, "lastEventId"));
+            putIfPresent(meta, "eventAction", textAt(node, "lastAction"));
+            putIfPresent(meta, "page", textAt(node, "page"));
+            putIfPresent(meta, "status", textAt(node, "status"));
+            putIfPresent(meta, "timestamp", textAt(node, "lastEventTime"), textAt(node, "timestamp"));
+            return meta.isEmpty() ? null : meta;
+        }
+        Map<String, Object> meta = new LinkedHashMap<>();
+        putIfPresent(meta, "eventId", textAt(node, "eventId"));
+        putIfPresent(meta, "eventAction", textAt(node, "eventAction"), textAt(node, "action"));
+        putIfPresent(meta, "apiTemplate", textAt(node, "apiTemplate"), textAt(node, "route"));
+        putIfPresent(meta, "apiFamily", textAt(node, "apiFamily"));
+        putIfPresent(meta, "controller", textAt(node, "controller"));
+        putIfPresent(meta, "page", textAt(node, "page"));
+        putIfPresent(meta, "country", textAt(node, "country"), textAt(node, "countryCode"));
+        putIfPresent(meta, "device", textAt(node, "device"));
+        putIfPresent(meta, "browser", textAt(node, "browser"));
+        putIfPresent(meta, "os", textAt(node, "os"));
+        putIfPresent(meta, "httpMethod", textAt(node, "httpMethod"), textAt(node, "method"));
+        putIfPresent(meta, "status", textAt(node, "status"));
+        putIfPresent(meta, "timestamp", textAt(node, "eventTime"), textAt(node, "timestamp"));
+        return meta.isEmpty() ? null : meta;
+    }
+
+    private void putIfPresent(Map<String, Object> map, String key, String... values) {
+        String value = firstText(values);
+        if (value != null) {
+            map.put(key, value);
+        }
+    }
+
+    private void extractLifecycleFromPayload(V36AlertInvestigationDetailDto detail, String payloadJson) {
+        if (!hasText(payloadJson)) return;
+        try {
+            JsonNode node = objectMapper.readTree(payloadJson);
+            if (node == null || !node.isObject()) return;
+            if (detail.getSessionEndReason() == null) {
+                detail.setSessionEndReason(textAt(node, "sessionEndReason"));
+            }
+            if (detail.getSessionEndedExplicitly() == null && node.has("sessionEndedExplicitly")) {
+                detail.setSessionEndedExplicitly(node.path("sessionEndedExplicitly").asBoolean(false));
+            }
+            if (detail.getSessionEndedAt() == null && node.has("sessionEndedAt")) {
+                String endedAt = node.path("sessionEndedAt").asText(null);
+                if (endedAt != null) {
+                    try { detail.setSessionEndedAt(Instant.parse(endedAt)); } catch (Exception ignored) {}
+                }
+            }
+            if (detail.getSessionDurationMs() == null && node.has("sessionDurationMs")) {
+                detail.setSessionDurationMs(node.path("sessionDurationMs").asLong(0));
+            }
+            if (detail.getSessionEventCount() == null && node.has("sessionEventCount")) {
+                detail.setSessionEventCount(node.path("sessionEventCount").asInt(0));
+            }
+            JsonNode lifecycle = node.path("sessionLifecycle");
+            if (lifecycle.isObject() && detail.getSessionLifecycle() == null) {
+                try {
+                    Map<String, Object> lcMap = objectMapper.convertValue(lifecycle, new TypeReference<Map<String, Object>>() {});
+                    if (!lcMap.isEmpty()) detail.setSessionLifecycle(lcMap);
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            log.debug("Failed to extract session lifecycle from payload", e);
+        }
+    }
+
+    private boolean isPayloadForRequestedEvent(JsonNode payload, String requestedEventId, String recordId) {
+        if (payload == null || !payload.isObject() || requestedEventId == null) return false;
+        Set<String> allowedIds = new HashSet<>();
+        allowedIds.add(requestedEventId);
+        if (recordId != null) allowedIds.add(recordId);
+        Set<String> matchingIds = new HashSet<>();
+        Set<String> conflictingIds = new HashSet<>();
+        addCandidate(payload, matchingIds, conflictingIds, allowedIds, "eventId");
+        addCandidate(payload, matchingIds, conflictingIds, allowedIds, "recordId");
+        addCandidate(payload, matchingIds, conflictingIds, allowedIds, "contextEventId");
+        addCandidate(payload, matchingIds, conflictingIds, allowedIds, "evaluatedEventId");
+        JsonNode metadata = payload.path("eventMetadata");
+        if (metadata.isObject()) {
+            addCandidate(metadata, matchingIds, conflictingIds, allowedIds, "eventId");
+            addCandidate(metadata, matchingIds, conflictingIds, allowedIds, "recordId");
+        }
+        JsonNode data = payload.path("data");
+        if (data.isObject()) {
+            addCandidate(data, matchingIds, conflictingIds, allowedIds, "eventId");
+            addCandidate(data, matchingIds, conflictingIds, allowedIds, "recordId");
+            addCandidate(data, matchingIds, conflictingIds, allowedIds, "contextEventId");
+            addCandidate(data, matchingIds, conflictingIds, allowedIds, "evaluatedEventId");
+            JsonNode dataMetadata = data.path("eventMetadata");
+            if (dataMetadata.isObject()) {
+                addCandidate(dataMetadata, matchingIds, conflictingIds, allowedIds, "eventId");
+                addCandidate(dataMetadata, matchingIds, conflictingIds, allowedIds, "recordId");
+            }
+        }
+        if (!conflictingIds.isEmpty()) return false;
+        if (matchingIds.isEmpty()) return false;
+        return true;
+    }
+
+    private void addCandidate(JsonNode parent, Set<String> matchingIds, Set<String> conflictingIds, Set<String> allowedIds, String field) {
+        JsonNode node = parent.path(field);
+        if (node.isMissingNode() || !node.isTextual()) return;
+        String value = node.asText();
+        if (allowedIds.contains(value)) {
+            matchingIds.add(value);
+        } else {
+            conflictingIds.add(value);
+        }
+    }
+
+    private boolean isRawPayloadForEvent(Map<String, Object> rawPayload, String requestedEventId) {
+        if (rawPayload == null || requestedEventId == null) return false;
+        String eventId = mapText(rawPayload, "eventId");
+        if (eventId != null && !requestedEventId.equals(eventId)) return false;
+        Object rawMetadata = rawPayload.get("eventMetadata");
+        if (rawMetadata instanceof Map) {
+            Map<String, Object> metaMap = (Map<String, Object>) rawMetadata;
+            String metaEventId = mapText(metaMap, "eventId");
+            if (metaEventId != null && !requestedEventId.equals(metaEventId)) return false;
+        }
+        return true;
+    }
+
+    private String mapText(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value instanceof String s ? s : null;
+    }
+
+    private boolean isDetailForRequestedEvent(V36AlertInvestigationDetailDto detail, String requestedEventId) {
+        if (detail == null || requestedEventId == null) return false;
+        if (!requestedEventId.equals(detail.getEventId()) && !requestedEventId.equals(detail.getRecordId())) {
+            return false;
+        }
+        if (detail.getEventMetadata() != null) {
+            Object metaEventId = detail.getEventMetadata().get("eventId");
+            if (metaEventId instanceof String metaId) {
+                String recordId = detail.getRecordId();
+                if (!requestedEventId.equals(metaId) && (recordId == null || !recordId.equals(metaId))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private void enrichSessionLifecycle(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly, SessionAnalysis session) {
+        if (detail == null) return;
+
+        String sessionId = detail.getSessionId();
+        String insuredId = detail.getInsuredId();
+        if (!hasText(sessionId) && anomaly != null) sessionId = anomaly.getSessionId();
+        if (!hasText(insuredId) && anomaly != null) insuredId = anomaly.getInsuredId();
+        if (!hasText(sessionId)) return;
+
+        // Save existing values as lowest-priority fallback (Redis stale data)
+        String existingEndReason = detail.getSessionEndReason();
+        Boolean existingEndedExplicitly = detail.getSessionEndedExplicitly();
+        Instant existingEndedAt = detail.getSessionEndedAt();
+        Long existingDurationMs = detail.getSessionDurationMs();
+        Integer existingEventCount = detail.getSessionEventCount();
+        Map<String, Object> existingLifecycle = detail.getSessionLifecycle();
+
+        // Clear lifecycle to start fresh from authoritative sources
+        detail.setSessionEndReason(null);
+        detail.setSessionEndedExplicitly(null);
+        detail.setSessionEndedAt(null);
+        detail.setSessionDurationMs(null);
+        detail.setSessionEventCount(null);
+        detail.setSessionLifecycle(null);
+
+        // Priority 1 & 2: session_analysis (session-scoped, authoritative for lifecycle)
+        SessionAnalysis sessionForLifecycle = null;
+        if (session != null && sessionId.equals(session.getSessionId())) {
+            sessionForLifecycle = session;
+        } else if (hasText(insuredId)) {
+            try {
+                sessionForLifecycle = sessionAnalysisRepository
+                        .findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc(insuredId, sessionId)
+                        .orElse(null);
+            } catch (Exception e) {
+                log.debug("Failed to enrich session lifecycle from analysis for sessionId={}", sessionId, e);
+            }
+        }
+
+        if (sessionForLifecycle != null) {
+            // Priority 1: entity columns
+            if (sessionForLifecycle.getSessionDurationSeconds() != null) {
+                detail.setSessionDurationMs(sessionForLifecycle.getSessionDurationSeconds() * 1000L);
+            }
+            if (sessionForLifecycle.getTotalEvents() != null) {
+                detail.setSessionEventCount(sessionForLifecycle.getTotalEvents());
+            }
+            // Priority 2: payload lifecycle fields (for fields not in entity columns)
+            extractLifecycleFromPayload(detail, sessionForLifecycle.getInvestigationPayloadJson());
+        }
+
+        // Priority 3: exact event payload lifecycle fields
+        if (detail.getSessionEndReason() == null) {
+            extractLifecycleFromPayload(detail, anomaly == null ? null : anomaly.getInvestigationPayloadJson());
+        }
+
+        // Priority 4: existing detail values (Redis/stale, lowest priority)
+        if (detail.getSessionEndReason() == null) detail.setSessionEndReason(existingEndReason);
+        if (detail.getSessionEndedExplicitly() == null) detail.setSessionEndedExplicitly(existingEndedExplicitly);
+        if (detail.getSessionEndedAt() == null) detail.setSessionEndedAt(existingEndedAt);
+        if (detail.getSessionDurationMs() == null) detail.setSessionDurationMs(existingDurationMs);
+        if (detail.getSessionEventCount() == null) detail.setSessionEventCount(existingEventCount);
+        if (detail.getSessionLifecycle() == null) detail.setSessionLifecycle(existingLifecycle);
+
+        // Rebuild nested sessionLifecycle from authoritative top-level fields
+        detail.buildSessionLifecycle();
+
+        // Warning if nothing found
+        if (detail.getSessionEndReason() == null && detail.getSessionDurationMs() == null) {
+            detail.addWarning("session_lifecycle_unavailable");
+        }
+    }
+
+    private void enrichTimestamp(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly, String eventId) {
+        if (detail == null || detail.getTimestamp() != null || eventId == null) return;
+
+        // 1. Redis live alert payload timestamp
+        try {
+            V36LiveAlertSummaryDto live = redisReadService.readValue(
+                    CacheKeys.liveAlertPayloadKey(eventId), V36LiveAlertSummaryDto.class).orElse(null);
+            if (live != null) {
+                if (live.getTimestamp() != null) {
+                    detail.setTimestamp(live.getTimestamp());
+                    return;
+                }
+                if (live.getCreatedAt() != null) {
+                    detail.setTimestamp(live.getCreatedAt());
+                    return;
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 2. eventMetadata.eventTime
+        if (detail.getEventMetadata() != null) {
+            Object eventTime = detail.getEventMetadata().get("eventTime");
+            if (eventTime instanceof String) {
+                try {
+                    detail.setTimestamp(Instant.parse((String) eventTime));
+                    return;
+                } catch (Exception ignored) {}
+            }
+        }
+
+        // 3. SQL anomaly timestamp (lowest priority)
+        if (anomaly != null) {
+            detail.setTimestamp(firstNonNull(anomaly.getEventTime(), anomaly.getDetectedAt()));
+        }
+    }
+
+    private void enrichFromLivePayloadIfNeeded(V36AlertInvestigationDetailDto detail, String eventId, AnomalyEvent anomaly) {
+        if (detail == null || !"sql".equals(detail.getSource())) return;
+
+        Optional<V36LiveAlertSummaryDto> livePayload = redisReadService.readValue(
+                CacheKeys.liveAlertPayloadKey(eventId), V36LiveAlertSummaryDto.class);
+        if (livePayload.isEmpty()) return;
+
+        V36LiveAlertSummaryDto live = livePayload.get();
+        if (!eventId.equals(live.getEventId()) && !eventId.equals(live.getRecordId())) {
+            detail.addWarning("redis_event_payload_mismatch");
+            return;
+        }
+
+        Map<String, Object> meta = new LinkedHashMap<>();
+        putIfPresent(meta, "eventId", live.getEventId());
+        putIfPresent(meta, "eventAction", live.getEventAction());
+        putIfPresent(meta, "apiTemplate", live.getApiTemplate());
+        putIfPresent(meta, "apiFamily", live.getApiFamily());
+        putIfPresent(meta, "controller", live.getController());
+        putIfPresent(meta, "page", live.getPage());
+        putIfPresent(meta, "country", live.getCountry());
+        putIfPresent(meta, "device", live.getDevice());
+        putIfPresent(meta, "browser", live.getBrowser());
+        putIfPresent(meta, "os", live.getOs());
+        putIfPresent(meta, "httpMethod", live.getHttpMethod());
+        putIfPresent(meta, "status", live.getStatus());
+        if (!meta.isEmpty()) {
+            detail.setEventMetadata(meta);
+        }
+
+        if (detail.getTimestamp() == null) {
+            detail.setTimestamp(firstNonNull(live.getTimestamp(), live.getCreatedAt()));
+        }
+
+        detail.setSource("sql+redis-payload");
+        if (detail.getWarnings() != null) {
+            detail.getWarnings().remove("exact_event_payload_unavailable");
+        }
+        detail.addWarning("redis_event_payload_used");
+    }
+
+    private void guardEventScoping(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly, SessionAnalysis session) {
+        if (detail == null) return;
+
+        String requestedEventId = anomaly != null ? anomaly.getEventId() : null;
+        boolean hasExactPayload = false;
+
+        // Raw payload eventId verification
+        if (detail.getRawPayload() != null && requestedEventId != null) {
+            Object rawEventId = detail.getRawPayload().get("eventId");
+            if (requestedEventId.equals(rawEventId)) {
+                hasExactPayload = true;
+                // Also verify eventMetadata.eventId in raw payload
+                if (!isRawPayloadForEvent(detail.getRawPayload(), requestedEventId)) {
+                    hasExactPayload = false;
+                    detail.setRawPayload(null);
+                    detail.addWarning("sql_payload_event_mismatch");
+                }
+            } else {
+                detail.setRawPayload(null);
+                detail.addWarning("raw_payload_event_mismatch");
+            }
+        }
+
+        // Safe mode: no exact payload -> clear session-derived evidence
+        if (!hasExactPayload) {
+            detail.setSequenceEvidence(null);
+            detail.setTabularEvidence(null);
+            detail.setForecastContext(null);
+            if (detail.getRuleEvidence() != null) {
+                detail.getRuleEvidence().setRuleContributions(null);
+            }
+            if (detail.getChurnContext() != null) {
+                detail.getChurnContext().setFeatureWarnings(null);
+                detail.getChurnContext().setModelName(null);
+                detail.getChurnContext().setModelArtifact(null);
+            }
+            if (detail.getAnomalyTypeAttribution() != null && detail.getAnomalyTypeAttribution().getEvidence() != null) {
+                detail.addWarning("anomaly_type_attribution_event_mismatch");
+                detail.getAnomalyTypeAttribution().setEvidence(null);
+            }
+        } else {
+            // Score mismatch check when exact payload is available
+            if (detail.getAnomalyTypeAttribution() != null && detail.getAnomalyTypeAttribution().getEvidence() != null) {
+                Map<String, Object> evidence = detail.getAnomalyTypeAttribution().getEvidence();
+                Object scoreInEvidence = evidence.get("finalRiskScore");
+                if (scoreInEvidence instanceof Number && detail.getFinalRiskScore() != null
+                        && Math.abs(((Number) scoreInEvidence).doubleValue() - detail.getFinalRiskScore()) > 0.001) {
+                    detail.getAnomalyTypeAttribution().setEvidence(null);
+                    detail.addWarning("anomaly_type_attribution_event_mismatch");
+                }
+            }
+        }
+
+        // Clean eventMetadata of top-level fields that leaked in
+        if (detail.getEventMetadata() != null) {
+            detail.getEventMetadata().remove("triggeredRules");
+            detail.getEventMetadata().remove("finalRiskScore");
+        }
     }
 
     private Map<String, Object> parseObjectMap(String json) {

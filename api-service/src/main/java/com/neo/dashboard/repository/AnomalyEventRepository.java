@@ -82,4 +82,7 @@ public interface AnomalyEventRepository extends JpaRepository<AnomalyEvent, Long
 
     @Query("SELECT e.anomalyType, COUNT(e) FROM AnomalyEvent e WHERE e.anomalyType IS NOT NULL GROUP BY e.anomalyType")
     List<Object[]> countByAnomalyType();
+
+    @Query("SELECT e.anomalyType, COUNT(e) FROM AnomalyEvent e WHERE e.anomalyType IS NOT NULL AND e.eventTime >= :fromTime GROUP BY e.anomalyType")
+    List<Object[]> countByAnomalyTypeSince(@Param("fromTime") Instant fromTime);
 }

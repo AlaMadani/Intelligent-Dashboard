@@ -31,4 +31,17 @@ public class ApiPageResponse<T> {
                 hasMore
         );
     }
+
+    public static <T> ApiPageResponse<T> of(List<T> items, Integer limit, Integer offset, int totalCount) {
+        List<T> safeItems = items == null ? List.of() : items;
+        boolean hasMore = offset + safeItems.size() < totalCount;
+        return new ApiPageResponse<>(
+                CacheKeys.V36_SCHEMA_VERSION,
+                safeItems,
+                limit,
+                offset,
+                totalCount,
+                hasMore
+        );
+    }
 }

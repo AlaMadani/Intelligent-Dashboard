@@ -9,17 +9,21 @@ import com.neo.dashboard.dto.v36.V36FinalWinnersResponse;
 import com.neo.dashboard.dto.v36.V36ForecastDashboardResponse;
 import com.neo.dashboard.dto.v36.V36RuntimeHealthResponse;
 import com.neo.dashboard.dto.v36.V36SecurityOverviewResponse;
+import com.neo.dashboard.entity.AnomalyEvent;
 import com.neo.dashboard.entity.SessionAnalysis;
 import com.neo.dashboard.redis.CacheKeys;
+import com.neo.dashboard.repository.AnomalyEventRepository;
 import com.neo.dashboard.repository.SessionAnalysisRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +44,9 @@ public class V36DashboardService {
     private final SessionAnalysisRepository sessionAnalysisRepository;
     private final ObjectMapper objectMapper;
     private final DashboardSnapshotFallbackService snapshotFallbackService;
+    private final StringRedisTemplate redisTemplate;
+    private final V36User360Service user360Service;
+    private final AnomalyEventRepository anomalyEventRepository;
 
     public V36RuntimeHealthResponse getRuntimeHealth() {
         DashboardSnapshotFallbackService.FallbackResult<V36RuntimeHealthResponse> result =
@@ -68,6 +75,7 @@ public class V36DashboardService {
         if (result != null) {
             V36SecurityOverviewResponse response = normalizeSecurityOverview(result.payload());
             response.setSource(result.source());
+            enrichTopAnomalyTypes(response);
             return response;
         }
         V36SecurityOverviewResponse fallback = buildSecurityOverviewFallback();
@@ -159,6 +167,7 @@ public class V36DashboardService {
         if (result != null) {
             V36ForecastDashboardResponse response = normalizeForecastDashboard(result.payload());
             response.setSource(result.source());
+            hydrateHistoricalSeriesIfEmpty(response);
             if (result.source().equals("sql_fallback")) {
                 V36ForecastDashboardResponse finalResponse = response;
                 List<String> warnings = finalResponse.getForecastWarnings() == null
@@ -171,6 +180,7 @@ public class V36DashboardService {
         }
         V36ForecastDashboardResponse fallback = buildForecastFallback();
         fallback.setSource("generated_fallback");
+        hydrateHistoricalSeriesIfEmpty(fallback);
         return fallback;
     }
 
@@ -257,6 +267,37 @@ public class V36DashboardService {
         return response;
     }
 
+    private void enrichTopAnomalyTypes(V36SecurityOverviewResponse response) {
+        if (response.getTopAnomalyTypes() != null && !response.getTopAnomalyTypes().isEmpty()) {
+            return;
+        }
+        if (response.getHighRiskAlertsToday() <= 0 && response.getCriticalAlertsToday() <= 0) {
+            return;
+        }
+        Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay(ZoneOffset.UTC).toInstant();
+        List<Object[]> counts = anomalyEventRepository.countByAnomalyTypeSince(todayStart);
+        if (counts == null || counts.isEmpty()) {
+            response.setTopAnomalyTypes(Map.of());
+            return;
+        }
+        response.setTopAnomalyTypes(counts.stream()
+                .filter(row -> row[0] != null)
+                .collect(Collectors.groupingBy(
+                        row -> (String) row[0],
+                        LinkedHashMap::new,
+                        Collectors.summingLong(row -> (Long) row[1])
+                ))
+                .entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(10)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                )));
+    }
+
     private V36SecurityOverviewResponse buildSecurityOverviewFallback() {
         V36SecurityOverviewResponse response = new V36SecurityOverviewResponse();
         response.setSnapshotTimestamp(Instant.now());
@@ -308,6 +349,12 @@ public class V36DashboardService {
                 .orElse(0.0);
 
         List<Map<String, Object>> topUsers = withChurn.stream()
+                .collect(Collectors.groupingBy(
+                        SessionAnalysis::getInsuredId,
+                        LinkedHashMap::new,
+                        Collectors.collectingAndThen(Collectors.toList(), user360Service::pickWinner)
+                ))
+                .values().stream()
                 .sorted((left, right) -> Double.compare(
                         nullSafe(right.getChurnProbability()),
                         nullSafe(left.getChurnProbability())
@@ -319,6 +366,12 @@ public class V36DashboardService {
                     item.put("sessionId", session.getSessionId());
                     item.put("churnProbability", session.getChurnProbability());
                     item.put("churnRiskLevel", normalizeRiskLevel(session.getChurnRiskLevel()));
+                    item.put("latestFinalRiskScore", session.getFinalRiskScore());
+                    item.put("latestRiskLevel", session.getRiskLevel());
+                    Map<String, Object> riskSummary = user360Service.computeUserRiskSummaryLast30d(session.getInsuredId());
+                    item.put("averageRiskScoreLast30d", riskSummary.get("averageRiskScoreLast30d"));
+                    item.put("alertCountLast30d", riskSummary.get("alertCountLast30d"));
+                    item.put("criticalAlertCountLast30d", riskSummary.get("criticalAlertCountLast30d"));
                     return item;
                 })
                 .toList();
@@ -355,6 +408,64 @@ public class V36DashboardService {
             response.setForecastWarnings(List.of());
         }
         return response;
+    }
+
+    private void hydrateHistoricalSeriesIfEmpty(V36ForecastDashboardResponse response) {
+        Object rawTotalEvents = response.getHistoricalTotalEvents();
+        Object rawAnomalyRate = response.getHistoricalAnomalyRate();
+        boolean totalEventsEmpty = rawTotalEvents == null
+                || (rawTotalEvents instanceof List && ((List<?>) rawTotalEvents).isEmpty());
+        boolean anomalyRateEmpty = rawAnomalyRate == null
+                || (rawAnomalyRate instanceof List && ((List<?>) rawAnomalyRate).isEmpty());
+        if (!totalEventsEmpty && !anomalyRateEmpty) {
+            return;
+        }
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        List<Map<String, Object>> totalEvents = new ArrayList<>();
+        List<Map<String, Object>> anomalyRate = new ArrayList<>();
+        boolean anyData = false;
+        for (int i = 7; i >= 1; i--) {
+            LocalDate date = today.minusDays(i);
+            String eventsStr = redisTemplate.opsForValue().get("stats:events:day:" + date);
+            String alertsStr = redisTemplate.opsForValue().get("stats:alerts:day:" + date);
+            if (eventsStr != null && !eventsStr.isBlank()) {
+                try {
+                    long events = Long.parseLong(eventsStr);
+                    if (events > 0) {
+                        anyData = true;
+                        Map<String, Object> ep = new LinkedHashMap<>();
+                        ep.put("date", date.toString());
+                        ep.put("value", events);
+                        totalEvents.add(ep);
+                        long alerts = (alertsStr != null && !alertsStr.isBlank())
+                                ? Long.parseLong(alertsStr) : 0L;
+                        Map<String, Object> ap = new LinkedHashMap<>();
+                        ap.put("date", date.toString());
+                        ap.put("value", (double) alerts / events);
+                        anomalyRate.add(ap);
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        if (totalEventsEmpty && !totalEvents.isEmpty()) {
+            response.setHistoricalTotalEvents(totalEvents);
+        }
+        if (anomalyRateEmpty && !anomalyRate.isEmpty()) {
+            response.setHistoricalAnomalyRate(anomalyRate);
+        }
+        List<String> warnings = response.getForecastWarnings() == null
+                ? new ArrayList<>() : new ArrayList<>(response.getForecastWarnings());
+        if (!anyData) {
+            if (!warnings.contains("forecast_history_unavailable")) {
+                warnings.add("forecast_history_unavailable");
+            }
+        } else if (totalEvents.size() < 7) {
+            if (!warnings.contains("forecast_history_partial")) {
+                warnings.add("forecast_history_partial");
+            }
+        }
+        response.setForecastWarnings(warnings);
     }
 
     private V36ForecastDashboardResponse buildForecastFallback() {

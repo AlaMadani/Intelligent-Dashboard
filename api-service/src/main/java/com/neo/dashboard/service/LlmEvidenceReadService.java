@@ -16,8 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -40,13 +42,20 @@ public class LlmEvidenceReadService {
         }
         Optional<JsonNode> redis = redisReadService.readJson(CacheKeys.alertLlmEvidenceKey(eventId));
         if (redis.isPresent()) {
-            return redis;
+            if (isEvidenceForRequestedEvent(redis.get(), eventId)) {
+                return redis;
+            }
+            log.warn("LLM evidence event mismatch for eventId={}: Redis evidence belongs to a different event", eventId);
         }
         Optional<JsonNode> sql = readEvidenceFromSql(eventId);
         if (sql.isPresent()) {
-            rehydrateRedis(eventId, sql.get());
+            if (isEvidenceForRequestedEvent(sql.get(), eventId)) {
+                rehydrateRedis(eventId, sql.get());
+                return sql;
+            }
+            log.warn("LLM evidence event mismatch for eventId={}: SQL evidence belongs to a different event", eventId);
         }
-        return sql;
+        return Optional.empty();
     }
 
     public JsonNode requireEvidence(String eventId) {
@@ -131,6 +140,33 @@ public class LlmEvidenceReadService {
         } catch (Exception e) {
             log.warn("Malformed SQL LLM evidence payload", e);
             return Optional.empty();
+        }
+    }
+
+    private boolean isEvidenceForRequestedEvent(JsonNode evidence, String eventId) {
+        if (evidence == null || !evidence.isObject() || eventId == null) return false;
+        Set<String> allowedIds = new HashSet<>();
+        allowedIds.add(eventId);
+        Set<String> matchingIds = new HashSet<>();
+        Set<String> conflictingIds = new HashSet<>();
+        checkCandidate(matchingIds, conflictingIds, allowedIds, textAt(evidence, "/eventId"));
+        checkCandidate(matchingIds, conflictingIds, allowedIds, textAt(evidence, "/recordId"));
+        JsonNode metadata = evidence.path("eventMetadata");
+        if (metadata.isObject()) {
+            checkCandidate(matchingIds, conflictingIds, allowedIds, textAt(metadata, "/eventId"));
+            checkCandidate(matchingIds, conflictingIds, allowedIds, textAt(metadata, "/recordId"));
+        }
+        if (!conflictingIds.isEmpty()) return false;
+        if (matchingIds.isEmpty()) return false;
+        return true;
+    }
+
+    private void checkCandidate(Set<String> matchingIds, Set<String> conflictingIds, Set<String> allowedIds, String value) {
+        if (value == null) return;
+        if (allowedIds.contains(value)) {
+            matchingIds.add(value);
+        } else {
+            conflictingIds.add(value);
         }
     }
 

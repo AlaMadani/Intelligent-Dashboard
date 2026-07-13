@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package nvidia.riva;
+
+option java_package = "com.neo.dashboard.asr.riva.proto";
+option java_multiple_files = true;
+
+message RequestId {
+  string value = 1;
+}

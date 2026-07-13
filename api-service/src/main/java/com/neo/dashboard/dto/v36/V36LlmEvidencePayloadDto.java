@@ -1,7 +1,6 @@
 package com.neo.dashboard.dto.v36;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.neo.dashboard.redis.CacheKeys;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,5 +29,5 @@ public class V36LlmEvidencePayloadDto {
     private Map<String, Object> eventMetadata;
     private Map<String, Object> llmInstruction;
     private Boolean llmExplanationInDataprocessor;
-    private JsonNode rawPayload;
+    private Map<String, Object> rawPayload;
 }

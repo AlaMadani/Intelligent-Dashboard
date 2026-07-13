@@ -8,7 +8,7 @@
 
     <!-- Structured log forwarding for centralized ingestion pipelines. -->
     <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
-        <destination>localhost:5000</destination>
+        <destination>${LOGSTASH_DESTINATION:-localhost:5000}</destination>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"app_name":"data-processor"}</customFields>
         </encoder>

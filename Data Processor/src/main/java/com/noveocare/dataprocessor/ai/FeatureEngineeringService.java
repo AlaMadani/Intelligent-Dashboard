@@ -286,40 +286,6 @@ public class FeatureEngineeringService {
                 .build();
     }
 
-    private Map<String, Object> summaryValueMap(SessionSummary summary) {
-        Map<String, Object> values = new LinkedHashMap<>();
-        values.put("totalEvents", summary.getTotalEvents());
-        values.put("totalDurationSeconds", summary.getTotalDurationSeconds());
-        values.put("avgInterActionSeconds", summary.getAvgInterActionSeconds());
-        values.put("minInterActionSeconds", summary.getMinInterActionSeconds());
-        values.put("maxInterActionSeconds", summary.getMaxInterActionSeconds());
-        values.put("uniqueActions", summary.getUniqueActions());
-        values.put("uniqueRoutes", summary.getUniqueRoutes());
-        values.put("uniqueIpsUsed", summary.getUniqueIpsUsed());
-        values.put("uniqueDevicesUsed", summary.getUniqueDevicesUsed());
-        values.put("totalKOs", summary.getTotalKOs());
-        values.put("totalOKs", summary.getTotalOKs());
-        values.put("longestKoStreak", summary.getLongestKoStreak());
-        values.put("hasLogin", summary.getHasLogin());
-        values.put("hasLogout", summary.getHasLogout());
-        values.put("ipChanged", summary.getIpChanged());
-        values.put("deviceChanged", summary.getDeviceChanged());
-        values.put("totalDownloadActions", summary.getTotalDownloadActions());
-        values.put("maxDownloadsIn2Minutes", summary.getMaxDownloadsIn2Minutes());
-        values.put("pingPongCount", summary.getPingPongCount());
-        values.put("startHour", summary.getStartHour());
-        values.put("endHour", summary.getEndHour());
-        values.put("dayOfWeek", summary.getDayOfWeek());
-        values.put("isWeekend", summary.getIsWeekend());
-        values.put("persona", safeString(summary.getPersona()));
-        values.put("countryCode", safeString(summary.getCountryCode()));
-        values.put("firstAction", safeString(summary.getFirstAction()));
-        values.put("lastAction", safeString(summary.getLastAction()));
-        values.put("firstRoute", safeString(summary.getFirstRoute()));
-        values.put("lastRoute", safeString(summary.getLastRoute()));
-        return values;
-    }
-
     private int computeRiskScore(AuditTrailEvent event, long timeDelta, int hasLoggedIn) {
         int score = 0;
         if (defaultInt(event.getIsIpChanged()) == 1) {

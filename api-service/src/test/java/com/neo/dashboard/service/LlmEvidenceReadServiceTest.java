@@ -110,4 +110,86 @@ class LlmEvidenceReadServiceTest {
 
         assertThat(result).isEmpty();
     }
+
+    @Test
+    void redisEvidenceExactMatchAccepted() throws Exception {
+        JsonNode payload = objectMapper.readTree("{\"eventId\":\"evt-7\",\"recordId\":\"evt-7\",\"schemaVersion\":\"v3.6.1\"}");
+        when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-7"))).thenReturn(Optional.of(payload));
+
+        Optional<JsonNode> result = service.readEvidence("evt-7");
+
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().path("eventId").asText()).isEqualTo("evt-7");
+    }
+
+    @Test
+    void redisEvidenceMismatchedRejected() throws Exception {
+        JsonNode payload = objectMapper.readTree("{\"eventId\":\"evt-other\",\"eventMetadata\":{\"eventId\":\"evt-other\"}}");
+        when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-8"))).thenReturn(Optional.of(payload));
+
+        Optional<JsonNode> result = service.readEvidence("evt-8");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void redisEvidenceConflictRejected() throws Exception {
+        JsonNode payload = objectMapper.readTree("{\"eventId\":\"evt-9\",\"eventMetadata\":{\"eventId\":\"evt-other\"}}");
+        when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-9"))).thenReturn(Optional.of(payload));
+
+        Optional<JsonNode> result = service.readEvidence("evt-9");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void sqlEvidenceMismatchedRejected() throws Exception {
+        when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-10"))).thenReturn(Optional.empty());
+        AnomalyEvent anomaly = new AnomalyEvent();
+        anomaly.setEventId("evt-10");
+        anomaly.setLlmExplanationEvidencePayloadJson("{\"eventId\":\"evt-wrong\",\"eventMetadata\":{\"eventId\":\"evt-wrong\"}}");
+        when(anomalyEventRepository.findTopByEventIdOrderByDetectedAtDesc("evt-10")).thenReturn(Optional.of(anomaly));
+
+        Optional<JsonNode> result = service.readEvidence("evt-10");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void sqlSessionEvidenceMismatchedRejected() throws Exception {
+        when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-11"))).thenReturn(Optional.empty());
+        AnomalyEvent anomaly = new AnomalyEvent();
+        anomaly.setEventId("evt-11");
+        anomaly.setInsuredId("insured-1");
+        anomaly.setSessionId("session-11");
+        // Anomaly has no evidence payload
+        when(anomalyEventRepository.findTopByEventIdOrderByDetectedAtDesc("evt-11")).thenReturn(Optional.of(anomaly));
+        SessionAnalysis session = new SessionAnalysis();
+        session.setLlmExplanationEvidencePayloadJson("{\"eventId\":\"evt-wrong-session\",\"eventMetadata\":{\"eventId\":\"evt-wrong-session\"}}");
+        when(sessionAnalysisRepository.findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc("insured-1", "session-11"))
+                .thenReturn(Optional.of(session));
+
+        Optional<JsonNode> result = service.readEvidence("evt-11");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void sqlSessionEvidenceExactMatchAccepted() throws Exception {
+        when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-12"))).thenReturn(Optional.empty());
+        AnomalyEvent anomaly = new AnomalyEvent();
+        anomaly.setEventId("evt-12");
+        anomaly.setInsuredId("insured-1");
+        anomaly.setSessionId("session-12");
+        when(anomalyEventRepository.findTopByEventIdOrderByDetectedAtDesc("evt-12")).thenReturn(Optional.of(anomaly));
+        SessionAnalysis session = new SessionAnalysis();
+        session.setLlmExplanationEvidencePayloadJson("{\"eventId\":\"evt-12\",\"eventMetadata\":{\"eventId\":\"evt-12\"}}");
+        when(sessionAnalysisRepository.findTopByInsuredIdAndSessionIdOrderByCreatedAtDesc("insured-1", "session-12"))
+                .thenReturn(Optional.of(session));
+
+        Optional<JsonNode> result = service.readEvidence("evt-12");
+
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().path("eventId").asText()).isEqualTo("evt-12");
+    }
 }

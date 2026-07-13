@@ -97,6 +97,57 @@ public class V36RedisReadService {
                 .toList();
     }
 
+    private static final int MAX_ZSET_FETCH = 5000;
+
+    /**
+     * Read alerts from a canonical ZSET key where the member is the eventId
+     * and the full payload is stored at a separate payload key.
+     * Returns items in ZREVRANGE order (highest score first = newest).
+     */
+    public <T> List<T> readZSetAlertItems(String zsetKey, String payloadKeyPrefix, Class<T> type, int limit) {
+        if (!hasText(zsetKey)) return List.of();
+        int normalizedLimit = Math.max(1, Math.min(limit, MAX_ZSET_FETCH));
+        Set<String> members;
+        try {
+            members = redisTemplate.opsForZSet().reverseRange(zsetKey, 0, normalizedLimit - 1);
+        } catch (Exception e) {
+            log.debug("Redis key={} is not readable as sorted set", zsetKey, e);
+            return List.of();
+        }
+        if (members == null || members.isEmpty()) {
+            return List.of();
+        }
+        List<T> result = new ArrayList<>(members.size());
+        int skipped = 0;
+        for (String member : members) {
+            if (!hasText(member)) { skipped++; continue; }
+            String payloadKey = payloadKeyPrefix + member;
+            Optional<T> value = readValue(payloadKey, type);
+            if (value.isPresent()) {
+                result.add(value.get());
+            } else {
+                skipped++;
+            }
+        }
+        if (skipped > 0) {
+            log.debug("Skipped {} ZSET members with missing/unparseable payloads for key={}", skipped, zsetKey);
+        }
+        return result;
+    }
+
+    public Long countItems(String key) {
+        if (!hasText(key)) return 0L;
+        try {
+            Long size = redisTemplate.opsForList().size(key);
+            if (size != null && size > 0) return size;
+        } catch (Exception e) { /* not a list */ }
+        try {
+            Long size = redisTemplate.opsForZSet().size(key);
+            if (size != null) return size;
+        } catch (Exception e) { /* not a zset */ }
+        return 0L;
+    }
+
     public void writeJson(String key, Object value, java.time.Duration ttl) {
         if (!hasText(key) || value == null) {
             return;
@@ -172,6 +223,19 @@ public class V36RedisReadService {
         try {
             return Optional.of(objectMapper.readValue(raw, type));
         } catch (Exception e) {
+            try {
+                JsonNode node = objectMapper.readTree(raw);
+                if (node != null && node.isTextual()) {
+                    String inner = node.asText();
+                    if (hasText(inner)) {
+                        log.debug("Unwrapped double-encoded JSON for Redis key={}", key);
+                        return Optional.of(objectMapper.readValue(inner, type));
+                    }
+                }
+                if (node != null && !node.isNull()) {
+                    return Optional.of(objectMapper.treeToValue(node, type));
+                }
+            } catch (Exception ignored) {}
             log.warn("Malformed JSON in Redis key={} for {}", key, type.getSimpleName(), e);
             return Optional.empty();
         }

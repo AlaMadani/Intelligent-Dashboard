@@ -22,4 +22,5 @@ public class V36User360Response {
     private Map<String, Object> baseline;
     private List<Map<String, Object>> recentSessions;
     private List<Map<String, Object>> riskTimeline;
+    private Map<String, Object> nextEventPrediction;
 }

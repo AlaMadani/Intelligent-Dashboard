@@ -100,6 +100,57 @@ app:
       minimal-request-mode: ${NVIDIA_MINIMAL_REQUEST_MODE:false}
       log-request-json: ${NVIDIA_LOG_REQUEST_JSON:false}
       log-request-max-chars: ${NVIDIA_LOG_REQUEST_MAX_CHARS:4000}
+  assistant:
+    dashboard:
+      enabled: ${ASSISTANT_DASHBOARD_ENABLED:true}
+      provider: nvidia-nim
+
+      # Primary model for dashboard UI planning
+      model: ${ASSISTANT_DASHBOARD_MODEL:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning}
+
+      temperature: ${ASSISTANT_DASHBOARD_TEMPERATURE:0.6}
+      top-p: ${ASSISTANT_DASHBOARD_TOP_P:0.95}
+      max-tokens: ${ASSISTANT_DASHBOARD_MAX_TOKENS:20480}
+      timeout-ms: ${ASSISTANT_DASHBOARD_TIMEOUT_MS:30000}
+
+      deterministic-actions-enabled: ${ASSISTANT_DASHBOARD_DETERMINISTIC_ACTIONS_ENABLED:false}
+      max-candidates: ${ASSISTANT_DASHBOARD_MAX_CANDIDATES:10}
+      fallback-to-explanation-model: ${ASSISTANT_DASHBOARD_FALLBACK_TO_EXPLANATION_MODEL:false}
+      planner-mode: ${ASSISTANT_DASHBOARD_PLANNER_MODE:model-only}
+
+      # Keep disabled by default. Previous tests showed guided_json was unreliable for some hosted models.
+      use-guided-json: ${ASSISTANT_DASHBOARD_GUIDED_JSON:false}
+      guided-json-supported-models: ${ASSISTANT_DASHBOARD_GUIDED_JSON_SUPPORTED_MODELS:nvidia/llama-3.3-nemotron-super-49b-v1}
+
+      # Ordered fallback chain for Dashboard Assistant only.
+      candidate-models: ${ASSISTANT_DASHBOARD_CANDIDATE_MODELS:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning,nvidia/nemotron-3-nano-30b-a3b,meta/llama-3.1-8b-instruct,nvidia/llama-3.1-nemotron-nano-8b-v1,meta/llama-4-maverick-17b-128e-instruct,deepseek-ai/deepseek-v4-flash,mistralai/mistral-nemotron}
+
+      # Reasoning model controls (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning)
+      reasoning-budget: ${ASSISTANT_DASHBOARD_REASONING_BUDGET:16384}
+      enable-thinking: ${ASSISTANT_DASHBOARD_ENABLE_THINKING:false}
+
+      fallback-on-timeout: ${ASSISTANT_DASHBOARD_FALLBACK_ON_TIMEOUT:true}
+      fallback-on-network-error: ${ASSISTANT_DASHBOARD_FALLBACK_ON_NETWORK_ERROR:true}
+      fallback-on-provider-5xx: ${ASSISTANT_DASHBOARD_FALLBACK_ON_PROVIDER_5XX:true}
+      fallback-on-parse-failure: ${ASSISTANT_DASHBOARD_FALLBACK_ON_PARSE_FAILURE:true}
+  asr:
+    enabled: ${ASR_ENABLED:true}
+    provider: ${ASR_PROVIDER:nvidia-riva}
+    protocol: ${ASR_PROTOCOL:grpc}
+    server: ${ASR_SERVER:grpc.nvcf.nvidia.com:443}
+    use-ssl: ${ASR_USE_SSL:true}
+    function-id: ${ASR_FUNCTION_ID:71203149-d3b7-4460-8231-1be2543a1fca}
+    api-key: ${NVIDIA_API_KEY:}
+    language-code: ${ASR_LANGUAGE_CODE:en-US}
+    timeout-ms: ${ASR_TIMEOUT_MS:15000}
+    model: ${ASR_MODEL:parakeet-1.1b-rnnt-multilingual-asr}
+    method: ${ASR_METHOD:streaming}
+    audio:
+      ffmpeg-path: ${ASR_FFMPEG_PATH:ffmpeg}
+      convert-to-wav: ${ASR_CONVERT_TO_WAV:true}
+      target-sample-rate: ${ASR_TARGET_SAMPLE_RATE:16000}
+      target-channels: ${ASR_TARGET_CHANNELS:1}
+      max-size-bytes: ${ASR_MAX_AUDIO_SIZE_BYTES:10485760}
   v36:
     redis:
       prefer-v36-keys: ${APP_V36_REDIS_PREFER_V36_KEYS:true}
@@ -126,7 +177,7 @@ app:
     topics:
       anomaly-alerts: ${APP_KAFKA_TOPIC_ANOMALY_ALERTS:topic-anomaly-alerts}
   auth:
-    allowed-domain: ${APP_AUTH_ALLOWED_DOMAIN:@enicar.ucar.tn}
+    allowed-domain: ${APP_AUTH_ALLOWED_DOMAIN:@example.com}
     verification:
       code-ttl-seconds: ${APP_AUTH_VERIFICATION_CODE_TTL_SECONDS:300}
       resend-cooldown-seconds: ${APP_AUTH_VERIFICATION_RESEND_COOLDOWN_SECONDS:120}

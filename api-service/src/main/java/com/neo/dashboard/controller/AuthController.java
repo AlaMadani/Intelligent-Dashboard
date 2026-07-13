@@ -9,6 +9,7 @@ import com.neo.dashboard.dto.PasswordResetVerifyRequest;
 import com.neo.dashboard.dto.SignInRequest;
 import com.neo.dashboard.dto.SignUpRequest;
 import com.neo.dashboard.exception.AuthException;
+import com.neo.dashboard.mapper.AuthApiMapper;
 import com.neo.dashboard.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthApiMapper authApiMapper;
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
@@ -36,7 +38,15 @@ public class AuthController {
 
     @PostMapping("/signin")
     public AuthResponse signIn(@Valid @RequestBody SignInRequest request) {
-        return authService.signIn(request);
+        AuthService.SignInOutput output = authService.authenticate(request);
+        AuthResponse.UserAuthDto userDto = authApiMapper.toUserAuthDto(output.user());
+        return AuthResponse.builder()
+                .success(true)
+                .message("Sign in successful")
+                .accessToken(output.accessToken())
+                .refreshToken(output.refreshToken())
+                .user(userDto)
+                .build();
     }
 
     @PostMapping("/verify-email")
