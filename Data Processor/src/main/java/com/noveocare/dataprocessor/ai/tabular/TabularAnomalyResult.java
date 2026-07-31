@@ -6,6 +6,10 @@ import lombok.Value;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregated result from all tabular anomaly models, including per-model
+ * scores and availability lists.
+ */
 @Value
 @Builder(toBuilder = true)
 public class TabularAnomalyResult {
@@ -31,6 +35,7 @@ public class TabularAnomalyResult {
     Map<String, Long> latencyByModel;
     List<String> tabularFeatureWarnings;
 
+    /* Returns a result with all models marked unavailable. */
     public static TabularAnomalyResult unavailable(List<String> warnings) {
         return TabularAnomalyResult.builder()
                 .availableModels(List.of())

@@ -16,7 +16,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class VelocityDetector {
 
+    /* ---- Dependencies ---- */
     private final RuleProperties ruleProperties;
+
+    /* ---- Public API ---- */
 
     public boolean isRapidFire(List<AuditTrailEvent> sessionEvents) {
         // A rapid-fire anomaly is defined as N events occurring within a tiny time window.

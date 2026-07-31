@@ -14,9 +14,17 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Tests for FeatureEngineeringService: session-level enrichment, summary building,
+ * and mojibake repair of audit trail events.
+ */
 class FeatureEngineeringServiceTest {
 
+    /* --- Fields --- */
+
     private FeatureEngineeringService featureEngineeringService;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -26,6 +34,8 @@ class FeatureEngineeringServiceTest {
         featureProperties.setSessionAlertRiskThreshold(60.0);
         featureEngineeringService = new FeatureEngineeringService(featureProperties);
     }
+
+    /* --- Test methods: session enrichment --- */
 
     @Test
     void enrichesEventsWithSessionFields() {
@@ -90,6 +100,8 @@ class FeatureEngineeringServiceTest {
         assertEquals("Déconnexion", summary.getLastAction());
         assertEquals(1, summary.getHasLogout());
     }
+
+    /* --- Helper methods --- */
 
     private AuditTrailEvent event(String action, String status, Instant createdAt, int sequence, String ip, String device) {
         AuditTrailEvent event = new AuditTrailEvent();

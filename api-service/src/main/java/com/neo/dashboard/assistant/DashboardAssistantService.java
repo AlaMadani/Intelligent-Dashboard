@@ -30,82 +30,132 @@ import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toList;
 
+/**
+ * Core service that orchestrates the Dashboard Assistant feature. Accepts
+ * user messages from the controller, dispatches them through an optional
+ * deterministic intent classifier and then to an LLM (via the NVIDIA NIM
+ * OpenAI-compatible API), validates the model response, and returns a safe,
+ * structured response to the frontend.
+ * <p>
+ * Key responsibilities:
+ * <ul>
+ *   <li>Building the system prompt with visible elements and manifest context</li>
+ *   <li>Calling the LLM with configurable model, temperature, and guided JSON</li>
+ *   <li>Fallback across candidate models on timeout / network / parse errors</li>
+ *   <li>Command validation against the capability registry</li>
+ *   <li>Intent classification and deterministic action resolution (optional)</li>
+ *   <li>Debug metadata injection for development</li>
+ * </ul>
+ */
 @Service
 @Slf4j
 public class DashboardAssistantService {
 
+    /** Regex to extract event IDs like "anom-000000001179" or "evt-000000001179". */
     private static final Pattern EVENT_ID_PATTERN = Pattern.compile(
             "\\b(?:anom|evt)-\\d{12}\\b", Pattern.CASE_INSENSITIVE);
+    /** Regex to extract insured IDs like "insured-abc123-def456". */
     private static final Pattern INSURED_ID_PATTERN = Pattern.compile(
             "\\binsured-[a-z0-9]+(?:-[a-z0-9]+)*\\b", Pattern.CASE_INSENSITIVE);
 
+    /** Reactive HTTP client used for LLM API calls. Re-initialised in {@link #initHttpClient()}. */
     private WebClient webClient;
+    /** Jackson JSON mapper for request/response serialisation. */
     private final ObjectMapper objectMapper;
+    /** Registry of all dashboard capabilities (routes, elements, filters, etc.). */
     private final DashboardAssistantCapabilityRegistry registry;
 
+    /** Base URL of the NVIDIA NIM-compatible chat completions API. */
     @Value("${app.llm.nvidia.base-url:https://integrate.api.nvidia.com/v1}")
     private String baseUrl;
 
+    /** API key for authenticating with the LLM provider. */
     @Value("${app.llm.nvidia.api-key:}")
     private String apiKey;
 
+    /** Master toggle for the dashboard assistant feature. */
     @Value("${app.assistant.dashboard.enabled:true}")
     private boolean enabled;
 
+    /**
+     * When true, the deterministic intent classifier and action resolver are
+     * active and consulted before the model call.
+     */
     @Value("${app.assistant.dashboard.deterministic-actions-enabled:false}")
     private boolean deterministicActionsEnabled;
 
+    /** Primary LLM model identifier. */
     @Value("${app.assistant.dashboard.model:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning}")
     private String model;
 
+    /** Sampling temperature for LLM responses (0 = deterministic). */
     @Value("${app.assistant.dashboard.temperature:0.0}")
     private double temperature;
 
+    /** Top-p nucleus sampling parameter. */
     @Value("${app.assistant.dashboard.top-p:0.7}")
     private double topP;
 
+    /** Maximum tokens in the LLM response. */
     @Value("${app.assistant.dashboard.max-tokens:20480}")
     private int maxTokens;
 
+    /** Timeout in milliseconds for each LLM API call. */
     @Value("${app.assistant.dashboard.timeout-ms:30000}")
     private long timeoutMs;
 
+    /** If true and the primary model fails, fall back to an explanation-oriented model. */
     @Value("${app.assistant.dashboard.fallback-to-explanation-model:false}")
     private boolean fallbackToExplanationModel;
 
+    /** Whether to request guided JSON (nvext) from supported models. */
     @Value("${app.assistant.dashboard.use-guided-json:false}")
     private boolean useGuidedJson;
 
+    /** Comma-separated list of models that support guided JSON. */
     @Value("${app.assistant.dashboard.guided-json-supported-models:nvidia/llama-3.3-nemotron-super-49b-v1}")
     private String guidedJsonSupportedModelsCsv;
 
+    /** Maximum number of candidate models to try in a fallback chain. */
     @Value("${app.assistant.dashboard.max-candidates:10}")
     private int maxCandidates;
 
+    /** Planner mode: "model-only" skips deterministic pre-processing. */
     @Value("${app.assistant.dashboard.planner-mode:model-only}")
     private String plannerMode;
 
+    /** Comma-separated list of candidate models for fallback. */
     @Value("${app.assistant.dashboard.candidate-models:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning,nvidia/nemotron-3-nano-30b-a3b,meta/llama-3.1-8b-instruct,nvidia/llama-3.1-nemotron-nano-8b-v1,meta/llama-4-maverick-17b-128e-instruct,deepseek-ai/deepseek-v4-flash,mistralai/mistral-nemotron}")
     private String candidateModelsCsv;
 
+    /** Whether to fall through to the next model on JSON parse failures. */
     @Value("${app.assistant.dashboard.fallback-on-parse-failure:true}")
     private boolean fallbackOnParseFailure;
 
+    /** Whether to fall through to the next model on timeout. */
     @Value("${app.assistant.dashboard.fallback-on-timeout:true}")
     private boolean fallbackOnTimeout;
 
+    /** Whether to fall through to the next model on network errors. */
     @Value("${app.assistant.dashboard.fallback-on-network-error:true}")
     private boolean fallbackOnNetworkError;
 
+    /** Whether to fall through to the next model on provider 5xx responses. */
     @Value("${app.assistant.dashboard.fallback-on-provider-5xx:true}")
     private boolean fallbackOnProvider5xx;
 
+    /** Reasoning budget (tokens) for reasoning-capable models. */
     @Value("${app.assistant.dashboard.reasoning-budget:16384}")
     private int reasoningBudget;
 
+    /** Whether thinking / reasoning tokens are enabled (for nemotron-reasoning models). */
     @Value("${app.assistant.dashboard.enable-thinking:false}")
     private boolean enableThinking;
 
+    /**
+     * Parses the comma-separated candidate models configuration property and
+     * returns the list of model identifiers to try (with fallback).
+     */
     private List<String> getCandidateModels() {
         if (candidateModelsCsv == null || candidateModelsCsv.isBlank()) {
             return List.of("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning");
@@ -113,11 +163,13 @@ public class DashboardAssistantService {
         return List.of(candidateModelsCsv.split("\\s*,\\s*"));
     }
 
+    /** Public accessor for the candidate models list (used by the controller for NIM probe). */
     public List<String> getCandidateModelsPublic() {
         return getCandidateModels();
     }
+    /** The latest list of visible elements reported by the frontend for the current request. */
     private List<AssistantVisibleElement> currentVisibleElements = List.of();
-    // Holds the last user message for post-processing overrides
+    /** Holds the last user message for post-processing overrides (e.g. list-all detection). */
     private String lastUserMessage = "";
 
     public DashboardAssistantService(ObjectMapper objectMapper, DashboardAssistantCapabilityRegistry registry) {
@@ -126,9 +178,14 @@ public class DashboardAssistantService {
         this.webClient = WebClient.builder().build();
     }
 
+    /**
+     * Recreates the {@link WebClient} with an {@link HttpClient} configured with
+     * read/write timeouts derived from the dashboard assistant timeout setting.
+     * Called after Spring sets all {@code @Value} fields.
+     */
     @PostConstruct
     public void initHttpClient() {
-        // Recreate the HttpClient with the actual dashboard timeout value
+        // Ensure the effective timeout is at least 10 seconds (timeout + 2s buffer)
         long effectiveTimeout = Math.max(timeoutMs + 2000, 10000);
         HttpClient httpClient = HttpClient.create()
                 .responseTimeout(Duration.ofMillis(effectiveTimeout))
@@ -140,6 +197,11 @@ public class DashboardAssistantService {
                 .build();
     }
 
+    /**
+     * Logs the full model configuration at startup for operational visibility.
+     * Reports which model is selected, whether guided JSON is active, and all
+     * fallback-related settings.
+     */
     @PostConstruct
     public void logModelConfig() {
         log.info("DASHBOARD_ASSISTANT_MODEL_SELECTED model={} baseUrl={} fullUrl={} maxTokens={} timeoutMs={} temperature={} topP={} useGuidedJson={} guidedJsonMode={} effectiveGuidedJson={} maxCandidates={} candidateModels={} fallbackToExplanationModel={} plannerMode={} fallbackOnTimeout={} fallbackOnNetworkError={} fallbackOnProvider5xx={} fallbackOnParseFailure={}",
@@ -156,17 +218,26 @@ public class DashboardAssistantService {
         }
     }
 
+    /** Generates an 8-character pseudo-random request ID for log correlation. */
     private String generateRequestId() {
         return UUID.randomUUID().toString().substring(0, 8);
     }
 
+    /**
+     * Main entry point for processing a dashboard assistant request. Checks if
+     * the assistant is enabled, attempts deterministic fallback if configured,
+     * builds the system prompt with the current context, and calls the LLM
+     * (with optional model override and fallback chain).
+     */
     public DashboardAssistantResponse handleMessage(DashboardAssistantRequest request) {
         Instant start = Instant.now();
         String requestId = generateRequestId();
+        // Store visible elements for the duration of this request (used in post-processing)
         this.currentVisibleElements = request.getVisibleElements() != null
                 ? request.getVisibleElements()
                 : List.of();
 
+        // If the assistant is disabled globally, return a simple error response
         if (!enabled) {
             DashboardAssistantResponse response = DashboardAssistantResponse.builder()
                     .message("Dashboard assistant is currently disabled.")
@@ -178,10 +249,12 @@ public class DashboardAssistantService {
             return response;
         }
 
+        // When deterministic actions are off, go straight to the model-only code path
         if (!deterministicActionsEnabled) {
             return handleMessageNonDeterministic(request, start);
         }
 
+        // When deterministic actions are on, try the rule-based matcher first
         DashboardAssistantResponse deterministic = tryDeterministicFallback(request);
         if (deterministic != null) {
             if (request.isDebug()) {
@@ -193,12 +266,14 @@ public class DashboardAssistantService {
             return deterministic;
         }
 
+        // Build the system prompt enriched with visible elements and manifest context
         String systemPrompt = buildSystemPrompt(request);
         String userPrompt = request.getMessage();
         int promptChars = systemPrompt.length() + (userPrompt != null ? userPrompt.length() : 0);
         int visibleCount = request.getVisibleElements() != null ? request.getVisibleElements().size() : 0;
         int candidateCount = visibleCount;
 
+        // Prepare the model chain: if the request specifies a model, try it first
         List<String> modelsToTry = getCandidateModels();
         if (request.getModel() != null && !request.getModel().isBlank()) {
             List<String> modified = new ArrayList<>();
@@ -214,6 +289,7 @@ public class DashboardAssistantService {
         return callModelWithFallback(request, start, systemPrompt, userPrompt, promptChars, candidateCount, modelsToTry);
     }
 
+    /** Returns the list of models that support guided JSON, parsed from the comma-separated config property. */
     private List<String> getGuidedJsonSupportedModels() {
         if (guidedJsonSupportedModelsCsv == null || guidedJsonSupportedModelsCsv.isBlank()) {
             return List.of();
@@ -221,27 +297,37 @@ public class DashboardAssistantService {
         return List.of(guidedJsonSupportedModelsCsv.split("\\s*,\\s*"));
     }
 
+    /** Returns true if guided JSON is enabled and the current model supports it. */
     private boolean isGuidedJsonEnabled() {
         return useGuidedJson && getGuidedJsonSupportedModels().contains(model);
     }
 
+    /** Returns a human-readable string describing the guided JSON mode ("none" or "top-level-nvext"). */
     private String guidedJsonMode() {
         if (!isGuidedJsonEnabled()) return "none";
         return "top-level-nvext";
     }
 
+    /** Counts the combined characters of system prompt and user prompt (null-safe). */
     private int countPromptChars(String systemPrompt, String userPrompt) {
         return (systemPrompt != null ? systemPrompt.length() : 0) + (userPrompt != null ? userPrompt.length() : 0);
     }
 
+    /**
+     * Non-deterministic (model-only) code path. In "model-only" planner mode,
+     * all requests go straight to the LLM. In mixed mode, simple patterns like
+     * greetings, capability listings, and highlightable items are handled locally
+     * before falling through to the model.
+     */
     private DashboardAssistantResponse handleMessageNonDeterministic(DashboardAssistantRequest request, Instant start) {
         boolean isModelOnly = "model-only".equals(plannerMode);
         String msg = normalize(request.getMessage());
         String rawMsg = request.getMessage();
         lastUserMessage = rawMsg;
 
-        // In non-model-only modes, allow local shortcuts
+        // In non-model-only modes, allow local shortcuts for simple patterns
         if (!isModelOnly && msg != null) {
+            // Shortcut: detect greetings and respond without calling the model
             if (msg.matches(".*\\b(hello|hi there|hey)\\b.*")) {
                 DashboardAssistantResponse response = noActionResponse("Hello! I am your dashboard assistant. I can help you navigate pages, highlight navigation items or page sections, search for alerts and users, and more.");
                 if (request.isDebug()) {
@@ -250,6 +336,7 @@ public class DashboardAssistantService {
                 logAssistantResponse(request, response, start);
                 return response;
             }
+            // Shortcut: detect capability listing requests
             if (containsAny(rawMsg, "what can you do", "capabilities", "help", "available commands", "list commands", "how can you help")) {
                 DashboardAssistantResponse response = noActionResponse("I can help you with:\n- Navigating to any dashboard page\n- Finding and highlighting UI elements\n- Explaining alerts with AI\n- Toggling dark/light theme\n- Changing your password\n- Filtering and refreshing data views\n- Searching for alerts and users\n\nTry asking: \"take me to churn\", \"highlight explain AI for anom-000000001179\", \"switch to dark mode\", or \"refresh the forecast\".");
                 if (request.isDebug()) {
@@ -258,6 +345,7 @@ public class DashboardAssistantService {
                 logAssistantResponse(request, response, start);
                 return response;
             }
+            // Shortcut: detect requests to list what can be highlighted
             if (containsAny(rawMsg, "what can you highlight", "which items", "list elements", "list highlightable", "show me what you can highlight", "list what", "highlightable items")) {
                 DashboardAssistantResponse response = listHighlightableItemsResponse(request);
                 if (request.isDebug()) {
@@ -268,12 +356,14 @@ public class DashboardAssistantService {
             }
         }
 
+        // Build the full system prompt with visible elements and manifest context
         String systemPrompt = buildSystemPrompt(request);
         String userPrompt = request.getMessage();
         int promptChars = systemPrompt.length() + (userPrompt != null ? userPrompt.length() : 0);
         int visibleCount = request.getVisibleElements() != null ? request.getVisibleElements().size() : 0;
         int candidateCount = visibleCount;
 
+        // Prepare the model chain with optional request-level override
         List<String> modelsToTry = getCandidateModels();
         if (request.getModel() != null && !request.getModel().isBlank()) {
             List<String> modified = new ArrayList<>();
@@ -290,9 +380,8 @@ public class DashboardAssistantService {
     }
 
     /**
-     * Attempts each model from the candidate chain in order. Falls through on timeout,
-     * network error, provider 5xx (and optionally parse failure). Returns the first
-     * successful validated response, or an error if all models fail.
+     * Convenience overload that calls {@link #callModelWithFallback} with the
+     * default candidate models from configuration.
      */
     private DashboardAssistantResponse callModelWithFallback(
             DashboardAssistantRequest request,
@@ -304,6 +393,13 @@ public class DashboardAssistantService {
         return callModelWithFallback(request, start, systemPrompt, userPrompt, promptChars, candidateCount, getCandidateModels());
     }
 
+    /**
+     * Core model-calling loop. Iterates through the candidate model chain,
+     * attempting to get a valid parseable response from each. Falls through
+     * on timeout, network error, provider 5xx, or parse failure according to
+     * configuration flags. Returns the first valid response, or an error
+     * response if all models fail.
+     */
     private DashboardAssistantResponse callModelWithFallback(
             DashboardAssistantRequest request,
             Instant start,
@@ -320,7 +416,7 @@ public class DashboardAssistantService {
                 request.getVisibleElements() != null ? request.getVisibleElements().size() : 0,
                 promptChars, modelsToTry);
 
-        // Log visible element IDs from frontend
+        // Log the visible element IDs that the model can reference
         if (request.getVisibleElements() != null && !request.getVisibleElements().isEmpty()) {
             List<String> ids = request.getVisibleElements().stream()
                     .map(AssistantVisibleElement::getId)
@@ -330,6 +426,7 @@ public class DashboardAssistantService {
                     requestId, ids.size(), ids);
         }
 
+        // Track attempted models for debug metadata
         List<Map<String, Object>> attemptedModels = new ArrayList<>();
         String fallbackReason = null;
         long totalLatencyMs = 0;
@@ -337,6 +434,7 @@ public class DashboardAssistantService {
         AssistantModelResponse finalModelResponse = null;
         String actualModelUsed = null;
 
+        // Try each model in the candidate chain
         for (int attempt = 0; attempt < modelsToTry.size(); attempt++) {
             String currentModel = modelsToTry.get(attempt);
             Instant attemptStart = Instant.now();
@@ -347,10 +445,13 @@ public class DashboardAssistantService {
                     requestId, currentModel, attempt + 1, modelsToTry.size(), timeoutMs);
 
             try {
+                // Build the request body and send it to the LLM API
                 Map<String, Object> requestBody = buildRequestBody(systemPrompt, userPrompt, currentModel);
                 String jsonBody = objectMapper.writeValueAsString(requestBody);
                 String rawResponse = sendRequest(jsonBody);
+                // Parse the model response into the structured AssistantModelResponse
                 AssistantModelResponse parsed = parseModelResponse(rawResponse);
+                // Validate the parsed commands against the capability registry
                 DashboardAssistantResponse validated = validateAndBuildResponse(parsed);
 
                 long attemptLatency = Duration.between(attemptStart, Instant.now()).toMillis();
@@ -362,7 +463,7 @@ public class DashboardAssistantService {
                         requestId, currentModel, attemptLatency,
                         validated.getCommands() != null ? validated.getCommands().size() : 0);
 
-                // Log raw model message responseType for debugging
+                // Log the raw model's responseType and command types for debugging
                 if (parsed != null) {
                     log.info("ASSISTANT_MODEL_PARSED requestId={} model={} responseType={} message=\"{}\" commandTypes={}",
                             requestId, currentModel, parsed.getResponseType(),
@@ -372,16 +473,19 @@ public class DashboardAssistantService {
                                     : "[]");
                 }
 
+                // Success — break out of the fallback chain
                 actualModelUsed = currentModel;
                 finalResponse = validated;
                 finalModelResponse = parsed;
                 attemptedModels.add(attemptRecord);
                 break;
             } catch (Exception e) {
+                // Record the failure details for this attempt
                 long attemptLatency = Duration.between(attemptStart, Instant.now()).toMillis();
                 totalLatencyMs += attemptLatency;
                 String errMsg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
 
+                // Classify the error type for fallback decision-making
                 if (errMsg.contains("timeout") || errMsg.contains("timed out")) {
                     attemptRecord.put("status", "timeout");
                     attemptRecord.put("latencyMs", attemptLatency);
@@ -419,6 +523,7 @@ public class DashboardAssistantService {
                 }
                 attemptedModels.add(attemptRecord);
 
+                // Determine whether to fall through to the next model or return an error
                 String status = (String) attemptRecord.get("status");
                 boolean shouldFallback = false;
                 if ("timeout".equals(status) && fallbackOnTimeout) shouldFallback = true;
@@ -433,6 +538,7 @@ public class DashboardAssistantService {
                     continue;
                 }
 
+                // All models exhausted or fallback disabled — generate an error response
                 ClassifiedError err = classifyModelError(e);
                 DashboardAssistantResponse errorResponse = DashboardAssistantResponse.builder()
                         .message(err.userMessage)
@@ -449,6 +555,7 @@ public class DashboardAssistantService {
             }
         }
 
+        // If no model returned a successful response, generate a generic error
         if (finalResponse == null) {
             DashboardAssistantResponse errorResponse = DashboardAssistantResponse.builder()
                     .message("I couldn't reach the assistant planning model right now. Please try again.")
@@ -464,11 +571,13 @@ public class DashboardAssistantService {
             return errorResponse;
         }
 
+        // Attach debug metadata if requested
         if (request.isDebug()) {
             addDebugMetadata(finalResponse, finalModelResponse, request, totalLatencyMs, promptChars, 0, candidateCount,
                     null, actualModelUsed, attemptedModels, fallbackReason);
         }
 
+        // In non-model-only mode, if the model returned empty commands, try deterministic fallback
         boolean isModelOnly = "model-only".equals(plannerMode);
         if (!isModelOnly && finalResponse.getCommands().isEmpty() && finalResponse.getWarnings().isEmpty()) {
             DashboardAssistantResponse fb = tryDeterministicFallback(request);
@@ -482,6 +591,13 @@ public class DashboardAssistantService {
         return finalResponse;
     }
 
+    /**
+     * Builds the complete system prompt for the LLM, including the current
+     * route, context, visible elements, manifest routes, and tasks. The prompt
+     * instructs the model on the JSON output format, command types, and
+     * critical rules for differentiating HIGHLIGHT_ELEMENT from CLICK_ELEMENT
+     * and NAVIGATE from external-link clicks.
+     */
     private String buildSystemPrompt(DashboardAssistantRequest request) {
         String visibleElementsJson = buildVisibleElementsContext(request.getVisibleElements());
         String tasksJson = buildTasksContext();
@@ -576,6 +692,11 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         );
     }
 
+    /**
+     * Serialises the frontend-reported visible elements into a JSON-like string
+     * that is embedded in the LLM system prompt so the model can reference
+     * specific element IDs for HIGHLIGHT_ELEMENT / CLICK_ELEMENT commands.
+     */
     private String buildVisibleElementsContext(List<AssistantVisibleElement> visibleElements) {
         if (visibleElements == null || visibleElements.isEmpty()) {
             return "  (no visible elements reported)";
@@ -600,6 +721,10 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return sb.toString();
     }
 
+    /**
+     * Sorts visible elements by their relevance score (highest first) for
+     * prioritised matching against user requests.
+     */
     private List<AssistantVisibleElement> rankVisibleElements(List<AssistantVisibleElement> elements) {
         if (elements == null || elements.isEmpty()) return List.of();
         List<AssistantVisibleElement> working = new ArrayList<>(elements);
@@ -611,6 +736,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return working;
     }
 
+    /** Calculates a numeric relevance score for a visible element based on visibility, text content, actions, and type. */
     private int rankScore(AssistantVisibleElement el) {
         int score = 0;
         if (el.isVisible()) score += 20;
@@ -628,6 +754,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return score;
     }
 
+    /** Serialises the available manifest tasks into a JSON-like string for the system prompt. */
     private String buildTasksContext() {
         Map<String, DashboardAssistantManifest.ManifestTask> taskMap = registry.getTaskMap();
         if (taskMap == null || taskMap.isEmpty()) {
@@ -649,6 +776,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return sb.toString();
     }
 
+    /** Serialises manifest elements that belong to a specific route into a JSON-like string. */
     private String buildManifestElementsForRoute(String routeId) {
         if (routeId == null || routeId.isBlank()) return "  (no route specified)";
         List<DashboardAssistantManifest.ManifestElement> elements = registry.getManifest().getElements();
@@ -670,6 +798,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return sb.toString();
     }
 
+    /** Serialises all manifest routes into a JSON-like string for the system prompt. */
     private String buildManifestRoutesContext() {
         List<DashboardAssistantManifest.ManifestRoute> routes = registry.getManifest().getRoutes();
         if (routes == null || routes.isEmpty()) {
@@ -689,11 +818,13 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return sb.toString();
     }
 
+    /** Escapes backslash and double-quote characters for embedding strings in JSON. */
     private String escapeJson(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
+    /** Convenience method to serialise a map to a JSON string using the configured ObjectMapper. */
     private String toJson(Map<String, Object> map) {
         try {
             return objectMapper.writeValueAsString(map);
@@ -702,10 +833,16 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         }
     }
 
+    /** Builds a chat-completion request body using the default (primary) model. */
     private Map<String, Object> buildRequestBody(String systemPrompt, String userPrompt) {
         return buildRequestBody(systemPrompt, userPrompt, model);
     }
 
+    /**
+     * Builds a chat-completion request body for the given model, including
+     * messages (system + user), sampling parameters, and optional NVIDIA
+     * extensions (guided JSON, reasoning budget, thinking tokens).
+     */
     private Map<String, Object> buildRequestBody(String systemPrompt, String userPrompt, String modelName) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", modelName);
@@ -763,6 +900,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return body;
     }
 
+    /** Builds the JSON schema properties used for NVIDIA guided JSON (nvext). */
     private Map<String, Object> buildGuidedJsonProperties() {
         Map<String, Object> props = new LinkedHashMap<>();
 
@@ -798,6 +936,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return props;
     }
 
+    /** Sends a chat-completion request to the LLM provider and returns the raw JSON response body. */
     private String sendRequest(String jsonBody) {
         String fullUrl = baseUrl + "/chat/completions";
         try {
@@ -815,10 +954,17 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         }
     }
 
+    /** Alias for sendRequest, used in the NIM probe path for clarity. */
     private String sendRequestRaw(String jsonBody) {
         return sendRequest(jsonBody);
     }
 
+    /**
+     * Parses the raw LLM response body into an {@link AssistantModelResponse}.
+     * Extracts the message content from the chat-completions JSON structure,
+     * strips markdown fences and thinking tokens, and attempts JSON deserialisation.
+     * Throws a RuntimeException on any failure.
+     */
     private AssistantModelResponse parseModelResponse(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
             throw new RuntimeException("Empty response from assistant");
@@ -846,6 +992,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         }
     }
 
+    /**
+     * Extracts the first top-level JSON object ({ ... }) from the given text,
+     * after stripping markdown code fences and any thinking/reasoning tokens
+     * like {@code <think>...</think>}. Returns null if no valid JSON object
+     * can be found.
+     */
     private String extractJson(String text) {
         if (text == null) return null;
         // Strip markdown code fences and thinking tokens
@@ -869,6 +1021,13 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return null;
     }
 
+    /**
+     * Validates each command from the model response against the capability
+     * registry, normalises route/filter/refresh references, expands compound
+     * commands (e.g. CHANGE_PASSWORD -> NAVIGATE + HIGHLIGHT_ELEMENT), applies
+     * post-validation guards (strip redundant NAVIGATE when already on route),
+     * and returns a safe {@link DashboardAssistantResponse}.
+     */
     private DashboardAssistantResponse validateAndBuildResponse(AssistantModelResponse modelResponse) {
         List<DashboardAssistantCommand> validCommands = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
@@ -1167,6 +1326,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Metrics/nav penalty words ────────────────────────────────────────────
 
+    /** Words that hint the user is asking about a KPI/metric card rather than navigation. */
     private static final List<String> METRIC_CARD_WORDS = List.of(
             "score", "average", "kpi", "card", "metric", "today", "total",
             "users", "processed", "risk", "rate", "count", "coverage",
@@ -1181,6 +1341,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Stop words (tokens to skip when scoring) ─────────────────────────────
 
+    /** Common English filler words excluded from element scoring to improve match precision. */
     private static final java.util.Set<String> STOP_WORDS = java.util.Set.of(
             "the", "and", "for", "its", "all", "can", "not", "but", "are",
             "was", "were", "has", "had", "have", "been", "will", "would",
@@ -1193,22 +1354,45 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
     // INTENT CLASSIFIER + ACTION PLANNER
     // ─────────────────────────────────────────────────────────────────────────
 
+    /** Classified intents from the deterministic intent classifier. */
     private enum AssistantIntent {
+        /** User is greeting the assistant. */
         GREETING,
+        /** User wants to navigate to a different page. */
         NAVIGATE,
+        /** User wants to find/highlight something on the current page. */
         HIGHLIGHT_CURRENT_UI,
+        /** User wants to know where to click to go to a page. */
         HIGHLIGHT_NAVIGATION,
+        /** User wants AI explanation for an alert. */
         EXPLAIN_ALERT_AI,
+        /** User wants to search for alerts, users, or sessions. */
         SEARCH,
+        /** User wants to apply a filter. */
         FILTER,
+        /** User wants to refresh a view. */
         REFRESH,
+        /** User wants to toggle dark/light theme. */
         TOGGLE_THEME,
+        /** User wants to change their password. */
         CHANGE_PASSWORD,
+        /** User is asking what the assistant can do. */
         LIST_CAPABILITIES,
+        /** User is asking what can be highlighted on the current page. */
         LIST_HIGHLIGHTABLE,
+        /** Intent could not be determined. */
         UNKNOWN
     }
 
+    /**
+     * Classifies the user's message into one of the known {@link AssistantIntent}
+     * values using keyword matching and phrase detection. The classification
+     * drives deterministic action resolution before falling through to the LLM.
+     *
+     * @param msg    normalised (lowercased, stripped) version of the user message
+     * @param rawMsg original raw message (preserves casing for pattern matching)
+     * @return the classified intent, never null
+     */
     private AssistantIntent classifyIntent(String msg, String rawMsg) {
         if (!deterministicActionsEnabled) {
             if (containsAny(rawMsg, "hello", "hi there", "hey", "good morning", "good afternoon",
@@ -1288,6 +1472,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return AssistantIntent.UNKNOWN;
     }
 
+    /**
+     * Routes the request to the appropriate handler based on the classified
+     * {@link AssistantIntent}. Returns null if the intent is UNKNOWN or if
+     * deterministic actions are disabled and the intent isn't a simple shortcut
+     * (greeting, capabilities list, highlightable items).
+     */
     private DashboardAssistantResponse resolveByIntent(DashboardAssistantRequest request) {
         String rawMsg = request.getMessage();
         String msg = normalize(rawMsg);
@@ -1366,6 +1556,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return null;
     }
 
+    /**
+     * Resolves an "explain with AI" request. Navigates to the alert investigation
+     * page (if not already there) and highlights the "Explain with AI" button.
+     * Requires an eventId, which is either extracted from the message or taken
+     * from the current page context.
+     */
     private DashboardAssistantResponse resolveExplainAlertAi(String rawMsg, String route,
                                                               Map<String, String> ctx,
                                                               DashboardAssistantRequest request) {
@@ -1409,6 +1605,11 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 List.of("assistant_missing_event_id_for_explain_ai"));
     }
 
+    /**
+     * Resolves a "highlight something on the current page" request. Tries
+     * visible element scoring first, then manifest synonym matching, then
+     * special-case handling for recent critical alerts.
+     */
     private DashboardAssistantResponse resolveHighlightCurrentUi(DashboardAssistantRequest request) {
         String msg = normalize(request.getMessage());
         String rawMsg = request.getMessage();
@@ -1446,6 +1647,11 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return null;
     }
 
+    /**
+     * Resolves requests to show "recent critical alerts". If the current page
+     * already has a critical-alert element, highlights it. Otherwise navigates
+     * to the alerts page and applies a CRITICAL risk filter.
+     */
     private DashboardAssistantResponse resolveRecentCriticalAlerts(DashboardAssistantRequest request) {
         String route = request.getCurrentRoute() != null ? request.getCurrentRoute() : "";
         String rawMsg = request.getMessage();
@@ -1501,10 +1707,13 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 ));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // DETERMINISTIC FALLBACK — runs before model call and on model failure
-    // ─────────────────────────────────────────────────────────────────────────
-
+    /**
+     * Tries to resolve the request deterministically using the intent classifier
+     * and a chain of legacy matchers (prediction highlight, diagnostics, runtime
+     * health, user360, account highlight, page element highlight, nav highlight,
+     * navigation, search, filter, refresh). Returns the first matching response,
+     * or null if no deterministic match is found.
+     */
     private DashboardAssistantResponse tryDeterministicFallback(DashboardAssistantRequest request) {
         if (!deterministicActionsEnabled) {
             DashboardAssistantResponse intentResult = resolveByIntent(request);
@@ -1565,10 +1774,16 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Visible elements semantic matcher ─────────────────────────────────────
 
+    /** Convenience overload that passes allowNavItems=true. */
     private DashboardAssistantResponse matchVisibleElementsFirst(DashboardAssistantRequest request) {
         return matchVisibleElementsFirst(request, true);
     }
 
+    /**
+     * Scores all visible elements against the user's message and returns a
+     * HIGHLIGHT_ELEMENT response for the best-scoring element if it exceeds
+     * the relevance threshold. Optionally excludes navigation-item elements.
+     */
     private DashboardAssistantResponse matchVisibleElementsFirst(DashboardAssistantRequest request, boolean allowNavItems) {
         String msg = normalize(request.getMessage());
         List<AssistantVisibleElement> visible = request.getVisibleElements();
@@ -1610,6 +1825,11 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 "Here is the " + label + ".");
     }
 
+    /**
+     * Calculates a numeric relevance score between a visible element and the
+     * user's normalised message. Considers token overlap, phrase/bigram bonuses,
+     * current-route bonus, action support bonuses, and navigation penalties.
+     */
     private int scoreVisibleElement(AssistantVisibleElement el, String msg, String rawMsg,
                                     String route, boolean hasMetricWords, boolean hasExplicitNav) {
         int score = 0;
@@ -1679,6 +1899,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return Math.max(score, 0);
     }
 
+    /** Combines all text fields of a visible element (id, type, label, description, textContent, routeId) into a single lowercased string for matching. */
     private String buildSearchableText(AssistantVisibleElement el) {
         StringBuilder sb = new StringBuilder();
         sb.append(el.getId() != null ? el.getId().toLowerCase() : "");
@@ -1690,10 +1911,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return sb.toString();
     }
 
+    /** Returns true if the message indicates the user is looking for/finding something on the current page. */
     private boolean isHighlightIntent(String msg) {
         return containsAny(msg, HIGHLIGHT_INTENT_WORDS.toArray(new String[0]));
     }
 
+    /** Pair of a visible element and its computed relevance score, used for ranking matches. */
     private static class ScoredElement {
         final AssistantVisibleElement element;
         final int score;
@@ -1705,6 +1928,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Greetings ────────────────────────────────────────────────────────────
 
+    /** Returns a greeting response if the message contains a recognised greeting pattern. */
     private DashboardAssistantResponse matchGreeting(String msg) {
         if (msg.matches(".*\\b(hello|hi there|hey|are you here|good morning|good afternoon|good evening|what can you do|how can you help)\\b.*")) {
             return noActionResponse("Hello! I am your dashboard assistant. I can help you navigate pages, highlight navigation items or page sections, search for alerts and users, apply supported filters, and refresh data views. Try asking: \"take me to churn\", \"where to click for alerts\", \"highlight explain with AI for event anom-000000001179\", \"filter churn to medium risk\", or \"refresh the forecast\".");
@@ -1714,6 +1938,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Explain AI with eventId extraction from message ──────────────────────
 
+    /** Handles "explain with AI" requests by extracting the eventId and highlighting the explain button. */
     private DashboardAssistantResponse matchExplainAiWithEventId(String rawMsg, String route, Map<String, String> ctx) {
         String norm = normalize(rawMsg);
         boolean hasExplainKeyword = containsAny(norm, "explain", "why did");
@@ -1755,12 +1980,14 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return noActionResponse("Please provide an alert event ID so I can show you the Explain with AI button. For example: \"show me explain AI for anom-000000001179\".");
     }
 
+    /** Extracts the first event ID pattern (e.g. "anom-000000001179") from the given text. */
     private String extractEventId(String text) {
         if (text == null) return null;
         Matcher m = EVENT_ID_PATTERN.matcher(text);
         return m.find() ? m.group().toLowerCase() : null;
     }
 
+    /** Extracts the first insured ID pattern (e.g. "insured-abc123-def456") from the given text. */
     private String extractInsuredId(String text) {
         if (text == null) return null;
         Matcher m = INSURED_ID_PATTERN.matcher(text);
@@ -1769,6 +1996,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Prediction highlight ─────────────────────────────────────────────────
 
+    /** Highlights the "Next Event Prediction" card on the alert investigation page. */
     private DashboardAssistantResponse matchPredictionHighlight(String msg, String route, Map<String, String> ctx) {
         if (!containsAny(msg, "next event prediction", "next events prediction", "prediction card", "deviation evidence")) {
             return null;
@@ -1800,6 +2028,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Nav highlight: "where to click to go to X" → HIGHLIGHT nav-{id} ──────
 
+    /** Highlights a navigation sidebar item when the user asks where to find a page. */
     private DashboardAssistantResponse matchNavHighlight(String msg, String currentRoute) {
         if (!isSeekingLocation(msg)) return null;
 
@@ -1829,18 +2058,21 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return null;
     }
 
+    /** Returns true if the message indicates the user is looking for a location/button to click. */
     private static boolean isSeekingLocation(String msg) {
         return containsAny(msg, "show me", "click", "find", "locate", "how do i", "how to", "highlight",
                 "point me", "where can i", "where can i see", "where can i find", "where is", "where to",
                 "where should i", "where do i", "where i");
     }
 
+    /** Returns true if the message expresses a strong intent to navigate to another page. */
     private static boolean isNavigationIntent(String msg) {
         return containsAny(msg, "go to", "take me", "open", "navigate", "jump to", "switch to", "bring me", "view that", "the view");
     }
 
     // ── Diagnostics card ─────────────────────────────────────────────────────
 
+    /** Handles requests to show the diagnostics/summary card on the Runtime Health page. */
     private DashboardAssistantResponse matchDiagnostics(String msg, String route) {
         if (!containsAny(msg, "diagnostics", "diagnostic card", "diagnostics card")) return null;
 
@@ -1858,6 +2090,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Runtime health ───────────────────────────────────────────────────────
 
+    /** Handles requests for Kafka health or model health information on the Runtime Health page. */
     private DashboardAssistantResponse matchRuntimeHealth(String msg, String route) {
         boolean wantsKafka = containsAny(msg, "kafka health", "kafka");
         boolean wantsModels = containsAny(msg, "model health", "models health");
@@ -1906,6 +2139,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── User 360 ─────────────────────────────────────────────────────────────
 
+    /** Handles User 360 requests: opens the search page or navigates to a specific user profile. */
     private DashboardAssistantResponse matchUser360(String msg, String route, Map<String, String> ctx, String rawMsg) {
         if (!containsAny(msg, "user 360", "user360", "user profile", "user search", "special user", "user info", "user details")) return null;
 
@@ -1943,6 +2177,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Search ────────────────────────────────────────────────────────────────
 
+    /** Handles search requests by extracting event IDs and insured IDs from the message and navigating to the appropriate detail page. */
     private DashboardAssistantResponse matchSearch(String msg, String route, Map<String, String> ctx, String rawMsg) {
         if (!containsAny(msg, "search", "find", "lookup")) return null;
 
@@ -1963,6 +2198,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Per-page element highlight ───────────────────────────────────────────
 
+    /** Highlights an element on the current page by matching the message against manifest element synonyms for that route. */
     private DashboardAssistantResponse matchHighlightOnCurrentPage(String msg, String route) {
         if (route == null || route.isBlank()) return null;
         // Try manifest synonym matching for elements on this route
@@ -1976,6 +2212,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return null;
     }
 
+    /** Highlights the user avatar button when the user asks about account settings. */
     private DashboardAssistantResponse matchAccountHighlight(String msg) {
         if (!isSeekingLocation(msg)) return null;
         if (!containsAny(msg, "account", "account settings", "my account", "my profile", "profile settings")) return null;
@@ -1986,6 +2223,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Filters ──────────────────────────────────────────────────────────────
 
+    /** Applies a risk-level filter (CRITICAL, HIGH, MEDIUM, LOW) to a data view based on the user's message. */
     private DashboardAssistantResponse matchFilter(String msg, String route) {
         if (!containsAny(msg, "filter", "show only", "show just")) return null;
         if (isSeekingLocation(msg)) return null;
@@ -2019,6 +2257,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Refresh ──────────────────────────────────────────────────────────────
 
+    /** Refreshes a data view by matching the message against refresh target synonyms and aliases. */
     private DashboardAssistantResponse matchRefresh(String msg, String route) {
         if (!containsAny(msg, "refresh", "reload", "update")) return null;
         if (isSeekingLocation(msg)) return null;
@@ -2065,6 +2304,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Navigation ───────────────────────────────────────────────────────────
 
+    /**
+     * Resolves navigation requests. Distinguishes location-seeking (highlight nav item)
+     * from strong navigation commands (take me to / open). Supports fuzzy route matching
+     * via synonym index, regex-based verb+target extraction, and Levenshtein distance.
+     * Also handles combined navigate-and-highlight requests.
+     */
     private DashboardAssistantResponse matchNavigate(String msg, String route, Map<String, String> ctx, String rawMsg) {
         // If the user asks "where to click to go to X", "how to go to X", "show me where to go",
         // the primary intent is location-seeking (highlight nav item), not navigation.
@@ -2168,6 +2413,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return navigateResponse(routeId, params, "Opening " + label + ".");
     }
 
+    /** Builds a human-readable list of visible elements that can be highlighted or interacted with. */
     private String buildListHighlightableMessage() {
         List<AssistantVisibleElement> visible = currentVisibleElements;
         if (visible == null || visible.isEmpty()) {
@@ -2188,6 +2434,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── List highlightable items response ────────────────────────────────────
 
+    /** Builds a response listing all visible elements on the current page for the user. */
     private DashboardAssistantResponse listHighlightableItemsResponse(DashboardAssistantRequest request) {
         List<AssistantVisibleElement> visible = request.getVisibleElements();
 
@@ -2221,6 +2468,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Overloaded version that takes visible elements directly ──
 
+    /** Builds a highlightable-items response from an explicit list of visible elements. */
     private DashboardAssistantResponse listHighlightableItemsResponse(List<AssistantVisibleElement> visible) {
         if (visible == null || visible.isEmpty()) {
             return DashboardAssistantResponse.builder()
@@ -2252,6 +2500,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── List-all detection ──
 
+    /** Detects if the user is explicitly asking the assistant to list all visible elements. */
     private static boolean isListAllElementsRequest(String msg) {
         if (msg == null) return false;
         String lower = msg.toLowerCase().trim();
@@ -2274,6 +2523,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Find refresh button in current visible elements ──
 
+    /** Looks for a visible element whose ID contains "refresh" or "reload" for fallback highlighting. */
     private String findRefreshButtonInVisible() {
         if (currentVisibleElements == null) return null;
         for (AssistantVisibleElement ve : currentVisibleElements) {
@@ -2287,6 +2537,11 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Fuzzy match element against visible elements ──
 
+    /**
+     * Attempts to find the best matching visible element ID for a model-emitted
+     * elementId that was not in the allowlist. Uses substring, word-level, and
+     * heuristic-based scoring (table vs KPI disambiguation).
+     */
     private String fuzzyMatchElementAgainstVisible(String elementId, String message,
                                                      java.util.Set<String> allowedElementIds) {
         if (allowedElementIds == null || allowedElementIds.isEmpty()) return null;
@@ -2343,6 +2598,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Helper methods ───────────────────────────────────────────────────────
 
+    /** Returns true if the text contains any of the given keywords (simple substring check). */
     private static boolean containsAny(String text, String... keywords) {
         if (text == null) return false;
         for (String kw : keywords) {
@@ -2351,6 +2607,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return false;
     }
 
+    /** Normalises a string to lowercase, strips non-alphanumeric characters, and collapses whitespace. */
     private static String normalize(String s) {
         if (s == null) return null;
         return s.toLowerCase().trim()
@@ -2359,6 +2616,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 .trim();
     }
 
+    /** Builds a single-command HIGHLIGHT_ELEMENT response. */
     private static DashboardAssistantResponse highlightResponse(String elementId, String message, String commandMessage) {
         return DashboardAssistantResponse.builder()
                 .message(message)
@@ -2372,6 +2630,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 .build();
     }
 
+    /** Builds a single-command NAVIGATE response with optional route parameters. */
     private static DashboardAssistantResponse navigateResponse(String routeName, Map<String, String> params, String commandMessage) {
         DashboardAssistantCommand.DashboardAssistantCommandBuilder builder = DashboardAssistantCommand.builder()
                 .type("NAVIGATE")
@@ -2388,6 +2647,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 .build();
     }
 
+    /** Builds a two-command response: first NAVIGATE, then HIGHLIGHT_ELEMENT. */
     private static DashboardAssistantResponse navigateThenHighlightResponse(String routeName, Map<String, String> params,
                                                                             String message, String elementId, String elementMessage) {
         return DashboardAssistantResponse.builder()
@@ -2410,6 +2670,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 .build();
     }
 
+    /** Builds a response with an arbitrary list of commands and a user-facing message. */
     private static DashboardAssistantResponse multiCommandResponse(String message, List<DashboardAssistantCommand> commands) {
         return DashboardAssistantResponse.builder()
                 .message(message)
@@ -2419,10 +2680,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 .build();
     }
 
+    /** Builds a response with a NO_ACTION command and an optional warnings list. */
     private static DashboardAssistantResponse noActionResponse(String message) {
         return noActionResponse(message, List.of());
     }
 
+    /** Builds a response with a NO_ACTION command and a warnings list. */
     private static DashboardAssistantResponse noActionResponse(String message, List<String> warnings) {
         return DashboardAssistantResponse.builder()
                 .message(message)
@@ -2435,6 +2698,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 .build();
     }
 
+    /** Extracts route parameters (eventId, insuredId) from the raw message and current context for the given route. */
     private static Map<String, String> extractParamsForRoute(String routeName, Map<String, String> ctx, String rawMsg) {
         Map<String, String> params = new LinkedHashMap<>();
         if ("alert-investigation".equals(routeName)) {
@@ -2464,6 +2728,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Nav highlight entries ────────────────────────────────────────────────
 
+    /** A single entry mapping trigger words to a nav element ID for sidebar highlighting. */
     private static class NavHighlightEntry {
         final String elementId;
         final String displayName;
@@ -2494,22 +2759,32 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Debug metadata ───────────────────────────────────────────────────────
 
+    /** Injects basic debug metadata (without latency/candidate info) into the response. */
     private void addDebugMetadata(DashboardAssistantResponse response, AssistantModelResponse modelResponse, DashboardAssistantRequest request) {
         addDebugMetadata(response, modelResponse, request, 0, 0, 0, 0, null, null, null, null);
     }
 
+    /** Injects debug metadata with a decision-source override. */
     private void addDebugMetadata(DashboardAssistantResponse response, AssistantModelResponse modelResponse, DashboardAssistantRequest request, String decisionSourceOverride) {
         addDebugMetadata(response, modelResponse, request, 0, 0, 0, 0, decisionSourceOverride, null, null, null);
     }
 
+    /** Injects debug metadata with latency and prompt size info. */
     private void addDebugMetadata(DashboardAssistantResponse response, AssistantModelResponse modelResponse, DashboardAssistantRequest request, long latencyMs, int promptChars, int requestJsonBytes, int candidateCount) {
         addDebugMetadata(response, modelResponse, request, latencyMs, promptChars, requestJsonBytes, candidateCount, null, null, null, null);
     }
 
+    /** Injects debug metadata with latency, prompt size, and decision source info. */
     private void addDebugMetadata(DashboardAssistantResponse response, AssistantModelResponse modelResponse, DashboardAssistantRequest request, long latencyMs, int promptChars, int requestJsonBytes, int candidateCount, String decisionSourceOverride) {
         addDebugMetadata(response, modelResponse, request, latencyMs, promptChars, requestJsonBytes, candidateCount, decisionSourceOverride, null, null, null);
     }
 
+    /**
+     * Injects full debug metadata into the response. Includes model info, latency,
+     * prompt size, fallback chain, visible element IDs, model commands (raw and
+     * validated), and rejected commands. This is only attached when the request
+     * has debug=true.
+     */
     private void addDebugMetadata(
             DashboardAssistantResponse response,
             AssistantModelResponse modelResponse,
@@ -2607,6 +2882,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Logging ──────────────────────────────────────────────────────────────
 
+    /** Logs the assistant response with latency, command count, and warning summary. */
     private void logAssistantResponse(DashboardAssistantRequest request, DashboardAssistantResponse response, Instant start) {
         long latencyMs = Duration.between(start, Instant.now()).toMillis();
         log.info("ASSISTANT_RESPONSE message=\"{}\" route={} commands={} warnings={} latencyMs={}",
@@ -2617,16 +2893,23 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 latencyMs);
     }
 
+    /** Replaces newline and carriage-return characters with spaces for safe log output. */
     private String sanitize(String s) {
         return s != null ? s.replace('\n', ' ').replace('\r', ' ') : null;
     }
 
+    /** Truncates a string to max characters, appending "..." if it exceeds the limit. Null-safe. */
     private String truncate(String s, int max) {
         return s != null && s.length() > max ? s.substring(0, max) + "..." : s;
     }
 
     // ── Fuzzy route matching ────────────────────────────────────────────────
 
+    /**
+     * Tries to match a user-supplied input to a route ID using the registry's
+     * normalisation, followed by Levenshtein distance against all route IDs
+     * and route names. Returns the best match if within a distance threshold.
+     */
     private String fuzzyMatchRoute(String input) {
         if (input == null || input.isBlank()) return null;
         String normalized = input.toLowerCase().trim();
@@ -2666,6 +2949,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return null;
     }
 
+    /** Computes the Levenshtein edit distance between two strings. Used for fuzzy route matching. */
     private static int levenshteinDistance(String a, String b) {
         int[][] dp = new int[a.length() + 1][b.length() + 1];
         for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
@@ -2681,6 +2965,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── NIM Probe ────────────────────────────────────────────────────
 
+    /**
+     * Probes an NVIDIA NIM model endpoint with a given message. Returns a detailed
+     * map containing latency, HTTP status, raw content, parse status, and whether
+     * guided JSON was applied. If dumpRequestShape is true, returns the request
+     * structure without actually sending it to the API.
+     */
     public Map<String, Object> nimProbe(String message, String modelOverride, boolean useGuided, boolean dumpRequestShape) {
         Map<String, Object> result = new LinkedHashMap<>();
         String actualModel = modelOverride != null ? modelOverride : model;
@@ -2804,6 +3094,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return result;
     }
 
+    /** Extracts the HTTP status code from an exception (WebClientResponseException or heuristics). */
     private int extractHttpStatus(Exception e) {
         if (e instanceof WebClientResponseException wcre) {
             return wcre.getStatusCode().value();
@@ -2815,6 +3106,12 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Updated A/B Benchmark ────────────────────────────────────────
 
+    /**
+     * Runs an A/B benchmark across the given (or default) candidate models.
+     * Each model is called with the Mode C configuration (no guided JSON, full
+     * dashboard system prompt). Returns per-model results and a summary with
+     * recommendations.
+     */
     public List<Map<String, Object>> runBenchmark(String prompt, List<String> modelsOverride) {
         List<String> models = modelsOverride != null && !modelsOverride.isEmpty()
                 ? modelsOverride
@@ -2864,10 +3161,16 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return results;
     }
 
+    /** Runs a single benchmark iteration for a given model, prompt, and guided JSON mode. */
     private Map<String, Object> runSingleBenchmark(String modelName, String userPrompt, boolean useGuided, String mode) {
         return runSingleBenchmark(modelName, userPrompt, useGuided, mode, null);
     }
 
+    /**
+     * Runs a single benchmark iteration for a given model. Supports optional
+     * system prompt and guided JSON. Records latency, parse success, and
+     * command count.
+     */
     private Map<String, Object> runSingleBenchmark(String modelName, String userPrompt, boolean useGuided, String mode, String systemPrompt) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("model", modelName);
@@ -2936,6 +3239,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
         return result;
     }
 
+    /** Builds the system prompt used for A/B benchmarking (simplified dashboard assistant prompt). */
     private String buildBenchmarkSystemPrompt() {
         return "You are a helpful dashboard assistant. "
                 + "Respond with a JSON object containing 'message' (string), "
@@ -2947,6 +3251,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
 
     // ── Error classification ─────────────────────────────────────────────────
 
+    /** Classifies an LLM API exception into a standardised error with a user-facing message and log tag. */
     private static ClassifiedError classifyModelError(Exception e) {
         String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
         Throwable cause = e.getCause();
@@ -2980,6 +3285,7 @@ For TOGGLE_THEME, include "value" ("light" or "dark") based on the user's reques
                 "model-error", "ASSISTANT_ERROR");
     }
 
+    /** Holds the fields for a classified model error: warning code, user-facing message, decision source, and log tag. */
     private static class ClassifiedError {
         final String warning;
         final String userMessage;

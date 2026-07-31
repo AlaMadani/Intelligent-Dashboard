@@ -7,6 +7,9 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Deserialised V3.6.1 deployment manifest describing the AI resource package.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class RuntimeArtifactManifest {

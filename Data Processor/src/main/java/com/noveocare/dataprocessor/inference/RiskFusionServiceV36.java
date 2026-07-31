@@ -10,10 +10,19 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Combines tabular model scores, sequence model scores, rule-risk, and a
+ * business-context / aggregation boost into a single fused risk score using
+ * configurable weights and optional renormalization for missing models.
+ */
 @Service
 @RequiredArgsConstructor
 public class RiskFusionServiceV36 {
+
+    /* ---- Dependencies ---- */
     private final AiRiskFusionProperties properties;
+
+    /* ---- Public API ---- */
 
     public RiskFusionResult fuse(TabularAnomalyResult tabular,
                                  Double transformerRiskScore100,
@@ -102,6 +111,8 @@ public class RiskFusionServiceV36 {
                 .build();
     }
 
+    /* ---- Weight helpers ---- */
+
     private Map<String, Double> configuredWeights() {
         Map<String, Double> weights = new LinkedHashMap<>();
         weights.put("xgboost", properties.getXgboostWeight());
@@ -110,6 +121,8 @@ public class RiskFusionServiceV36 {
         weights.put("tcn", properties.getTcnWeight());
         return weights;
     }
+
+    /* ---- Math helpers ---- */
 
     private double contribution(Double score, Double weight) {
         return score == null || weight == null ? 0.0 : score * weight;
@@ -124,6 +137,8 @@ public class RiskFusionServiceV36 {
                 .available(score != null)
                 .build();
     }
+
+    /* ---- Fallback / level / clamp ---- */
 
     private String fallbackMode(Map<String, Double> unavailableWeights, Map<String, Double> mlScores) {
         if (unavailableWeights.isEmpty()) {

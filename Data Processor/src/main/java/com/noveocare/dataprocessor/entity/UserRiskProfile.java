@@ -18,13 +18,14 @@ public class UserRiskProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // User identifier and freshness of the computed profile.
+    /* User identifier and freshness of the computed profile. */
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
     @Column(name = "last_updated")
     private Instant lastUpdated;
 
+    /* Anomaly counts over rolling windows. */
     @Column(name = "anomaly_count_7d")
     private Integer anomalyCount7d;
 
@@ -40,7 +41,7 @@ public class UserRiskProfile {
     @Column(name = "anomaly_rate_30d")
     private Double anomalyRate30d;
 
-    // Recent behavioral aggregates used to explain the assigned tier.
+    /* Recent behavioral aggregates used to explain the assigned tier. */
     @Column(name = "sessions_7d")
     private Integer sessions7d;
 

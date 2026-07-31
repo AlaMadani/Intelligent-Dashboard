@@ -42,17 +42,28 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Aggregates and publishes a comprehensive health / diagnostics snapshot for
+ * all AI runtimes (model availability, coverage, inference counters, dashboard
+ * status, Kafka consumer health, etc.) via Redis so that external monitoring
+ * can consume it.
+ */
 @Service
 @RequiredArgsConstructor
 public class ModelHealthService {
 
+    /* ---- Inference service dependencies ---- */
     private final SequenceOnnxInferenceService onnxInferenceService;
     private final TabularAnomalyInferenceService tabularAnomalyInferenceService;
     private final ChurnInferenceService churnInferenceService;
     private final ForecastRuntimeService forecastRuntimeService;
+
+    /* ---- Artifact / coverage dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final SequenceFieldCoverageMonitor coverageMonitor;
     private final TabularFieldCoverageMonitor tabularCoverageMonitor;
+
+    /* ---- Cache / config dependencies ---- */
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties cacheProperties;
     private final AiSequenceProperties sequenceProperties;
@@ -61,6 +72,8 @@ public class ModelHealthService {
     private final AiForecastProperties forecastProperties;
     private final AiPersonaProperties personaProperties;
     private final AiLlmExplanationProperties llmProperties;
+
+    /* ---- Session / event dependencies ---- */
     private final SessionFinalizationService sessionFinalizationService;
     private final EventIdempotencyService eventIdempotencyService;
     private final SessionFinalizationOrchestrator finalizationOrchestrator;
@@ -70,6 +83,8 @@ public class ModelHealthService {
     private final NextEventPredictionProperties nextEventPredictionProperties;
     private final RedisSessionBufferService redisSessionBufferService;
     private final ObjectFactory<AuditTrailConsumer> auditTrailConsumerFactory;
+
+    /* ---- Dashboard / performance / inference dependencies ---- */
     private final PerformanceProperties performanceProperties;
     private final DashboardSnapshotService dashboardSnapshotService;
     private final DashboardSnapshotPersistenceService dashboardSnapshotPersistenceService;
@@ -79,12 +94,15 @@ public class ModelHealthService {
     private final InferenceBenchmarkService inferenceBenchmarkService;
     private final AlertCacheService alertCacheService;
 
+    /* ---- Runtime health counters ---- */
     private final AtomicLong inferenceErrorCount = new AtomicLong();
     private final Map<String, Instant> runtimeLastInferenceAt = new ConcurrentHashMap<>();
     private final Map<String, Boolean> runtimeLastSucceeded = new ConcurrentHashMap<>();
     private final Map<String, String> runtimeLastError = new ConcurrentHashMap<>();
     private volatile Instant lastInferenceAt;
     private volatile String fallbackMode = "normal";
+
+    /* ---- Inference recording ---- */
 
     public void recordInference(String mode) {
         lastInferenceAt = Instant.now();
@@ -97,6 +115,8 @@ public class ModelHealthService {
         fallbackMode = mode == null ? "error" : mode;
         publish();
     }
+
+    /* ---- Per-runtime health recording ---- */
 
     public void recordRuntimeSuccess(String runtimeKey) {
         if (runtimeKey == null || runtimeKey.isBlank()) {
@@ -115,6 +135,8 @@ public class ModelHealthService {
         runtimeLastSucceeded.put(runtimeKey, false);
         runtimeLastError.put(runtimeKey, error == null || error.isBlank() ? "runtime_unavailable" : error);
     }
+
+    /* ---- Publish / snapshot ---- */
 
     public void publish() {
         redisCacheService.setJson(CacheKeys.aiRuntimeHealthKey(), snapshot(), cacheProperties.getLiveStats());
@@ -162,6 +184,8 @@ public class ModelHealthService {
         payload.put("alertCacheConsistency", alertCacheService.consistencyDiagnostics());
         return payload;
     }
+
+    /* ---- Diagnostics section builders ---- */
 
     private Map<String, Object> buildInferenceDiagnostics() {
         Map<String, Object> inference = new LinkedHashMap<>();
@@ -354,6 +378,8 @@ public class ModelHealthService {
         return d;
     }
 
+    /* ---- Model-health entry builders ---- */
+
     private Map<String, Object> modelHealth() {
         Map<String, Object> health = new LinkedHashMap<>();
         boolean transformerExists = artifactService.modelExists(RuntimeArtifactService.TRANSFORMER_MODEL);
@@ -451,6 +477,8 @@ public class ModelHealthService {
                 "llm_evidence_payload"));
         return health;
     }
+
+    /* ---- Entry factories ---- */
 
     private Map<String, Object> runtimeEntry(String displayName,
                                              String artifactName,

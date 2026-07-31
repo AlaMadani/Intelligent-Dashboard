@@ -38,12 +38,16 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AlertCacheService {
 
+    /* Redis key constants and cache size limits */
     static final String CANONICAL_LIVE_ZSET = CacheKeys.liveAlertsV36ZSetKey();
     static final int MAX_LIVE_ALERTS = 5000;
 
+    /* Injected dependencies */
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties redisCacheProperties;
     private final StringRedisTemplate redisTemplate;
+
+    /* --- Alert CRUD operations --- */
 
     public void addAlert(V36LiveAlertSummary summary) {
         String eventId = summary.getEventId();
@@ -75,6 +79,7 @@ public class AlertCacheService {
         trimToMaxSize();
     }
 
+    /* Removes an alert from all related ZSETs */
     public void removeAlert(String eventId, String insuredId, String riskLevel) {
         if (eventId == null || eventId.isBlank()) return;
         redisCacheService.zsetRemove(CANONICAL_LIVE_ZSET, eventId);
@@ -84,6 +89,8 @@ public class AlertCacheService {
             redisCacheService.zsetRemove(CacheKeys.userAlertsV36ZSetKey(insuredId), eventId);
         }
     }
+
+    /* --- Query methods --- */
 
     public List<String> getLiveEventIds(int offset, int limit) {
         Set<String> members = redisCacheService.zsetReverseRange(CANONICAL_LIVE_ZSET, offset, offset + limit - 1L);
@@ -107,6 +114,8 @@ public class AlertCacheService {
         return redisCacheService.zsetCard(CacheKeys.criticalAlertsV36ZSetKey());
     }
 
+    /* --- Internal maintenance --- */
+
     private void trimToMaxSize() {
         long liveSize = redisCacheService.zsetCard(CANONICAL_LIVE_ZSET);
         if (liveSize <= MAX_LIVE_ALERTS) {
@@ -126,6 +135,7 @@ public class AlertCacheService {
         }
     }
 
+    /* Diagnostics and consistency checks */
     public Map<String, Object> consistencyDiagnostics() {
         Map<String, Object> diag = new LinkedHashMap<>();
         try {
@@ -155,6 +165,7 @@ public class AlertCacheService {
         return diag;
     }
 
+    /* Resolves the best available epoch millis for scoring */
     private long epochMillis(Instant createdAt, String timestamp) {
         if (createdAt != null) {
             return createdAt.toEpochMilli();

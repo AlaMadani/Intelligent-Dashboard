@@ -42,6 +42,9 @@ class V36NextEventPredictionServiceTest {
         service.initTransactionTemplate();
     }
 
+    /**
+     * Get By Session Id Redis Hit
+     */
     @Test
     void getBySessionIdRedisHit() {
         V36NextEventPredictionDto expected = validPrediction();
@@ -55,6 +58,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getHeads()).containsKey("api_family");
     }
 
+    /**
+     * Get By Session Id Sql Fallback
+     */
     @Test
     void getBySessionIdSqlFallback() throws Exception {
         when(redisReadService.readValue(anyString(), any(Class.class))).thenReturn(Optional.empty());
@@ -72,6 +78,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getHeads()).isNotEmpty();
     }
 
+    /**
+     * Get By Session Id No Prediction
+     */
     @Test
     void getBySessionIdNoPrediction() {
         when(redisReadService.readValue(anyString(), any(Class.class))).thenReturn(Optional.empty());
@@ -84,6 +93,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getWarnings()).contains("next_event_prediction_not_available");
     }
 
+    /**
+     * Get By Insured Id Redis Hit
+     */
     @Test
     void getByInsuredIdRedisHit() {
         V36NextEventPredictionDto expected = validPrediction();
@@ -95,6 +107,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getSource()).isEqualTo("redis");
     }
 
+    /**
+     * Get Best For User360Prefers Session
+     */
     @Test
     void getBestForUser360PrefersSession() {
         V36NextEventPredictionDto sessionPrediction = validPrediction();
@@ -106,6 +121,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getSessionId()).isEqualTo("sess-1");
     }
 
+    /**
+     * Get Best For User360Falls Back To Insured
+     */
     @Test
     void getBestForUser360FallsBackToInsured() {
         when(redisReadService.readValue("next_event_prediction:session:sess-1", V36NextEventPredictionDto.class))
@@ -124,6 +142,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getWarnings()).contains("fallback_to_insured_prediction");
     }
 
+    /**
+     * Get Best For User360No Prediction
+     */
     @Test
     void getBestForUser360NoPrediction() {
         when(redisReadService.readValue(anyString(), any(Class.class))).thenReturn(Optional.empty());
@@ -136,12 +157,18 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getWarnings()).contains("next_event_prediction_not_available");
     }
 
+    /**
+     * Session Id Null Returns Unavailable
+     */
     @Test
     void sessionIdNullReturnsUnavailable() {
         V36NextEventPredictionDto result = service.getBySessionId(null);
         assertThat(result.getWarnings()).contains("session_id_missing");
     }
 
+    /**
+     * Deviation Parsed From Predictions Json
+     */
     @Test
     void deviationParsedFromPredictionsJson() throws Exception {
         String predictionsJson = objectMapper.writeValueAsString(Map.of(
@@ -160,6 +187,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getDeviation().getDeviationScore()).isEqualTo(0.85);
     }
 
+    /**
+     * Deviation Parsed From Predictions Json Includes Previous Prediction
+     */
     @Test
     void deviationParsedFromPredictionsJsonIncludesPreviousPrediction() throws Exception {
         Map<String, Object> previousPrediction = new LinkedHashMap<>();
@@ -194,6 +224,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getDeviation().getDeviationScore()).isEqualTo(0.85);
     }
 
+    /**
+     * Deviation Previous Prediction Preserves Unknown Fields
+     */
     @Test
     void deviationPreviousPredictionPreservesUnknownFields() throws Exception {
         Map<String, Object> previousPrediction = new LinkedHashMap<>();
@@ -227,6 +260,9 @@ class V36NextEventPredictionServiceTest {
                 .containsKey("nested");
     }
 
+    /**
+     * Deviation Missing Previous Prediction Still Works
+     */
     @Test
     void deviationMissingPreviousPredictionStillWorks() throws Exception {
         String predictionsJson = objectMapper.writeValueAsString(Map.of(
@@ -248,6 +284,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getDeviation().getDeviationScore()).isEqualTo(0.85);
     }
 
+    /**
+     * Deviation Absent Returns Null
+     */
     @Test
     void deviationAbsentReturnsNull() throws Exception {
         String predictionsJson = objectMapper.writeValueAsString(Map.of(
@@ -264,6 +303,9 @@ class V36NextEventPredictionServiceTest {
         assertThat(result.getDeviation()).isNull();
     }
 
+    /**
+     * Redis Hit Avoids Sql Call
+     */
     @Test
     void redisHitAvoidsSqlCall() {
         V36NextEventPredictionDto expected = validPrediction();
@@ -275,6 +317,9 @@ class V36NextEventPredictionServiceTest {
         verify(repository, never()).findTopBySessionIdOrderByCreatedAtDesc(anyString());
     }
 
+    /**
+     * No Unexpected Rollback When Sql Fails
+     */
     @Test
     void noUnexpectedRollbackWhenSqlFails() {
         when(redisReadService.readValue(anyString(), any(Class.class))).thenReturn(Optional.empty());

@@ -17,6 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Builds tabular anomaly feature vectors by aggregating sequence window data
+ * (means, last values, stds, normalised categoricals) and applying the
+ * feature scaler.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -24,12 +29,17 @@ public class TabularAnomalyFeatureService {
     private static final String CONTRACT = "tabular_anomaly_feature_contract.json";
     private static final String SCALER = "tabular_feature_scaler.json";
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final TabularFieldCoverageMonitor coverageMonitor;
 
+    /* ---- Loaded artifacts ---- */
     private TabularAnomalyFeatureContract contract;
     private TabularFeatureScaler scaler;
 
+    /* ========== Initialisation ========== */
+
+    /* Loads the feature contract and scaler config from artifacts. */
     @PostConstruct
     public void init() throws IOException {
         contract = artifactService.readConfig(CONTRACT, TabularAnomalyFeatureContract.class);
@@ -39,6 +49,9 @@ public class TabularAnomalyFeatureService {
         }
     }
 
+    /* ========== Public API ========== */
+
+    /* Builds a full tabular feature vector from window state and current encoded event. */
     public TabularAnomalyFeatureVector build(SequenceWindowState previousState, EncodedSequenceEvent currentEncoded) {
         List<String> warnings = new ArrayList<>();
         List<EncodedSequenceEvent> events = new ArrayList<>();
@@ -114,10 +127,14 @@ public class TabularAnomalyFeatureService {
                 .build();
     }
 
+    /* Returns the loaded feature contract. */
     public TabularAnomalyFeatureContract contract() {
         return contract;
     }
 
+    /* ========== Private feature builders ========== */
+
+    /* Computes the mean of a continuous field across events. */
     private double continuousMean(List<EncodedSequenceEvent> events, int index) {
         if (index < 0 || events.isEmpty()) {
             return 0.0;
@@ -129,6 +146,7 @@ public class TabularAnomalyFeatureService {
         return total / events.size();
     }
 
+    /* Returns the last value of a continuous field. */
     private double continuousLast(List<EncodedSequenceEvent> events, int index) {
         if (index < 0 || events.isEmpty()) {
             return 0.0;
@@ -136,6 +154,7 @@ public class TabularAnomalyFeatureService {
         return continuousValue(events.get(events.size() - 1), index);
     }
 
+    /* Computes the standard deviation of a continuous field across events. */
     private double continuousStd(List<EncodedSequenceEvent> events, int index) {
         if (index < 0 || events.size() < 2) {
             return 0.0;
@@ -149,6 +168,7 @@ public class TabularAnomalyFeatureService {
         return Math.sqrt(sum / events.size());
     }
 
+    /* Extracts a single continuous value from an encoded event. */
     private double continuousValue(EncodedSequenceEvent event, int index) {
         if (event == null || event.getContinuousValues() == null || index < 0 || index >= event.getContinuousValues().length) {
             return 0.0;
@@ -156,6 +176,7 @@ public class TabularAnomalyFeatureService {
         return event.getContinuousValues()[index];
     }
 
+    /* Returns the last categorical ID for a given column index. */
     private long categoricalLast(List<EncodedSequenceEvent> events, int index) {
         if (index < 0 || events.isEmpty()) {
             return 0L;
@@ -164,6 +185,7 @@ public class TabularAnomalyFeatureService {
         return last.getCategoricalIds() == null || index >= last.getCategoricalIds().length ? 0L : last.getCategoricalIds()[index];
     }
 
+    /* Counts unique known (>0) categorical IDs across events. */
     private int categoricalUniqueKnown(List<EncodedSequenceEvent> events, int index) {
         if (index < 0 || events.isEmpty()) {
             return 0;
@@ -177,6 +199,7 @@ public class TabularAnomalyFeatureService {
         return values.size();
     }
 
+    /* Returns the vocabulary size for a given index, defaulting to 0. */
     private int vocabSize(List<Integer> vocabSizes, int index) {
         return index < 0 || index >= vocabSizes.size() || vocabSizes.get(index) == null ? 0 : vocabSizes.get(index);
     }

@@ -6,13 +6,24 @@ import com.noveocare.dataprocessor.config.AiSequenceProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+/**
+ * Dynamically selects which sequence model (Transformer / TCN / rules-only) to
+ * run based on the current Kafka consumer lag, so that the system degrades
+ * gracefully under high load.
+ */
 @Service
 @RequiredArgsConstructor
 public class LoadSheddingService {
 
+    /* ---- Dependencies ---- */
     private final AiLoadSheddingProperties loadSheddingProperties;
     private final AiSequenceProperties sequenceProperties;
 
+    /* ---- Public API ---- */
+
+    /**
+     * Returns the most expensive model kind that the current lag allows.
+     */
     public SequenceModelKind selectModel(long kafkaLag) {
         if (kafkaLag >= loadSheddingProperties.getRulesOnlyLagThreshold()) {
             return SequenceModelKind.RULES_ONLY;

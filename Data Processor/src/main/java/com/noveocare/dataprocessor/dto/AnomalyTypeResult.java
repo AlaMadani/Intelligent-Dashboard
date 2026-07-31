@@ -9,6 +9,8 @@ import lombok.Data;
 @Data
 @Builder
 public class AnomalyTypeResult {
+    /* The predicted anomaly category label. */
     private String type;
+    /* Model confidence score for the assigned type. */
     private double confidence;
 }

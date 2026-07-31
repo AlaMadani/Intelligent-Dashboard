@@ -13,9 +13,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Heuristic service that inspects model scores, triggered rules, and event
+ * metadata to decide <em>what kind</em> of suspicious behavior a session
+ * represents (e.g. credential stuffing, data exfiltration, session hijacking).
+ */
 @Service
 public class AnomalyTypeAttributionServiceV36 {
 
+    /* ---- Public API ---- */
+
+    /**
+     * Evaluates all available signals and returns an attributed anomaly type
+     * together with a confidence level and supporting evidence.
+     */
     public AnomalyTypeAttributionResult attribute(TabularAnomalyResult tabular,
                                                   SequenceScoreResult transformerScore,
                                                   SequenceScoreResult tcnScore,
@@ -79,6 +90,8 @@ public class AnomalyTypeAttributionServiceV36 {
                 .anomalyTypeEvidenceJson(evidence)
                 .build();
     }
+
+    /* ---- Internal helpers ---- */
 
     private boolean repeatedEndpointPattern(SessionSummary summary) {
         return summary != null && defaultInt(summary.getPingPongCount()) >= 2;

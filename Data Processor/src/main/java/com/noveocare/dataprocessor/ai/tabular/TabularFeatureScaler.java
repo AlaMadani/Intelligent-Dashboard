@@ -7,6 +7,10 @@ import lombok.Data;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Standardisation scaler for tabular features, loaded from
+ * tabular_feature_scaler.json. Applies (x - mean) / scale per feature.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TabularFeatureScaler {
@@ -18,6 +22,7 @@ public class TabularFeatureScaler {
     private List<Double> mean = List.of();
     private List<Double> scale = List.of();
 
+    /* Standardises a raw feature vector using loaded mean/scale. */
     public double[] transform(double[] raw, List<String> warnings) {
         double[] scaled = new double[raw == null ? 0 : raw.length];
         List<String> localWarnings = warnings == null ? new ArrayList<>() : warnings;

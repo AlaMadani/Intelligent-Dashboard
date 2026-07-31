@@ -9,6 +9,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * An audit trail event encoded for sequence model inference, containing
+ * categorical IDs, continuous values, and a helper to resolve target indices.
+ */
 @Data
 @Builder(toBuilder = true)
 @NoArgsConstructor
@@ -25,6 +29,7 @@ public class EncodedSequenceEvent {
     private List<String> warnings;
     private boolean schemaValid;
 
+    /* Resolves the 0-based vocabulary index for a categorical column. */
     public int targetIndex(int categoricalPosition) {
         if (categoricalIds == null || categoricalPosition < 0 || categoricalPosition >= categoricalIds.length) {
             return -1;

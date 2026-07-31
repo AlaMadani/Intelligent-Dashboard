@@ -12,9 +12,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Evaluates deterministic rules against session metadata and produces a
+ * rule-risk score with per-rule contributions, evidence, and a business
+ * context sub-score.
+ */
 @Service
 @RequiredArgsConstructor
 public class RuleRiskScoringService {
+
+    /* ---- Public API ---- */
 
     public double score(SessionSummary summary, List<AuditTrailEvent> events, List<String> triggeredRules) {
         return evaluate(summary, events, triggeredRules).getRuleRiskScore();
@@ -65,6 +72,8 @@ public class RuleRiskScoringService {
                 .build();
     }
 
+    /* ---- Rule-code normalisation ---- */
+
     public String canonicalRuleCode(String rule) {
         if (rule == null || rule.isBlank()) {
             return "UNKNOWN_RULE";
@@ -83,6 +92,8 @@ public class RuleRiskScoringService {
             default -> rule.toUpperCase(Locale.ROOT);
         };
     }
+
+    /* ---- Contribution / evidence building ---- */
 
     private void addIfMissing(List<String> canonicalRules,
                               List<RuleContribution> contributions,
@@ -116,6 +127,8 @@ public class RuleRiskScoringService {
             default -> 10.0;
         };
     }
+
+    /* ---- Severity / messages / evidence ---- */
 
     private String severity(double score) {
         if (score >= 40.0) {
@@ -164,6 +177,8 @@ public class RuleRiskScoringService {
         evidence.put("pingPongCount", summary == null ? null : summary.getPingPongCount());
         return evidence;
     }
+
+    /* ---- Business context / utilities ---- */
 
     private double businessContextScore(SessionSummary summary, List<AuditTrailEvent> events, List<String> rules) {
         double score = 0.0;

@@ -5,6 +5,10 @@ import lombok.Value;
 
 import java.util.List;
 
+/**
+ * Immutable snapshot of runtime artifact availability, listing present models
+ * and any missing artifacts or warnings.
+ */
 @Value
 @Builder(toBuilder = true)
 public class RuntimeArtifactHealth {

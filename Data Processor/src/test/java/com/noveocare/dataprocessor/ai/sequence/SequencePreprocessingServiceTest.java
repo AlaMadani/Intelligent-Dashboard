@@ -17,10 +17,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Tests for SequencePreprocessingService: categorical encoding, unknown value handling,
+ * and continuous column scaling for sequence model input.
+ */
 class SequencePreprocessingServiceTest {
+
+    /* --- Fields --- */
 
     private RuntimeArtifactService artifactService;
     private SequencePreprocessingService preprocessingService;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() throws Exception {
@@ -40,6 +48,8 @@ class SequencePreprocessingServiceTest {
                 coverageMonitor);
     }
 
+    /* --- Test methods: categorical encoding --- */
+
     @Test
     void encodesKnownCategoricalValuesAsOneBasedIds() {
         AuditTrailEvent event = eventUsingFirstVocabularyValue(Instant.parse("2026-01-05T09:30:00Z"));
@@ -56,6 +66,8 @@ class SequencePreprocessingServiceTest {
         assertThat(encoded.targetIndex(0)).isEqualTo(expectedPageId - 1);
     }
 
+    /* --- Test methods: unknown handling --- */
+
     @Test
     void mapsUnknownCategoricalValueToZeroAndSkipsInvalidTargetIndex() {
         AuditTrailEvent event = eventUsingFirstVocabularyValue(Instant.parse("2026-01-05T09:30:00Z"));
@@ -67,6 +79,8 @@ class SequencePreprocessingServiceTest {
         assertThat(encoded.targetIndex(0)).isEqualTo(-1);
         assertThat(encoded.getWarnings()).contains("unknown_category_page");
     }
+
+    /* --- Test methods: continuous scaling --- */
 
     @Test
     void scalesOnlyFirstThreeContinuousColumns() {
@@ -92,6 +106,8 @@ class SequencePreprocessingServiceTest {
         assertThat(encoded.getContinuousValues()[4]).isEqualTo(0.0f);
         assertThat(encoded.getContinuousValues()[5]).isCloseTo((float) Math.sin(2.0 * Math.PI * 9.0 / 24.0), within(0.0001f));
     }
+
+    /* --- Helper methods --- */
 
     private AuditTrailEvent eventUsingFirstVocabularyValue(Instant timestamp) {
         AuditTrailEvent event = SequenceEventMapperTest.completeEvent(timestamp);

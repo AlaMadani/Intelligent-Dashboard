@@ -5,6 +5,10 @@ import lombok.Value;
 
 import java.util.List;
 
+/**
+ * Immutable result of a churn prediction: probability, risk level, model info,
+ * and availability status.
+ */
 @Value
 @Builder
 public class ChurnPrediction {

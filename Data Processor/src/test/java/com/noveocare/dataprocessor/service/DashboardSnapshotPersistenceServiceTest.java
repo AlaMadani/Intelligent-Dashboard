@@ -15,16 +15,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * Tests for DashboardSnapshotPersistenceService: insert, update, deduplication
+ * by hash, exception handling, and success/failure counters.
+ */
 class DashboardSnapshotPersistenceServiceTest {
+
+    /* --- Fields --- */
 
     private final DashboardSnapshotRepository repository = mock(DashboardSnapshotRepository.class);
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private DashboardSnapshotPersistenceService service;
 
+    /* --- Setup --- */
+
     @BeforeEach
     void setUp() {
         service = new DashboardSnapshotPersistenceService(repository, objectMapper);
     }
+
+    /* --- Test methods: insert --- */
 
     @Test
     void persistSnapshotInsertsNewRow() {
@@ -55,6 +65,8 @@ class DashboardSnapshotPersistenceServiceTest {
         assertThat(saved.getSnapshotTimestamp()).isNotNull();
         assertThat(saved.getSnapshotDate()).isNotNull();
     }
+
+    /* --- Test methods: update --- */
 
     @Test
     void persistSnapshotUpdatesExistingRow() {
@@ -87,6 +99,8 @@ class DashboardSnapshotPersistenceServiceTest {
         assertThat(updated.getPayloadJson()).contains("totalEventsToday");
         assertThat(updated.getUpdatedAt()).isAfter(existing.getCreatedAt());
     }
+
+    /* --- Test methods: deduplication --- */
 
     @Test
     void persistSnapshotSkipsWhenHashUnchanged() {
@@ -129,6 +143,8 @@ class DashboardSnapshotPersistenceServiceTest {
         verify(repository, never()).save(any());
     }
 
+    /* --- Test methods: error handling --- */
+
     @Test
     void persistSnapshotDoesNotFailOnException() {
         String viewName = "security-overview";
@@ -145,6 +161,8 @@ class DashboardSnapshotPersistenceServiceTest {
         assertThat(service.getSqlWriteSuccessTotal()).isEqualTo(0);
         assertThat(service.getSqlLastFailureAt()).isNotNull();
     }
+
+    /* --- Test methods: counters --- */
 
     @Test
     void countersTrackSuccessAndFailure() {
@@ -165,6 +183,8 @@ class DashboardSnapshotPersistenceServiceTest {
         assertThat(service.getSqlWriteFailureTotal()).isEqualTo(1);
         assertThat(service.getSqlLastFailureAt()).isNotNull();
     }
+
+    /* --- Helper methods --- */
 
     private String sha256Hex(String input) {
         try {

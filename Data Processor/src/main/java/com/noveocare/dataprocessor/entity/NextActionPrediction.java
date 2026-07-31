@@ -18,7 +18,7 @@ public class NextActionPrediction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // User and session context for the prediction snapshot.
+    /* User and session context for the prediction snapshot. */
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
@@ -28,6 +28,7 @@ public class NextActionPrediction {
     @Column(name = "predicted_at")
     private Instant predictedAt;
 
+    /* JSON-serialised top-3 recommended actions with probabilities. */
     @Column(name = "top3_actions_json", columnDefinition = "NVARCHAR(MAX)")
     private String top3ActionsJson;
 }

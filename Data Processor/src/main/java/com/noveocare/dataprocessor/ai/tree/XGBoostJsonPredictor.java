@@ -5,11 +5,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Parses a JSON-serialised XGBoost model and provides prediction methods with
+ * objective-aware output transformation.
+ */
 public class XGBoostJsonPredictor {
     private final String objective;
     private final double baseMargin;
     private final List<Tree> trees;
 
+    /* ========== Public API ========== */
+
+    /* Constructs the predictor by parsing the JSON model root. */
     public XGBoostJsonPredictor(JsonNode root) {
         JsonNode learner = root.path("learner");
         this.objective = learner.path("objective").path("name").asText("");
@@ -20,6 +27,7 @@ public class XGBoostJsonPredictor {
         this.trees = parseTrees(learner.path("gradient_booster").path("model").path("trees"));
     }
 
+    /* Predicts with objective-aware output (sigmoid for binary:logistic). */
     public double predict(double[] features) {
         double raw = predictRaw(features);
         if ("binary:logistic".equals(objective)) {
@@ -28,6 +36,7 @@ public class XGBoostJsonPredictor {
         return raw;
     }
 
+    /* Predicts the raw margin (sum of trees + base margin). */
     public double predictRaw(double[] features) {
         double score = baseMargin;
         for (Tree tree : trees) {
@@ -36,14 +45,19 @@ public class XGBoostJsonPredictor {
         return score;
     }
 
+    /* Returns the objective function name from the model. */
     public String objective() {
         return objective;
     }
 
+    /* Returns the number of trees in the ensemble. */
     public int treeCount() {
         return trees.size();
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Parses the JSON tree array into a list of Tree objects. */
     private List<Tree> parseTrees(JsonNode treeNodes) {
         List<Tree> parsed = new ArrayList<>();
         if (treeNodes == null || !treeNodes.isArray()) {
@@ -61,6 +75,7 @@ public class XGBoostJsonPredictor {
         return parsed;
     }
 
+    /* Parses the base_score string (may contain brackets). */
     private static double parseBaseScore(String value) {
         if (value == null || value.isBlank()) {
             return 0.0;
@@ -73,6 +88,7 @@ public class XGBoostJsonPredictor {
         }
     }
 
+    /* JSON array -> int[]. */
     private static int[] intArray(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new int[0];
@@ -84,6 +100,7 @@ public class XGBoostJsonPredictor {
         return values;
     }
 
+    /* JSON array -> double[]. */
     private static double[] doubleArray(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new double[0];
@@ -95,6 +112,7 @@ public class XGBoostJsonPredictor {
         return values;
     }
 
+    /* JSON array -> boolean[]. */
     private static boolean[] booleanArray(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new boolean[0];
@@ -107,6 +125,7 @@ public class XGBoostJsonPredictor {
         return values;
     }
 
+    /* Numerically stable sigmoid. */
     private static double sigmoid(double value) {
         if (value >= 0) {
             double z = Math.exp(-value);
@@ -116,6 +135,7 @@ public class XGBoostJsonPredictor {
         return z / (1.0 + z);
     }
 
+    /* A single decision tree in the XGBoost ensemble. */
     private record Tree(int[] leftChildren,
                         int[] rightChildren,
                         int[] splitIndices,

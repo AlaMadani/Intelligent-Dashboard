@@ -28,11 +28,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Orchestrates session finalization: alert decision, persistence, risk profile update,
+ * cache cleanup, and dashboard refresh.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class SessionFinalizationOrchestrator {
 
+    /* Injected dependencies */
     private final ObjectMapper objectMapper;
     private final AlertPublisher alertPublisher;
     private final SessionAnalysisRepository sessionAnalysisRepository;
@@ -46,9 +51,12 @@ public class SessionFinalizationOrchestrator {
     private final PerformanceProperties performanceProperties;
     private final AlertCacheService alertCacheService;
 
+    /* Deduplication and integrity counters */
     private final AtomicLong duplicateFinalizationSkipped = new AtomicLong();
     private final AtomicLong duplicateAlertsSkipped = new AtomicLong();
     private final AtomicLong llmEvidenceKeyPayloadMismatchTotal = new AtomicLong();
+
+    /* --- Main finalization flow --- */
 
     public void completeFinalization(SessionSummary summary, SessionInsight insight,
                                      List<AuditTrailEvent> enrichedEvents, List<String> triggeredRules,
@@ -167,6 +175,8 @@ public class SessionFinalizationOrchestrator {
                 cacheWriteMs, totalMs, alertPublished, insight.getFinalRiskScore());
     }
 
+    /* --- Alert decision --- */
+
     public boolean shouldAlert(SessionInsight insight) {
         return insight.isAnomaly()
                 || (insight.getFinalRiskScore() != null
@@ -175,9 +185,12 @@ public class SessionFinalizationOrchestrator {
                 && insight.getEnsembleRiskScore() >= featureEngineeringProperties.getSessionAlertRiskThreshold());
     }
 
+    /* Checks whether an anomaly has already been detected for this session */
     public boolean hasDetectedAnomaly(String insuredId, String sessionId) {
         return redisCacheService.hasKey(CacheKeys.detectedAnomalyKey(insuredId, sessionId));
     }
+
+    /* --- Persistence --- */
 
     public void persistSessionAnalysis(SessionSummary summary, SessionInsight insight, List<String> triggeredRules) {
         long startMs = System.currentTimeMillis();
@@ -238,6 +251,7 @@ public class SessionFinalizationOrchestrator {
         }
     }
 
+    /* Logs LLM evidence payload write details */
     private void logEvidenceSqlWrite(SessionSummary summary, SessionInsight insight) {
         try {
             Map<String, Object> ev = insight.getLlmExplanationEvidencePayload();
@@ -252,6 +266,7 @@ public class SessionFinalizationOrchestrator {
         }
     }
 
+    /* Maps all scores and JSON fields from insight/summary onto the entity */
     private void updateSessionAnalysisScores(SessionAnalysis entity, SessionSummary summary, SessionInsight insight, List<String> triggeredRules) {
         entity.setChurnProbability(insight.getChurnProbability());
         entity.setPersonaCluster(insight.getPersonaCluster());
@@ -315,6 +330,8 @@ public class SessionFinalizationOrchestrator {
             log.warn("Failed to serialize JSON fields for session {}", summary.getSessionId(), ex);
         }
     }
+
+    /* --- Alert publishing --- */
 
     public void publishAlert(SessionSummary summary, SessionInsight insight, List<AuditTrailEvent> enrichedEvents) {
         AuditTrailEvent lastEvent = enrichedEvents.get(enrichedEvents.size() - 1);
@@ -390,6 +407,7 @@ public class SessionFinalizationOrchestrator {
         cacheV36Alert(alert, insight);
     }
 
+    /* Builds the churn sub-payload for the alert */
     private Map<String, Object> buildChurnPayload(SessionInsight insight) {
         Map<String, Object> churn = new LinkedHashMap<>();
         churn.put("probability", insight.getChurnProbability());
@@ -399,6 +417,7 @@ public class SessionFinalizationOrchestrator {
         return churn;
     }
 
+    /* Builds the persona sub-payload for the alert */
     private Map<String, Object> buildPersonaPayload(SessionInsight insight) {
         Map<String, Object> persona = new LinkedHashMap<>();
         persona.put("enabled", false);
@@ -409,6 +428,7 @@ public class SessionFinalizationOrchestrator {
         return persona;
     }
 
+    /* Caches the alert in the v3.6 live alert cache with LLM evidence */
     private void cacheV36Alert(AnomalyAlert alert, SessionInsight insight) {
         Instant createdAt = alert.getDetectedAt() != null ? alert.getDetectedAt() : Instant.now();
 
@@ -478,6 +498,7 @@ public class SessionFinalizationOrchestrator {
         }
     }
 
+    /* Builds the alert context JSON payload with session metrics and insight fields */
     private String buildAlertContextJson(SessionSummary summary, SessionInsight insight, AuditTrailEvent lastEvent)
             throws JsonProcessingException {
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -511,6 +532,7 @@ public class SessionFinalizationOrchestrator {
         return objectMapper.writeValueAsString(payload);
     }
 
+    /* Enriches the investigation payload with finalization metadata */
     private Map<String, Object> enrichInvestigationPayload(SessionInsight insight, String endReason,
                                                             boolean endedExplicitly, Instant endedAt,
                                                             SessionSummary summary) {
@@ -528,10 +550,12 @@ public class SessionFinalizationOrchestrator {
         return existing;
     }
 
+    /* Returns the first non-blank string, falling back to second */
     private String firstNonBlank(String first, String second) {
         return first != null && !first.isBlank() ? first : second;
     }
 
+    /* Determines the reason string for alert eligibility */
     private String determineAlertReason(SessionInsight insight) {
         if (insight.isAnomaly()) {
             if (insight.getTriggeredRules() != null && !insight.getTriggeredRules().isEmpty()) {
@@ -549,6 +573,7 @@ public class SessionFinalizationOrchestrator {
         return "UNKNOWN";
     }
 
+    /* Builds event metadata map for the alert */
     private java.util.Map<String, Object> buildEventMetadata(SessionInsight insight, AuditTrailEvent event) {
         java.util.Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("eventId", event.getId());
@@ -569,6 +594,7 @@ public class SessionFinalizationOrchestrator {
         return meta;
     }
 
+    /* Builds sequence evidence map for the alert */
     private java.util.Map<String, Object> buildSequenceEvidence(SessionInsight insight) {
         java.util.Map<String, Object> seq = new LinkedHashMap<>();
         seq.put("contextAvailable", insight.getSequenceContextAvailable());
@@ -589,6 +615,7 @@ public class SessionFinalizationOrchestrator {
         return seq;
     }
 
+    /* Builds tabular evidence map for the alert */
     private java.util.Map<String, Object> buildTabularEvidence(SessionInsight insight) {
         java.util.Map<String, Object> tab = new LinkedHashMap<>();
         tab.put("availableModels", insight.getAvailableTabularModels());
@@ -597,6 +624,8 @@ public class SessionFinalizationOrchestrator {
         tab.put("available", insight.getAvailableTabularModels() != null && !insight.getAvailableTabularModels().isEmpty());
         return tab;
     }
+
+    /* --- Diagnostics --- */
 
     public long getDuplicateFinalizationSkipped() {
         return duplicateFinalizationSkipped.get();
@@ -618,6 +647,7 @@ public class SessionFinalizationOrchestrator {
         return 0L;
     }
 
+    /* Verifies the LLM evidence payload eventId matches the alert eventId */
     private boolean llmEvidenceMatchesAlert(SessionInsight insight, String alertEventId) {
         Map<String, Object> payload = insight.getLlmExplanationEvidencePayload();
         if (payload == null) {

@@ -14,8 +14,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class ApiServiceApplication {
 
-    /* Delegate startup to Spring Boot's auto-configuration pipeline. */
+    /**
+     * Entry point that delegates to {@link SpringApplication#run(Class, String[])}.
+     * Spring Boot's auto-configuration scans the {@code com.neo.dashboard} package
+     * tree for controllers, services, repositories, and configuration classes.
+     */
     public static void main(String[] args) {
+        /* Bootstrap the Spring application context. */
         SpringApplication.run(ApiServiceApplication.class, args);
     }
 }

@@ -48,7 +48,7 @@ package com.noveocare.dataprocessor.config;
 public final class CacheKeys {
     private CacheKeys() {}
 
-    // Keys used for session-scoped intermediate state.
+    /* --- Session-scoped intermediate state keys --- */
     public static String sessionKey(String insuredId, String sessionId) {
         return "session:" + insuredId + ":" + sessionId;
     }
@@ -61,6 +61,7 @@ public final class CacheKeys {
         return "session:running-summary:v3_6:" + sessionId;
     }
 
+    /* --- Prediction keys --- */
     public static String nextActionsKey(String insuredId) {
         return "next_actions:" + insuredId;
     }
@@ -73,14 +74,17 @@ public final class CacheKeys {
         return "next_event_prediction:insured:" + insuredId;
     }
 
+    /* --- Risk keys --- */
     public static String riskKey(String insuredId) {
         return "risk:" + insuredId;
     }
 
+    /* --- Live statistics keys --- */
     public static String liveStatsKey(String date) {
         return "stats:live:" + date;
     }
 
+    /* --- Session analysis and insight keys --- */
     public static String sessionAnalysisKey(String insuredId, String sessionId) {
         return "session:analysis:" + insuredId + ":" + sessionId;
     }
@@ -89,7 +93,8 @@ public final class CacheKeys {
         return "session:insight:" + insuredId + ":" + sessionId;
     }
 
-public static String sequenceWindowKey(String sessionId) {
+    /* --- Sequence model keys --- */
+    public static String sequenceWindowKey(String sessionId) {
         return "session:sequence:v3_6:" + sessionId;
     }
 
@@ -97,10 +102,11 @@ public static String sequenceWindowKey(String sessionId) {
         return "session:sequence:eventIds:v3_6:" + sessionId;
     }
 
-public static String sequenceScoresKey(String sessionId) {
+    public static String sequenceScoresKey(String sessionId) {
         return "session:scores:v3_6:" + sessionId;
     }
 
+    /* --- Session state keys --- */
     public static String sessionStateKey(String insuredId, String sessionId) {
         return "session:state:" + insuredId + ":" + sessionId;
     }
@@ -109,10 +115,12 @@ public static String sequenceScoresKey(String sessionId) {
         return "session:state:index";
     }
 
+    /* --- Session risk (V3.6) key --- */
     public static String sessionRiskV36Key(String insuredId, String sessionId) {
         return "session:risk:v3_6:" + insuredId + ":" + sessionId;
     }
 
+    /* --- AI runtime monitoring keys --- */
     public static String aiRuntimeHealthKey() {
         return "ai:runtime:health:v3_6";
     }
@@ -129,6 +137,7 @@ public static String sequenceScoresKey(String sessionId) {
         return "ai:model-latency:v3_6";
     }
 
+    /* --- Alert investigation keys --- */
     public static String alertInvestigationKey(String eventId) {
         return "alert:investigation:" + eventId;
     }
@@ -136,6 +145,8 @@ public static String sequenceScoresKey(String sessionId) {
     public static String alertLlmEvidenceKey(String eventId) {
         return "alert:llm-evidence:" + eventId;
     }
+
+    /* --- Legacy alert keys (deprecated, prefer ZSET variants) --- */
 
     /**
      * Legacy LIST key. Do not use as canonical source.
@@ -188,6 +199,7 @@ public static String sequenceScoresKey(String sessionId) {
         return "alerts:critical:eventIds:v3_6";
     }
 
+    /* --- Canonical alert payload and ZSET keys --- */
     public static String liveAlertsV36PayloadKey(String eventId) {
         return "alert:live:v3_6:" + eventId;
     }
@@ -208,6 +220,7 @@ public static String sequenceScoresKey(String sessionId) {
         return "alerts:user:" + insuredId + ":zset:v3_6";
     }
 
+    /* --- User 360 and dashboard keys --- */
     public static String user360Key(String insuredId) {
         return "user:360:" + insuredId;
     }
@@ -224,6 +237,7 @@ public static String sequenceScoresKey(String sessionId) {
         return "dashboard:forecast:v3_6";
     }
 
+    /* --- Session insight pattern and index keys --- */
     public static String sessionInsightPattern() {
         return "session:insight:*";
     }
@@ -240,10 +254,12 @@ public static String sequenceScoresKey(String sessionId) {
         return "session:insight:index:" + insuredId;
     }
 
+    /* --- Trend statistics keys --- */
     public static String trendStatsKey(String date) {
         return "stats:trend:" + date;
     }
 
+    /* --- Anomaly state keys --- */
     public static String activeAnomalyKey(String insuredId) {
         return "anomaly:active:" + insuredId;
     }
@@ -252,11 +268,12 @@ public static String sequenceScoresKey(String sessionId) {
         return "anomaly:detected:" + insuredId + ":" + sessionId;
     }
 
+    /* --- Session first-event key --- */
     public static String sessionFirstEventKey(String sessionId) {
         return "session:first-event:v3_6:" + sessionId;
     }
 
-    // Keys used for rolling minute-based live statistics.
+    /* --- Rolling minute-based live statistics keys --- */
     public static String eventsMinuteKey(String minute) {
         return "stats:events:minute:" + minute;
     }
@@ -281,6 +298,7 @@ public static String sequenceScoresKey(String sessionId) {
         return "stats:downloads:minute:" + minute;
     }
 
+    /* --- Dashboard generic and daily statistics keys --- */
     public static String dashboardKey(String view) {
         return "dashboard:" + view;
     }

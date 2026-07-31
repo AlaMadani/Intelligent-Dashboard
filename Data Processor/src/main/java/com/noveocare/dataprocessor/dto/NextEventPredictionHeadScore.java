@@ -6,12 +6,20 @@ import lombok.Value;
 
 import java.util.List;
 
+/**
+ * Holds the top-K predictions for a single output head of the next-event model.
+ */
 @Value
 @JsonDeserialize(builder = NextEventPredictionHeadScore.HeadScoreBuilder.class)
 public class NextEventPredictionHeadScore {
+    /* Name of the prediction head (e.g. action, page, controller). */
     String headName;
+    /* Ordered list of the most probable predicted values. */
     List<PredictedValue> topK;
 
+    /**
+     * A single predicted value with its probability and rank.
+     */
     @Value
     @JsonDeserialize(builder = PredictedValue.PredictedValueBuilder.class)
     public static class PredictedValue {

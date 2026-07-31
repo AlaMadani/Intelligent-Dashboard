@@ -7,6 +7,10 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Deserialised K-Means config for persona clustering, including PCA
+ * transformation parameters and centroid metadata.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PersonaRuntimeKmeansConfig {
@@ -26,6 +30,7 @@ public class PersonaRuntimeKmeansConfig {
     @JsonProperty("cluster_metadata")
     private Map<String, ClusterMetadata> clusterMetadata = Map.of();
 
+    /* Metadata for a single cluster (label, dominant persona, size, distribution). */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ClusterMetadata {

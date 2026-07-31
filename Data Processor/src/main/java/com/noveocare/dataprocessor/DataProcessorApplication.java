@@ -25,6 +25,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @Slf4j
 public class DataProcessorApplication {
 
+    /* Injected configuration properties for startup diagnostics logging. */
     private final InferenceConfigProperties inferenceConfigProperties;
     private final AiTabularAnomalyProperties tabularProperties;
     private final AiSequenceProperties sequenceProperties;
@@ -37,6 +38,7 @@ public class DataProcessorApplication {
         SpringApplication.run(DataProcessorApplication.class, args);
     }
 
+    /* Log all AI inference and session configuration flags on startup. */
     @PostConstruct
     public void logStartupConfig() {
         String javaVersion = System.getProperty("java.version", "unknown");

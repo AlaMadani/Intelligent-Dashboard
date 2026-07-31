@@ -16,15 +16,21 @@ import java.util.Date;
 @Slf4j
 public class JwtTokenProvider {
 
+    /** HMAC-SHA signing key loaded from {@code jwt.secret}. */
     @Value("${jwt.secret}")
     private String jwtSecret;
 
+    /** Access token lifetime in milliseconds (default 24 h). */
     @Value("${jwt.expiration:86400000}")
     private long jwtExpirationMs;
 
+    /** Refresh token lifetime in milliseconds (default 7 d). */
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshTokenExpirationMs;
 
+    /**
+     * Creates a short-lived access JWT containing only the user's email as the subject.
+     */
     public String generateTokenFromEmail(String email) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
@@ -37,6 +43,10 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /**
+     * Creates a long-lived refresh JWT with a {@code type=refresh} claim used
+     * to distinguish it from access tokens.
+     */
     public String generateRefreshToken(String email) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + refreshTokenExpirationMs);
@@ -50,6 +60,7 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /** Extracts the subject (email) from a token; returns {@code null} if the token is invalid. */
     public String getEmailFromToken(String token) {
         try {
             return parseClaims(token).getSubject();
@@ -59,6 +70,7 @@ public class JwtTokenProvider {
         }
     }
 
+    /** Checks whether the given token carries the {@code type=refresh} claim. */
     public boolean isRefreshToken(String token) {
         try {
             return "refresh".equals(parseClaims(token).get("type", String.class));
@@ -67,6 +79,7 @@ public class JwtTokenProvider {
         }
     }
 
+    /** Returns {@code true} if the token can be parsed without throwing an exception. */
     public boolean validateToken(String token) {
         try {
             parseClaims(token);
@@ -77,6 +90,7 @@ public class JwtTokenProvider {
         return false;
     }
 
+    /** Parses and verifies the JWT, returning its claims payload. */
     private Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -85,6 +99,7 @@ public class JwtTokenProvider {
                 .getPayload();
     }
 
+    /** Derives an HMAC-SHA key from the configured JWT secret bytes. */
     private SecretKey getSigningKey() {
         byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
         return Keys.hmacShaKeyFor(keyBytes);

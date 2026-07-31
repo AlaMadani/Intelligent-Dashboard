@@ -16,14 +16,23 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * Orchestrates tabular anomaly model inference across all registered runtimes
+ * (XGBoost, LightGBM, CatBoost, One-Class SVM) with async execution, timeouts,
+ * and circuit-breaker support.
+ */
 @Service
 @RequiredArgsConstructor
 public class TabularAnomalyInferenceService {
     private static final Logger log = LoggerFactory.getLogger(TabularAnomalyInferenceService.class);
+    /* ---- Dependencies ---- */
     private final List<TabularAnomalyModelRuntime> runtimes;
     private final AiTabularAnomalyProperties tabularProperties;
     private final InferenceExecutorManager executorManager;
 
+    /* ========== Public API ========== */
+
+    /* Scores a feature vector against all enabled tabular models and aggregates results. */
     public TabularAnomalyResult score(TabularAnomalyFeatureVector vector) {
         List<String> available = new ArrayList<>();
         List<String> unavailable = new ArrayList<>();
@@ -139,6 +148,7 @@ public class TabularAnomalyInferenceService {
                 .build();
     }
 
+    /* Convenience methods to check individual model availability. */
     public boolean xgboostAvailable() {
         return isAvailable("xgboost");
     }
@@ -155,10 +165,14 @@ public class TabularAnomalyInferenceService {
         return isAvailable("oneclasssvm");
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Checks if any runtime with the given name is available. */
     private boolean isAvailable(String modelName) {
         return runtimes.stream().anyMatch(runtime -> modelName.equals(runtime.modelName()) && runtime.isAvailable());
     }
 
+    /* Null-safe score extraction helpers. */
     private Double score(TabularModelScore score) {
         return score == null || !score.isAvailable() ? null : score.getScore();
     }
@@ -179,6 +193,7 @@ public class TabularAnomalyInferenceService {
         return score == null ? null : score.getLatencyMs();
     }
 
+    /* Checks property-based enable/disable for each model. */
     private boolean isModelEnabled(String modelName) {
         if (!tabularProperties.isEnabled()) return false;
         return switch (modelName) {
@@ -190,6 +205,7 @@ public class TabularAnomalyInferenceService {
         };
     }
 
+    /* Internal record for tracking async model submissions. */
     private static class ModelSubmission {
         final String modelName;
         final TabularAnomalyModelRuntime runtime;

@@ -10,13 +10,21 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Computes anomaly scores from sequence model logits (categorical NLL and
+ * continuous MAE) weighted by AnomalyScoreConfig, producing a 0-100 risk score.
+ */
 @Service
 @RequiredArgsConstructor
 public class SequenceAnomalyScoringService {
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiRiskScoringProperties riskProperties;
 
+    /* ========== Public API ========== */
+
+    /* Scores a single inference result against the target event. */
     public SequenceScoreResult score(SequenceInferenceResult inference, EncodedSequenceEvent target) {
         AnomalyScoreConfig config = artifactService.getAnomalyScoreConfig();
         List<String> catCols = artifactService.getSequenceMetadata().getCatCols();
@@ -87,6 +95,9 @@ public class SequenceAnomalyScoringService {
                 .build();
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Computes the negative log-softmax for a target class index. */
     private double negativeLogSoftmax(float[] logits, int targetIndex) {
         double max = Double.NEGATIVE_INFINITY;
         for (float logit : logits) {
@@ -100,6 +111,7 @@ public class SequenceAnomalyScoringService {
         return logSumExp - logits[targetIndex];
     }
 
+    /* Computes the mean absolute error over a slice of the prediction/target. */
     private double meanAbsoluteError(float[] prediction, float[] target, int startInclusive, int endExclusive) {
         if (prediction == null || target == null || startInclusive >= endExclusive) {
             return 0.0;
@@ -114,6 +126,7 @@ public class SequenceAnomalyScoringService {
         return count == 0 ? 0.0 : total / count;
     }
 
+    /* Clamps a value to [min, max]. */
     private double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }

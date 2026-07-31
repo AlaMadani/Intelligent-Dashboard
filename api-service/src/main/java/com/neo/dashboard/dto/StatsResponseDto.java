@@ -8,17 +8,20 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDate;
 
 /**
- * Wrapper used by stats endpoints and SSE streams so the payload can stay
- * flexible while still carrying source metadata.
+ * Wrapper used by internal statistics endpoints and SSE event streams.
+ * Carries a flexible {@link JsonNode} payload so charts and tables
+ * downstream can consume it without knowing the exact schema at compile
+ * time.
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class StatsResponseDto {
-    /* Date represented by the payload and the system that produced it. */
+    /* Date the statistics entry covers. */
     private LocalDate date;
+    /* Name of the originating system or module (e.g. "KPI", "RACH", "MOBILITY"). */
     private String source;
 
-    /* Flexible JSON payload for charts, tables, or cache-backed snapshots. */
+    /* Semi-structured JSON data consumable by frontend charting components. */
     private JsonNode payload;
 }

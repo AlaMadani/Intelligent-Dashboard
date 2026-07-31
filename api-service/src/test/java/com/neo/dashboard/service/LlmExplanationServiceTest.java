@@ -48,6 +48,9 @@ class LlmExplanationServiceTest {
         ReflectionTestUtils.setField(service, "lockTtlSeconds", 30L);
     }
 
+    /**
+     * Post Generation Uses Evidence And Llm When Configured
+     */
     @Test
     void postGenerationUsesEvidenceAndLlmWhenConfigured() throws Exception {
         JsonNode evidence = objectMapper.readTree("""
@@ -89,6 +92,9 @@ class LlmExplanationServiceTest {
         verify(cacheService, never()).put(any());
     }
 
+    /**
+     * Post Generation Returns Deterministic Fallback When Llm Unavailable
+     */
     @Test
     void postGenerationReturnsDeterministicFallbackWhenLlmUnavailable() throws Exception {
         JsonNode evidence = objectMapper.readTree("""
@@ -123,6 +129,9 @@ class LlmExplanationServiceTest {
         verify(cacheService, never()).put(any());
     }
 
+    /**
+     * Post Generation Returns Cached Explanation From Redis When Latest Hit
+     */
     @Test
     void postGenerationReturnsCachedExplanationFromRedisWhenLatestHit() {
         V36LlmExplanationResponse cached = new V36LlmExplanationResponse();
@@ -141,6 +150,9 @@ class LlmExplanationServiceTest {
         verify(llmProvider, never()).generate(any());
     }
 
+    /**
+     * Post Generation Returns Cached Explanation From Sql When Latest Miss And Hash Hit
+     */
     @Test
     void postGenerationReturnsCachedExplanationFromSqlWhenLatestMissAndHashHit() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-4\"}");
@@ -164,6 +176,9 @@ class LlmExplanationServiceTest {
         verify(llmProvider, never()).generate(any());
     }
 
+    /**
+     * Post Force Refresh Bypasses Cache And Generates New Explanation
+     */
     @Test
     void postForceRefreshBypassesCacheAndGeneratesNewExplanation() throws Exception {
         JsonNode evidence = objectMapper.readTree("""
@@ -201,6 +216,9 @@ class LlmExplanationServiceTest {
         verify(cacheService, never()).put(any());
     }
 
+    /**
+     * Post Force Refresh Bypasses Existing Redis Cache
+     */
     @Test
     void postForceRefreshBypassesExistingRedisCache() throws Exception {
         V36LlmExplanationResponse existingCache = new V36LlmExplanationResponse();
@@ -238,6 +256,9 @@ class LlmExplanationServiceTest {
         verify(llmProvider).generate(any());
     }
 
+    /**
+     * Post Generation Throws When No Evidence
+     */
     @Test
     void postGenerationThrowsWhenNoEvidence() {
         when(cacheService.getLatest("evt-missing")).thenReturn(Optional.empty());
@@ -250,6 +271,9 @@ class LlmExplanationServiceTest {
         verify(llmProvider, never()).generate(any());
     }
 
+    /**
+     * Get Cached Returns Empty When No Cache
+     */
     @Test
     void getCachedReturnsEmptyWhenNoCache() {
         when(cacheService.getLatest("evt-nonexistent")).thenReturn(Optional.empty());
@@ -259,6 +283,9 @@ class LlmExplanationServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Get Cached Returns Redis Explanation
+     */
     @Test
     void getCachedReturnsRedisExplanation() {
         V36LlmExplanationResponse cached = new V36LlmExplanationResponse();
@@ -274,6 +301,9 @@ class LlmExplanationServiceTest {
         assertThat(result.orElseThrow().getSource()).isEqualTo("redis");
     }
 
+    /**
+     * Get Cached Returns Sql Explanation
+     */
     @Test
     void getCachedReturnsSqlExplanation() {
         V36LlmExplanationResponse sqlResponse = new V36LlmExplanationResponse();
@@ -289,6 +319,9 @@ class LlmExplanationServiceTest {
         assertThat(result.orElseThrow().getSource()).isEqualTo("sql_fallback");
     }
 
+    /**
+     * Post Generation Parses Json Response When Llm Returns Structured Json
+     */
     @Test
     void postGenerationParsesJsonResponseWhenLlmReturnsStructuredJson() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-9\"}");
@@ -329,6 +362,9 @@ class LlmExplanationServiceTest {
         assertThat(result.getModelScoreExplanation()).containsEntry("xgboost", 91.0);
     }
 
+    /**
+     * Post Generation Parses Key Evidence Bullets From Response
+     */
     @Test
     void postGenerationParsesKeyEvidenceBulletsFromResponse() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-kb\"}");
@@ -367,6 +403,9 @@ class LlmExplanationServiceTest {
         assertThat(result.getPossibleInterpretation()).isEqualTo("Possible data exfiltration");
     }
 
+    /**
+     * Post Generation Sets Fallback And Warning When Json Parsing Fails
+     */
     @Test
     void postGenerationSetsFallbackAndWarningWhenJsonParsingFails() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-fb\"}");
@@ -400,6 +439,9 @@ class LlmExplanationServiceTest {
         assertThat(result.getSource()).isEqualTo("provider_parse_fallback");
     }
 
+    /**
+     * Post Generation Falls Back To Raw Text When Json Parsing Fails
+     */
     @Test
     void postGenerationFallsBackToRawTextWhenJsonParsingFails() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-10\"}");
@@ -430,6 +472,9 @@ class LlmExplanationServiceTest {
         assertThat(result.getRawProviderResponse()).isEqualTo("Plain text explanation without JSON structure");
     }
 
+    /**
+     * Post Generation Handles Truncated Json
+     */
     @Test
     void postGenerationHandlesTruncatedJson() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-trunc\",\"risk\":{\"riskLevel\":\"HIGH\",\"finalRiskScore\":66.1}}");
@@ -464,6 +509,9 @@ class LlmExplanationServiceTest {
         assertThat(result.getWarnings()).anyMatch(w -> w.contains("not valid structured JSON"));
     }
 
+    /**
+     * Post Generation Returns Truncated Fallback When Finish Reason Is Length
+     */
     @Test
     void postGenerationReturnsTruncatedFallbackWhenFinishReasonIsLength() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-len\",\"risk\":{\"riskLevel\":\"HIGH\"}}");
@@ -499,6 +547,9 @@ class LlmExplanationServiceTest {
         assertThat(result.getWarnings()).anyMatch(w -> w.contains("truncated before valid JSON was completed even after retry"));
     }
 
+    /**
+     * Post Generation Propagates Finish Reason To Response
+     */
     @Test
     void postGenerationPropagatesFinishReasonToResponse() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-fr\"}");
@@ -527,6 +578,9 @@ class LlmExplanationServiceTest {
         assertThat(result.getFinishReason()).isEqualTo("stop");
     }
 
+    /**
+     * Post Generation Parses Json Inside Markdown Fences
+     */
     @Test
     void postGenerationParsesJsonInsideMarkdownFences() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-md\"}");

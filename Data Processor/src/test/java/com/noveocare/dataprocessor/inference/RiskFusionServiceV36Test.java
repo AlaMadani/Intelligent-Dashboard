@@ -8,9 +8,17 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for RiskFusionServiceV36: model fusion with full/partial availability,
+ * weight renormalization, fallback modes, and contribution calculations.
+ */
 class RiskFusionServiceV36Test {
 
+    /* --- Fields --- */
+
     private final RiskFusionServiceV36 service = new RiskFusionServiceV36(new AiRiskFusionProperties());
+
+    /* --- Test methods: full fusion --- */
 
     @Test
     void fusesAllAvailableModels() {
@@ -28,6 +36,8 @@ class RiskFusionServiceV36Test {
         assertThat(result.getRiskLevel()).isEqualTo("HIGH");
         assertThat(result.getFallbackMode()).isEqualTo("FULL_HYBRID");
     }
+
+    /* --- Test methods: partial fusion --- */
 
     @Test
     void renormalizesMissingXGBoostAcrossAvailableMlModels() {
@@ -62,6 +72,8 @@ class RiskFusionServiceV36Test {
         assertThat(result.getFallbackMode()).isEqualTo("PARTIAL_HYBRID");
     }
 
+    /* --- Test methods: fallback modes --- */
+
     @Test
     void usesSequenceAndRulesWhenBothTabularModelsUnavailable() {
         RiskFusionResult result = service.fuse(
@@ -77,6 +89,8 @@ class RiskFusionServiceV36Test {
         assertThat(result.getRuleContribution()).isEqualTo(9.0);
         assertThat(result.getFallbackMode()).isEqualTo("SEQUENCE_RULES");
     }
+
+    /* --- Test methods: sequence fallbacks --- */
 
     @Test
     void usesTcnWhenTransformerUnavailable() {
@@ -127,6 +141,8 @@ class RiskFusionServiceV36Test {
         assertThat(result.getFallbackMode()).isEqualTo("RULES_ONLY");
     }
 
+    /* --- Test methods: scale and contributions --- */
+
     @Test
     void keepsFusionInputsOnZeroToHundredScaleAndContributionsAsRiskPoints() {
         RiskFusionResult result = service.fuse(
@@ -148,6 +164,8 @@ class RiskFusionServiceV36Test {
         assertThat(result.getTcnContribution()).isCloseTo(7.4, org.assertj.core.data.Offset.offset(0.0001));
         assertThat(result.getRuleContribution()).isCloseTo(12.75, org.assertj.core.data.Offset.offset(0.0001));
     }
+
+    /* --- Helper methods --- */
 
     private RuleRiskResult rules(double score) {
         return RuleRiskResult.builder()

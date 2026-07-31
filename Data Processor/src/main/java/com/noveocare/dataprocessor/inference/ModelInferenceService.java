@@ -51,32 +51,49 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Central inference orchestrator. Coordinates sequence (Transformer / TCN),
+ * tabular (XGBoost / LightGBM / CatBoost / OneClassSVM), churn, and forecast
+ * model inference for a single session event, then fuses the results into a
+ * {@link SessionInsight}.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ModelInferenceService {
 
+    /* ---- Config dependencies ---- */
     private final AiSequenceProperties sequenceProperties;
     private final AiRiskScoringProperties riskProperties;
     private final AiDiagnosticsProperties diagnosticsProperties;
     private final AiTabularAnomalyProperties tabularProperties;
     private final AiChurnProperties churnProperties;
     private final AiForecastProperties forecastProperties;
+
+    /* ---- Sequence inference dependencies ---- */
     private final SequencePreprocessingService preprocessingService;
     private final SequenceWindowService windowService;
     private final SequenceOnnxInferenceService onnxInferenceService;
     private final SequenceAnomalyScoringService scoringService;
     private final LoadSheddingService loadSheddingService;
+
+    /* ---- Tabular inference dependencies ---- */
     private final TabularAnomalyFeatureService tabularFeatureService;
     private final TabularAnomalyInferenceService tabularAnomalyInferenceService;
+
+    /* ---- Rule / fusion / attribution dependencies ---- */
     private final RuleRiskScoringService ruleRiskScoringService;
     private final RiskFusionServiceV36 riskFusionService;
     private final AnomalyTypeAttributionServiceV36 anomalyTypeAttributionService;
+
+    /* ---- Other AI service dependencies ---- */
     private final PersonaRuntimeService personaRuntimeService;
     private final ChurnInferenceService churnInferenceService;
     private final ForecastRuntimeService forecastRuntimeService;
     private final LlmEvidencePayloadService llmEvidencePayloadService;
     private final ForecastRefreshService forecastRefreshService;
+
+    /* ---- Cache / health / executor dependencies ---- */
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties redisCacheProperties;
     private final ModelHealthService modelHealthService;
@@ -84,6 +101,7 @@ public class ModelInferenceService {
     private final InferenceExecutorManager executorManager;
     private final NextEventPredictionService nextEventPredictionService;
 
+    /* ---- Metrics / state ---- */
     private final AtomicLong artifactLoadCount = new AtomicLong();
     private final Map<String, AtomicLong> modelArtifactLoadCountByModel = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -91,6 +109,8 @@ public class ModelInferenceService {
     private String lastLiveFastModeSkipReason;
     private final ThreadLocal<Map<String, Long>> lastTimingBreakdown = ThreadLocal.withInitial(LinkedHashMap::new);
     private boolean sequenceModelSelectionLogged = false;
+
+    /* ---- Startup logging ---- */
 
     @jakarta.annotation.PostConstruct
     public void logSequenceModelSelection() {
@@ -117,6 +137,8 @@ public class ModelInferenceService {
                 mode, tEnabled, cEnabled, both, sequenceProperties.getPrimaryModel(), sequenceProperties.getFastModel(), sequenceProperties.getLoadSheddingModel(), mode);
     }
 
+    /* ---- Internal timing bucket ---- */
+
     public static class InferenceTiming {
         public long totalInferenceMs;
         public long tabularInferenceMs;
@@ -130,6 +152,8 @@ public class ModelInferenceService {
         public long churnMs;
         public long forecastMs;
     }
+
+    /* ---- Public API: main inference entry points ---- */
 
     public SessionInsight infer(SessionSummary summary, List<AuditTrailEvent> enrichedEvents, List<String> triggeredRules) {
         return infer(summary, enrichedEvents, triggeredRules, 0L);
@@ -151,6 +175,7 @@ public class ModelInferenceService {
             return rulesOnlyInsight(summary, currentEvent, triggeredRules, warnings, "ai_inference_disabled");
         }
 
+        /* ---- Initialise timing and fetch previous window state ---- */
         InferenceTiming timing = new InferenceTiming();
         long inferenceStart = System.currentTimeMillis();
 
@@ -158,6 +183,7 @@ public class ModelInferenceService {
         SequenceWindowState previousState = windowService.load(summary.getSessionId());
         long windowFetchMs = (System.nanoTime() - windowFetchStart) / 1_000_000L;
 
+        /* ---- Encode current event and run rule scoring ---- */
         long inputBuildStart = System.nanoTime();
         EncodedSequenceEvent currentEncoded = preprocessingService.encode(currentEvent, windowService.latestTimestamp(previousState));
         warnings.addAll(currentEncoded.getWarnings() == null ? List.of() : currentEncoded.getWarnings());
@@ -174,6 +200,7 @@ public class ModelInferenceService {
         boolean liveFast = inferenceConfig.isLiveFastModeEnabled();
         boolean liveFastExhausted = false;
 
+        /* ---- Sequence inference block ---- */
         try {
             if (!sequenceProperties.isEnabled()) {
                 warnings.add("sequence_inference_disabled_live_fast_mode");
@@ -326,6 +353,7 @@ public class ModelInferenceService {
         boolean transformerUsedInFusion = transformerScoreResult != null && transformerScoreResult.isAvailable();
         boolean tcnUsedInFusion = tcnScoreResult != null && tcnScoreResult.isAvailable();
 
+        /* ---- Tabular inference ---- */
         TabularAnomalyResult tabularResult;
         long tabularStart = System.currentTimeMillis();
         if (!tabularProperties.isEnabled()) {
@@ -343,6 +371,7 @@ public class ModelInferenceService {
         recordTabularRuntimeHealth(tabularResult);
         warnings.addAll(tabularResult.getModelWarnings() == null ? List.of() : tabularResult.getModelWarnings());
 
+        /* ---- Risk fusion and anomaly type attribution ---- */
         RiskFusionResult fusion = riskFusionService.fuse(
                 tabularResult,
                 transformerScoreResult == null ? null : transformerScoreResult.getAiRiskScore(),
@@ -363,6 +392,7 @@ public class ModelInferenceService {
         PersonaAssignment persona = personaRuntimeService.unknown("persona_embedding_unavailable");
         warnings.addAll(persona.getWarnings());
 
+        /* ---- Churn inference ---- */
         long churnStart = System.currentTimeMillis();
         ChurnPrediction churn;
         if (!churnProperties.isEnabled()) {
@@ -380,6 +410,7 @@ public class ModelInferenceService {
         recordChurnRuntimeHealth(churn);
         warnings.addAll(churn.getWarnings() == null ? List.of() : churn.getWarnings());
 
+        /* ---- Forecast inference ---- */
         long forecastStart = System.currentTimeMillis();
         ForecastPrediction forecast;
         if (!forecastProperties.isEnabled()) {
@@ -406,6 +437,7 @@ public class ModelInferenceService {
         }
         modelHealthService.publish();
 
+        /* ---- Build insight from all results ---- */
         timing.totalInferenceMs = System.currentTimeMillis() - inferenceStart;
 
         if (timing.totalInferenceMs > 2000) {
@@ -414,6 +446,7 @@ public class ModelInferenceService {
                     timing.tabularInferenceMs, timing.sequenceInferenceMs, timing.churnMs, timing.forecastMs);
         }
 
+        /* ---- Risk breakdown logging ---- */
         if (diagnosticsProperties.isTraceRiskBreakdown()) {
             log.info("RISK_BREAKDOWN insuredId={} sessionId={} eventId={} stage=LIVE"
                             + " xgboostRaw={} xgboostScore100={} lightgbmRaw={} lightgbmScore100={}"
@@ -460,6 +493,7 @@ public class ModelInferenceService {
                     ruleRiskResult == null ? null : ruleRiskResult.getTriggeredRules());
         }
 
+        /* ---- Timing breakdown map ---- */
         Map<String, Long> timingBreakdown = lastTimingBreakdown.get();
         timingBreakdown.clear();
         timingBreakdown.put("inferenceMs", timing.totalInferenceMs);
@@ -474,6 +508,7 @@ public class ModelInferenceService {
         timingBreakdown.put("churnMs", timing.churnMs);
         timingBreakdown.put("forecastMs", timing.forecastMs);
 
+        /* ---- Build model score / contribution maps ---- */
         double aiRiskScore = Math.max(
                 valueOrZero(tabularResult.getXgboostAnomalyScore100()),
                 Math.max(valueOrZero(tabularResult.getLightgbmAlertScore100()), valueOrZero(selectedScore.getAiRiskScore())));
@@ -488,6 +523,7 @@ public class ModelInferenceService {
             warnings.add("live_fast_mode_skipped_optional_models");
         }
 
+        /* ---- Assemble final SessionInsight ---- */
         SessionInsight insight = SessionInsight.builder()
                 .insuredId(summary.getInsuredId())
                 .sessionId(summary.getSessionId())
@@ -572,6 +608,7 @@ public class ModelInferenceService {
                 .modelArtifacts(buildArtifactNames(selectedScore, tabularResult, churn, forecast))
                 .build();
 
+        /* ---- LLM evidence enrichment ---- */
         Map<String, Object> evidencePayload = llmEvidencePayloadService.build(summary, currentEvent, insight);
         insight = insight.toBuilder()
                 .llmExplanationEvidencePayload(evidencePayload)
@@ -585,6 +622,8 @@ public class ModelInferenceService {
     public InferenceTimingRecord getLastTiming() {
         return null;
     }
+
+    /* ---- Internal timing record ---- */
 
     public static class InferenceTimingRecord {
         public final long totalInferenceMs;
@@ -617,6 +656,8 @@ public class ModelInferenceService {
         }
     }
 
+    /* ---- Lightweight (rules-only) inference ---- */
+
     public SessionInsight inferLightweight(SessionSummary summary,
                                            List<AuditTrailEvent> enrichedEvents,
                                            List<String> triggeredRules,
@@ -625,6 +666,8 @@ public class ModelInferenceService {
         warnings.add(reason == null || reason.isBlank() ? "rules_only" : reason);
         return rulesOnlyInsight(summary, latestEvent(enrichedEvents), triggeredRules, warnings, reason);
     }
+
+    /* ---- Timed model runners ---- */
 
     private long runTimedModelSync(String modelName, long timeoutMsOverride, Runnable task) {
         if (executorManager.isCircuitOpen(modelName)) {
@@ -750,6 +793,8 @@ public class ModelInferenceService {
         return totalMs;
     }
 
+    /* ---- Sequence utility ---- */
+
     private SequenceScoreResult runAndScore(SequenceModelKind modelKind, SequenceWindow previousWindow, EncodedSequenceEvent target) {
         SequenceInferenceResult inference = onnxInferenceService.infer(modelKind, previousWindow);
         return scoringService.score(inference, target);
@@ -760,6 +805,8 @@ public class ModelInferenceService {
         double rightRisk = right == null || right.getAiRiskScore() == null ? 0.0 : right.getAiRiskScore();
         return leftRisk >= rightRisk ? left : right;
     }
+
+    /* ---- Churn runner ---- */
 
     private ChurnPrediction runTimedChurn(SessionSummary summary, List<AuditTrailEvent> enrichedEvents,
                                            RiskFusionResult fusion, InferenceTiming timing) {
@@ -772,6 +819,8 @@ public class ModelInferenceService {
         timing.churnMs = (System.nanoTime() - start) / 1_000_000L;
         return result;
     }
+
+    /* ---- Runtime health recording ---- */
 
     private void recordSequenceRuntimeHealth(SequenceScoreResult transformerScoreResult,
                                              SequenceScoreResult tcnScoreResult) {
@@ -842,6 +891,8 @@ public class ModelInferenceService {
                 .findFirst()
                 .orElse(fallback);
     }
+
+    /* ---- Rules-only fallback insight builder ---- */
 
     private SessionInsight rulesOnlyInsight(SessionSummary summary,
                                             AuditTrailEvent currentEvent,
@@ -916,6 +967,8 @@ public class ModelInferenceService {
                 .build();
     }
 
+    /* ---- Tabular inference builder ---- */
+
     private TabularAnomalyResult scoreTabular(SequenceWindowState previousState,
                                               EncodedSequenceEvent currentEncoded,
                                               SequenceModelKind selectedModel,
@@ -947,6 +1000,8 @@ public class ModelInferenceService {
             return TabularAnomalyResult.unavailable(List.of("tabular_anomaly_runtime_failed"));
         }
     }
+
+    /* ---- Aggregation boost / scoring helpers ---- */
 
     private double aggregationBoost(SessionSummary summary, RuleRiskResult rules) {
         double boost = 0.0;
@@ -1024,6 +1079,8 @@ public class ModelInferenceService {
         return context;
     }
 
+    /* ---- Builders for insight sub-structures ---- */
+
     private Map<String, String> buildArtifactNames(SequenceScoreResult selectedScore,
                                                    TabularAnomalyResult tabular,
                                                    ChurnPrediction churn,
@@ -1087,6 +1144,8 @@ public class ModelInferenceService {
                 + "; topSequenceFields=" + fields
                 + "; triggeredRules=" + ruleCodes;
     }
+
+    /* ---- Utility helpers ---- */
 
     private String safeArtifact(String value) {
         return value == null || value.isBlank() ? "unavailable" : value;
@@ -1218,6 +1277,8 @@ public class ModelInferenceService {
         return (double) count / events.size();
     }
 
+    /* ---- Redis caching ---- */
+
     private void cacheRuntimeScores(SessionSummary summary, SessionInsight insight) {
         Map<String, Object> scorePayload = new LinkedHashMap<>();
         scorePayload.put("schemaVersion", "v3.6.1");
@@ -1281,6 +1342,8 @@ public class ModelInferenceService {
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
+
+    /* ---- Diagnostics ---- */
 
     public Map<String, Object> buildInferenceDiagnostics() {
         Map<String, Object> diag = new LinkedHashMap<>();

@@ -5,6 +5,9 @@ import lombok.Value;
 
 import java.util.Map;
 
+/**
+ * Captures the deviation between a predicted next event and what actually occurred.
+ */
 @Value
 @Builder
 public class NextEventPredictionDeviation {

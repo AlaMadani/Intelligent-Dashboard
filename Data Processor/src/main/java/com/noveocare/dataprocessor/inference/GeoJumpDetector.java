@@ -15,7 +15,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class GeoJumpDetector {
 
+    /* ---- Dependencies ---- */
     private final RuleProperties ruleProperties;
+
+    /* ---- Public API ---- */
 
     public boolean isGeoJump(List<AuditTrailEvent> sessionEvents) {
         // Disable the rule entirely when configured off or when there is not enough history to compare.

@@ -22,10 +22,15 @@ import org.springframework.kafka.listener.ContainerProperties;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+/**
+ * Kafka infrastructure configuration: listener container factory, startup logging,
+ * and partition-count validation for the audit-trail topic.
+ */
 @Configuration
 @Slf4j
 public class KafkaConfig {
 
+    /* --- Dependencies --- */
     private final KafkaProperties kafkaProperties;
     private final KafkaTopicProperties topicProperties;
     private final KafkaConsumerProperties consumerProperties;
@@ -45,6 +50,7 @@ public class KafkaConfig {
         this.adminClient = AdminClient.create(adminProps);
     }
 
+    /* --- Listener container factory --- */
     @Bean
     public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, String>> kafkaListenerContainerFactory(
             ConsumerFactory<String, String> consumerFactory) {
@@ -57,6 +63,7 @@ public class KafkaConfig {
         return factory;
     }
 
+    /* --- Startup diagnostics --- */
     @PostConstruct
     public void logEffectiveKafkaSettings() {
         Map<String, Object> consumerProps = kafkaProperties.buildConsumerProperties();
@@ -78,6 +85,7 @@ public class KafkaConfig {
         adminClient.close();
     }
 
+    /* --- Partition-count validation --- */
     private void checkPartitionCount() {
         try {
             String topic = topicProperties.getAuditTrail();

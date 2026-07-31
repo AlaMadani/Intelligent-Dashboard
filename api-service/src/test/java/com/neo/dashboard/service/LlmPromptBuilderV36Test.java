@@ -21,6 +21,9 @@ class LlmPromptBuilderV36Test {
         ReflectionTestUtils.setField(builder, "maxEvidenceSizeKb", 128);
     }
 
+    /**
+     * System Prompt Contains Analyst Instructions
+     */
     @Test
     void systemPromptContainsAnalystInstructions() {
         String prompt = builder.buildSystemPrompt("security_analyst", "en", true);
@@ -36,6 +39,9 @@ class LlmPromptBuilderV36Test {
         assertThat(prompt).contains("under 700 words");
     }
 
+    /**
+     * System Prompt Explicitly Warns Against Inventing Evidence
+     */
     @Test
     void systemPromptExplicitlyWarnsAgainstInventingEvidence() {
         String prompt = builder.buildSystemPrompt("security_analyst", "en", true);
@@ -44,6 +50,9 @@ class LlmPromptBuilderV36Test {
         assertThat(prompt).contains("do not imply credential theft");
     }
 
+    /**
+     * Build Prompt Contains Compact Schema And Evidence
+     */
     @Test
     void buildPromptContainsCompactSchemaAndEvidence() {
         ObjectNode risk = objectMapper.createObjectNode();
@@ -66,6 +75,9 @@ class LlmPromptBuilderV36Test {
         assertThat(prompt).contains("66.10287612208538");
     }
 
+    /**
+     * Compact Evidence Includes Identity And Risk
+     */
     @Test
     void compactEvidenceIncludesIdentityAndRisk() throws Exception {
         JsonNode evidence = objectMapper.readTree("""
@@ -84,6 +96,9 @@ class LlmPromptBuilderV36Test {
         assertThat(compact).contains("66.10287612208538");
     }
 
+    /**
+     * Compact Evidence With Full Fixture
+     */
     @Test
     void compactEvidenceWithFullFixture() throws Exception {
         String fixture = """
@@ -168,6 +183,9 @@ class LlmPromptBuilderV36Test {
         assertThat(compact).contains("churnContext");
     }
 
+    /**
+     * Derived Facts Includes Top Contributors And Tcn Status
+     */
     @Test
     void derivedFactsIncludesTopContributorsAndTcnStatus() throws Exception {
         JsonNode evidence = objectMapper.readTree("""
@@ -191,6 +209,9 @@ class LlmPromptBuilderV36Test {
         assertThat(facts).contains("not_run");
     }
 
+    /**
+     * Derived Facts Labels Confidence Moderate
+     */
     @Test
     void derivedFactsLabelsConfidenceModerate() throws Exception {
         JsonNode evidence = objectMapper.readTree("""
@@ -203,6 +224,9 @@ class LlmPromptBuilderV36Test {
         assertThat(facts).contains("moderate");
     }
 
+    /**
+     * Compact Evidence Limits Triggered Rules To Ten
+     */
     @Test
     void compactEvidenceLimitsTriggeredRulesToTen() throws Exception {
         ObjectNode risk = objectMapper.createObjectNode();
@@ -227,6 +251,9 @@ class LlmPromptBuilderV36Test {
         assertThat(compact).doesNotContain("RULE_11");
     }
 
+    /**
+     * Compact Evidence Truncates Long Signatures
+     */
     @Test
     void compactEvidenceTruncatesLongSignatures() throws Exception {
         String longSig = "A".repeat(500);
@@ -250,6 +277,9 @@ class LlmPromptBuilderV36Test {
         assertThat(compact).doesNotContain(longSig);
     }
 
+    /**
+     * Non Minimal Prompt Contains Compact Schema And Evidence
+     */
     @Test
     void nonMinimalPromptContainsCompactSchemaAndEvidence() {
         ObjectNode risk = objectMapper.createObjectNode();

@@ -32,22 +32,45 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Orchestrates the V3.6.1 dashboard endpoints by reading from Redis snapshots
+ * (with SQL fallback) and normalising the responses into the DTOs expected by
+ * the frontend.  Covers runtime health, security overview, diagnostics, churn,
+ * forecast, final winners, and report metadata.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class V36DashboardService {
 
+    /** Classpath location of the final-use-case-winners JSON report. */
     private static final String FINAL_WINNERS_RESOURCE = "AI/reports/final_use_case_winners.json";
 
+    /** Reads structured JSON/objects from Redis caches. */
     private final V36RedisReadService redisReadService;
+    /** Provides live and trend statistics used for forecast fallback. */
     private final StatsService statsService;
+    /** JPA repository for session-analysis data used in churn fallback. */
     private final SessionAnalysisRepository sessionAnalysisRepository;
+    /** Jackson mapper for JSON tree-to-value conversions and safe node reads. */
     private final ObjectMapper objectMapper;
+    /** Reads dashboard snapshots from Redis with automated fallback to SQL snapshots. */
     private final DashboardSnapshotFallbackService snapshotFallbackService;
+    /** Redis template for ad-hoc key lookups during forecast-history hydration. */
     private final StringRedisTemplate redisTemplate;
+    /** User-360 service used for computing churn risk in fallback mode. */
     private final V36User360Service user360Service;
+    /** JPA repository for anomaly events used for enriching security overview. */
     private final AnomalyEventRepository anomalyEventRepository;
 
+    /**
+     * Returns the current AI runtime health, including model-health status,
+     * Kafka/idempotency/performance stats, and session-finalisation info.
+     * Reads from the Redis snapshot first, falls back to SQL, then to a
+     * generated {@code UNKNOWN} response.
+     *
+     * @return a fully-populated runtime-health DTO
+     */
     public V36RuntimeHealthResponse getRuntimeHealth() {
         DashboardSnapshotFallbackService.FallbackResult<V36RuntimeHealthResponse> result =
                 snapshotFallbackService.readWithFallback(
@@ -60,11 +83,19 @@ public class V36DashboardService {
             response.setSource(result.source());
             return response;
         }
+        /* No snapshot available at all — return a safe unknown response. */
         V36RuntimeHealthResponse fallback = V36RuntimeHealthResponse.unknown();
         fallback.setSource("generated_fallback");
         return fallback;
     }
 
+    /**
+     * Returns the security-overview dashboard data: total events, active users,
+     * anomaly rate, critical / high-risk alerts, top anomaly types, triggered
+     * rules, and model-health summary.
+     *
+     * @return a populated security-overview DTO
+     */
     public V36SecurityOverviewResponse getSecurityOverview() {
         DashboardSnapshotFallbackService.FallbackResult<V36SecurityOverviewResponse> result =
                 snapshotFallbackService.readWithFallback(
@@ -75,6 +106,7 @@ public class V36DashboardService {
         if (result != null) {
             V36SecurityOverviewResponse response = normalizeSecurityOverview(result.payload());
             response.setSource(result.source());
+            /* Enrich with live top-anomaly-type counts when the snapshot lacks them. */
             enrichTopAnomalyTypes(response);
             return response;
         }
@@ -83,19 +115,29 @@ public class V36DashboardService {
         return fallback;
     }
 
+    /**
+     * Aggregates runtime health, field-coverage snapshots (sequence + tabular),
+     * and model-latency data into a single diagnostics response.  Collects
+     * warnings from any missing snapshots or runtime-health issues.
+     *
+     * @return a complete diagnostics DTO
+     */
     public V36DiagnosticsResponse getDiagnostics() {
         V36RuntimeHealthResponse runtimeHealth = getRuntimeHealth();
+        /* Read both field-coverage snapshots from Redis. */
         Map<String, Object> fieldCoverage = new LinkedHashMap<>();
         redisReadService.readJson(CacheKeys.AI_SEQUENCE_FIELD_COVERAGE_V36)
                 .ifPresent(node -> fieldCoverage.put("sequence", safeNodeToObject(node)));
         redisReadService.readJson(CacheKeys.AI_TABULAR_FIELD_COVERAGE_V36)
                 .ifPresent(node -> fieldCoverage.put("tabular", safeNodeToObject(node)));
+        /* Read model latency; fall back to value embedded in runtime health. */
         Optional<Object> modelLatency = redisReadService.readJson(CacheKeys.AI_MODEL_LATENCY_V36)
                 .map(this::safeNodeToObject);
         if (modelLatency.isEmpty() && runtimeHealth.getModelLatency() != null) {
             modelLatency = Optional.of(runtimeHealth.getModelLatency());
         }
 
+        /* Collect warnings for any absent snapshots. */
         List<String> warnings = new ArrayList<>();
         if (fieldCoverage.isEmpty()) {
             warnings.add("V3.6.1 field coverage snapshots are not available");
@@ -128,6 +170,14 @@ public class V36DashboardService {
         );
     }
 
+    /**
+     * Safely converts a {@link JsonNode} to a plain {@link Object} via Jackson,
+     * returning {@code null} for missing / null nodes and logging warnings on
+     * conversion failure.
+     *
+     * @param node the JSON node to convert
+     * @return the converted object, or {@code null}
+     */
     private Object safeNodeToObject(JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode()) {
             return null;
@@ -140,6 +190,14 @@ public class V36DashboardService {
         }
     }
 
+    /**
+     * Returns the churn-dashboard data: top churn-risk users, risk distribution,
+     * average churn probability, and per-risk-level counts.  Reads from the
+     * Redis snapshot first, falls back to SQL, then to a generated fallback
+     * computed from recent session analyses.
+     *
+     * @return a populated churn-dashboard DTO
+     */
     public V36ChurnDashboardResponse getChurnDashboard() {
         DashboardSnapshotFallbackService.FallbackResult<V36ChurnDashboardResponse> result =
                 snapshotFallbackService.readWithFallback(
@@ -157,6 +215,14 @@ public class V36DashboardService {
         return fallback;
     }
 
+    /**
+     * Returns the forecast dashboard: predicted total events, anomaly rate,
+     * alert volume, historical series, and model metadata.  Reads from the
+     * Redis snapshot first, falls back to SQL snapshot, then to a generated
+     * fallback that uses legacy trend stats.
+     *
+     * @return a populated forecast-dashboard DTO
+     */
     public V36ForecastDashboardResponse getForecastDashboard() {
         DashboardSnapshotFallbackService.FallbackResult<V36ForecastDashboardResponse> result =
                 snapshotFallbackService.readWithFallback(
@@ -167,6 +233,7 @@ public class V36DashboardService {
         if (result != null) {
             V36ForecastDashboardResponse response = normalizeForecastDashboard(result.payload());
             response.setSource(result.source());
+            /* Hydrate empty historical series from Redis day-level stats if needed. */
             hydrateHistoricalSeriesIfEmpty(response);
             if (result.source().equals("sql_fallback")) {
                 V36ForecastDashboardResponse finalResponse = response;
@@ -184,6 +251,13 @@ public class V36DashboardService {
         return fallback;
     }
 
+    /**
+     * Reads the final-use-case-winners report from a static JSON file on the
+     * classpath.  Returns an "unavailable" response if the file is missing or
+     * cannot be parsed.
+     *
+     * @return a winners-response DTO with the parsed payload or error warnings
+     */
     public V36FinalWinnersResponse getFinalWinners() {
         ClassPathResource resource = new ClassPathResource(FINAL_WINNERS_RESOURCE);
         if (!resource.exists()) {
@@ -210,6 +284,12 @@ public class V36DashboardService {
         }
     }
 
+    /**
+     * Returns metadata about available static reports (currently only the final
+     * winners report), including schema version and availability status.
+     *
+     * @return a map of report metadata
+     */
     public Map<String, Object> getReportMetadata() {
         V36FinalWinnersResponse winners = getFinalWinners();
         return Map.of(
@@ -222,6 +302,14 @@ public class V36DashboardService {
         );
     }
 
+    /**
+     * Fills in default values on the runtime-health response: schema version,
+     * runtime version, status (derived from model health), and an empty
+     * warnings list when those fields are absent.
+     *
+     * @param response the raw runtime-health response to normalise
+     * @return the same instance, mutated with defaults
+     */
     private V36RuntimeHealthResponse normalizeRuntimeHealth(V36RuntimeHealthResponse response) {
         response.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
         if (response.getStatus() == null || response.getStatus().isBlank()) {
@@ -236,10 +324,18 @@ public class V36DashboardService {
         return response;
     }
 
+    /**
+     * Derives the overall runtime status ({@code HEALTHY}, {@code DEGRADED},
+     * or {@code UNKNOWN}) from each model's health state.
+     *
+     * @param response the runtime-health response containing per-model health
+     * @return the resolved status string
+     */
     private String resolveRuntimeStatus(V36RuntimeHealthResponse response) {
         if (response.getModelHealth() == null || response.getModelHealth().isEmpty()) {
             return "UNKNOWN";
         }
+        /* DEGRADED if any model is not initialised but is enabled for inference. */
         boolean anyUnavailable = response.getModelHealth().values().stream()
                 .filter(Objects::nonNull)
                 .anyMatch(state -> Boolean.FALSE.equals(state.getRuntimeInitialized())
@@ -247,6 +343,15 @@ public class V36DashboardService {
         return anyUnavailable ? "DEGRADED" : "HEALTHY";
     }
 
+    /**
+     * Fills in safe defaults for any null fields on the security-overview
+     * response — schema version, snapshot timestamp, empty maps/lists for
+     * anomaly types, triggered rules, model-health summary, and field-coverage
+     * warnings.
+     *
+     * @param response the raw security-overview response to normalise
+     * @return the same instance with defaults set
+     */
     private V36SecurityOverviewResponse normalizeSecurityOverview(V36SecurityOverviewResponse response) {
         response.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
         if (response.getSnapshotTimestamp() == null) {
@@ -267,19 +372,29 @@ public class V36DashboardService {
         return response;
     }
 
+    /**
+     * Populates the top-anomaly-types map on the security-overview response by
+     * querying today's anomaly events from the database when the snapshot did
+     * not include them.
+     *
+     * @param response the security-overview response to enrich
+     */
     private void enrichTopAnomalyTypes(V36SecurityOverviewResponse response) {
+        /* Skip if the snapshot already contains top-anomaly-types or there are no alerts today. */
         if (response.getTopAnomalyTypes() != null && !response.getTopAnomalyTypes().isEmpty()) {
             return;
         }
         if (response.getHighRiskAlertsToday() <= 0 && response.getCriticalAlertsToday() <= 0) {
             return;
         }
+        /* Query today's anomaly events from the DB, grouped by type. */
         Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay(ZoneOffset.UTC).toInstant();
         List<Object[]> counts = anomalyEventRepository.countByAnomalyTypeSince(todayStart);
         if (counts == null || counts.isEmpty()) {
             response.setTopAnomalyTypes(Map.of());
             return;
         }
+        /* Aggregate counts by anomaly type, sort descending, keep top 10. */
         response.setTopAnomalyTypes(counts.stream()
                 .filter(row -> row[0] != null)
                 .collect(Collectors.groupingBy(
@@ -298,6 +413,12 @@ public class V36DashboardService {
                 )));
     }
 
+    /**
+     * Constructs a zeroed-out security-overview response with a warning when no
+     * snapshot (Redis or SQL) is available.
+     *
+     * @return a fallback DTO with all counts set to zero / empty
+     */
     private V36SecurityOverviewResponse buildSecurityOverviewFallback() {
         V36SecurityOverviewResponse response = new V36SecurityOverviewResponse();
         response.setSnapshotTimestamp(Instant.now());
@@ -317,6 +438,13 @@ public class V36DashboardService {
         return response;
     }
 
+    /**
+     * Fills in safe defaults on the churn-dashboard response: schema version,
+     * empty list for top users, and empty map for risk distribution.
+     *
+     * @param response the raw churn-dashboard response
+     * @return the same instance with defaults applied
+     */
     private V36ChurnDashboardResponse normalizeChurnDashboard(V36ChurnDashboardResponse response) {
         response.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
         if (response.getTopChurnRiskUsers() == null) {
@@ -328,12 +456,22 @@ public class V36DashboardService {
         return response;
     }
 
+    /**
+     * Builds a churn-dashboard fallback from recent session-analysis rows when no
+     * Redis or SQL snapshot is available.  Aggregates by insured ID, computes
+     * risk distribution and average probability, and enriches each top user with
+     * their 30-day risk summary.
+     *
+     * @return a fully-populated churn-dashboard DTO derived from live DB data
+     */
     private V36ChurnDashboardResponse buildChurnFallback() {
         List<SessionAnalysis> recent = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
+        /* Keep only sessions that have a churn probability. */
         List<SessionAnalysis> withChurn = recent.stream()
                 .filter(session -> session.getChurnProbability() != null)
                 .toList();
 
+        /* Compute churn-risk-level distribution across all non-null sessions. */
         Map<String, Long> distribution = withChurn.stream()
                 .collect(Collectors.groupingBy(
                         session -> normalizeRiskLevel(session.getChurnRiskLevel()),
@@ -341,6 +479,7 @@ public class V36DashboardService {
                         Collectors.counting()
                 ));
 
+        /* Overall average churn probability across all sessions. */
         double average = withChurn.stream()
                 .map(SessionAnalysis::getChurnProbability)
                 .filter(Objects::nonNull)
@@ -348,6 +487,7 @@ public class V36DashboardService {
                 .average()
                 .orElse(0.0);
 
+        /* Pick the best session per insured ID, sort by churn descending, limit to 10. */
         List<Map<String, Object>> topUsers = withChurn.stream()
                 .collect(Collectors.groupingBy(
                         SessionAnalysis::getInsuredId,
@@ -388,6 +528,14 @@ public class V36DashboardService {
         return churnResponse;
     }
 
+    /**
+     * Fills in defaults on the forecast-dashboard response: schema version,
+     * forecast date (tomorrow), normalised historical series, empty model names
+     * map, and empty warnings list.
+     *
+     * @param response the raw forecast-dashboard response
+     * @return the same instance with defaults applied
+     */
     private V36ForecastDashboardResponse normalizeForecastDashboard(V36ForecastDashboardResponse response) {
         response.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
         if (response.getForecastDate() == null) {
@@ -410,6 +558,13 @@ public class V36DashboardService {
         return response;
     }
 
+    /**
+     * When the forecast response has empty historical series, attempts to
+     * hydrate them from Redis day-level event/alert counters for the past 7
+     * days.  Adds appropriate warnings if data is missing or partial.
+     *
+     * @param response the forecast-dashboard response to hydrate
+     */
     private void hydrateHistoricalSeriesIfEmpty(V36ForecastDashboardResponse response) {
         Object rawTotalEvents = response.getHistoricalTotalEvents();
         Object rawAnomalyRate = response.getHistoricalAnomalyRate();
@@ -420,6 +575,7 @@ public class V36DashboardService {
         if (!totalEventsEmpty && !anomalyRateEmpty) {
             return;
         }
+        /* Walk back 7 days from today and collect day-level event/alert stats from Redis. */
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         List<Map<String, Object>> totalEvents = new ArrayList<>();
         List<Map<String, Object>> anomalyRate = new ArrayList<>();
@@ -448,12 +604,14 @@ public class V36DashboardService {
                 }
             }
         }
+        /* Only set the hydrated values if the original series was empty. */
         if (totalEventsEmpty && !totalEvents.isEmpty()) {
             response.setHistoricalTotalEvents(totalEvents);
         }
         if (anomalyRateEmpty && !anomalyRate.isEmpty()) {
             response.setHistoricalAnomalyRate(anomalyRate);
         }
+        /* Emit warnings when no data at all or only partial data was found. */
         List<String> warnings = response.getForecastWarnings() == null
                 ? new ArrayList<>() : new ArrayList<>(response.getForecastWarnings());
         if (!anyData) {
@@ -468,6 +626,12 @@ public class V36DashboardService {
         response.setForecastWarnings(warnings);
     }
 
+    /**
+     * Constructs a forecast-dashboard fallback with zero predictions and
+     * historical series sourced from legacy trend stats.
+     *
+     * @return a fallback forecast DTO
+     */
     private V36ForecastDashboardResponse buildForecastFallback() {
         StatsResponseDto trendStats = statsService.getTrendStats(LocalDate.now());
         V36ForecastDashboardResponse response = new V36ForecastDashboardResponse();
@@ -476,6 +640,7 @@ public class V36DashboardService {
         response.setPredictedTotalEvents(0L);
         response.setPredictedAnomalyRate(0.0);
         response.setExpectedAlertVolume(0L);
+        /* Use the legacy trend payload as the historical series when available. */
         response.setHistoricalTotalEvents(normalizeForecastSeries(
                 trendStats == null ? null : trendStats.getPayload(), LocalDate.now(), "legacy_trend"));
         response.setHistoricalAnomalyRate(List.of());
@@ -484,6 +649,16 @@ public class V36DashboardService {
         return response;
     }
 
+    /**
+     * Normalises a raw forecast-series value into a {@code List<Map<String, Object>>}
+     * format.  Handles plain numbers, nested map structures with an "items"
+     * wrapper, and maps keyed by series label.
+     *
+     * @param raw          the raw historical series value from the snapshot
+     * @param date        the forecast date for context
+     * @param defaultLabel fallback label when none can be extracted
+     * @return a list of forecast data points
+     */
     private Object normalizeForecastSeries(Object raw, LocalDate date, String defaultLabel) {
         if (raw == null) {
             return List.of();
@@ -495,15 +670,18 @@ public class V36DashboardService {
             return List.of(forecastPoint(defaultLabel, date, number));
         }
         if (raw instanceof Map<?, ?> map) {
+            /* Unwrap nested "items" key. */
             Object items = map.get("items");
             if (items != null) {
                 return normalizeForecastSeries(items, date, defaultLabel);
             }
+            /* If all values are maps, treat keys as series labels. */
             if (!map.isEmpty() && map.values().stream().allMatch(value -> value instanceof Map<?, ?>)) {
                 return map.entrySet().stream()
                         .map(entry -> forecastPointFromMap(String.valueOf(entry.getKey()), date, (Map<?, ?>) entry.getValue()))
                         .toList();
             }
+            /* Extract a single numeric value by trying common field names. */
             Number value = firstNumber(map,
                     "value",
                     "actual",
@@ -520,6 +698,15 @@ public class V36DashboardService {
         return List.of();
     }
 
+    /**
+     * Extracts a single forecast data point from a structured map, using common
+     * field names for label and value.
+     *
+     * @param fallbackLabel label to use when the map has no identifiable label field
+     * @param date         the forecast date
+     * @param map          the source map
+     * @return a normalised forecast-point map with label, date, and value keys
+     */
     private Map<String, Object> forecastPointFromMap(String fallbackLabel, LocalDate date, Map<?, ?> map) {
         Number value = firstNumber(map,
                 "value",
@@ -533,6 +720,14 @@ public class V36DashboardService {
         return forecastPoint(firstString(map, "label", "seriesKey", "name", fallbackLabel), date, value == null ? 0 : value);
     }
 
+    /**
+     * Creates a standard forecast data-point map.
+     *
+     * @param label the series label
+     * @param date  the date (omitted when {@code null})
+     * @param value the numeric value (defaults to 0 when {@code null})
+     * @return a map with {@code label}, optional {@code date}, and {@code value} keys
+     */
     private Map<String, Object> forecastPoint(String label, LocalDate date, Number value) {
         Map<String, Object> point = new LinkedHashMap<>();
         point.put("label", label);
@@ -543,6 +738,14 @@ public class V36DashboardService {
         return point;
     }
 
+    /**
+     * Returns the first numeric value found in the map for any of the given
+     * candidate keys.
+     *
+     * @param map  the source map
+     * @param keys the keys to try in order
+     * @return the first {@link Number} found, or {@code null}
+     */
     private Number firstNumber(Map<?, ?> map, String... keys) {
         for (String key : keys) {
             Object value = map.get(key);
@@ -553,6 +756,15 @@ public class V36DashboardService {
         return null;
     }
 
+    /**
+     * Returns the first non-blank string value found in the map for any of the
+     * given candidate keys.  The last key in the array is used as the fallback
+     * return value (even if absent from the map).
+     *
+     * @param map  the source map
+     * @param keys the keys to try in order; last element is the fallback string
+     * @return the first found value, or the fallback
+     */
     private String firstString(Map<?, ?> map, String... keys) {
         if (keys.length == 0) {
             return null;
@@ -568,10 +780,15 @@ public class V36DashboardService {
         return fallback;
     }
 
+    /**
+     * Normalises a churn risk level string to uppercase; returns {@code "UNKNOWN"}
+     * for null or blank values.
+     */
     private String normalizeRiskLevel(String riskLevel) {
         return riskLevel == null || riskLevel.isBlank() ? "UNKNOWN" : riskLevel.toUpperCase();
     }
 
+    /** Treats a {@code null} Double as {@code 0.0} for safe numeric comparisons. */
     private double nullSafe(Double value) {
         return value == null ? 0.0 : value;
     }

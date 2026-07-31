@@ -17,7 +17,13 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+/**
+ * Tests for SequenceFieldCoverageMonitor: tracking of unknown categorical
+ * value ratios and generation of high-unknown-rate warnings.
+ */
 class SequenceFieldCoverageMonitorTest {
+
+    /* --- Test methods --- */
 
     @Test
     void tracksUnknownRatiosAndHighUnknownWarnings() throws Exception {
@@ -51,6 +57,8 @@ class SequenceFieldCoverageMonitorTest {
         assertThat(monitor.highUnknownWarnings()).contains("high_unknown_rate_api_template");
         verify(redisCacheService).setJson(anyString(), any(), any(Duration.class));
     }
+
+    /* --- Helper methods --- */
 
     private Map<String, String> unknownCategoricals(RuntimeArtifactService artifactService) {
         Map<String, String> values = new LinkedHashMap<>();

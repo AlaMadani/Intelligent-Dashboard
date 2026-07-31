@@ -7,6 +7,10 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Immutable result of a forecast: predicted total events, anomaly rate,
+ * expected alert volume, and the feature maps used for each model.
+ */
 @Value
 @Builder
 public class ForecastPrediction {

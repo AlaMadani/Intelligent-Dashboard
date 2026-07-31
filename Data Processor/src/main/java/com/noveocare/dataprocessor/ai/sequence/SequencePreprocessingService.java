@@ -12,15 +12,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Preprocesses an AuditTrailEvent into an EncodedSequenceEvent by mapping
+ * fields, looking up vocabulary IDs, scaling continuous values, and recording
+ * coverage data.
+ */
 @Service
 @RequiredArgsConstructor
 public class SequencePreprocessingService {
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final SequenceEventMapper eventMapper;
     private final SequenceValueNormalizer valueNormalizer;
     private final SequenceFieldCoverageMonitor coverageMonitor;
 
+    /* ========== Public API ========== */
+
+    /* Encodes a raw event into an EncodedSequenceEvent with vocab IDs and scaled values. */
     public EncodedSequenceEvent encode(AuditTrailEvent event, Instant previousTimestamp) {
         SequenceEventValues values = eventMapper.map(event, previousTimestamp);
         CategoricalVocabularies vocabularies = artifactService.getCategoricalVocabularies();
@@ -64,6 +73,9 @@ public class SequencePreprocessingService {
         return encoded;
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Applies standardisation scaling (center/scale) with optional clipping. */
     private double scaleIfNeeded(String field, double raw) {
         ScalerParams params = artifactService.getScalerParams();
         int index = params.getScaledColumns().indexOf(field);

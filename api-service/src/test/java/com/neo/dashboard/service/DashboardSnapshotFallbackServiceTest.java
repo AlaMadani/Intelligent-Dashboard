@@ -34,6 +34,9 @@ class DashboardSnapshotFallbackServiceTest {
         service = new DashboardSnapshotFallbackService(redisReadService, dashboardSnapshotRepository, objectMapper);
     }
 
+    /**
+     * Redis Hit Returns Redis Payload
+     */
     @Test
     void redisHitReturnsRedisPayload() {
         V36SecurityOverviewResponse redisPayload = new V36SecurityOverviewResponse();
@@ -55,6 +58,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(result.payload().getTotalEventsToday()).isEqualTo(100L);
     }
 
+    /**
+     * Redis Miss Sql Hit Returns Sql Fallback Payload
+     */
     @Test
     void redisMissSqlHitReturnsSqlFallbackPayload() {
         when(redisReadService.readValue("dashboard:security-overview:v3_6", V36SecurityOverviewResponse.class))
@@ -81,6 +87,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(result.payload().getActiveUsersToday()).isEqualTo(50L);
     }
 
+    /**
+     * Redis And Sql Both Miss Returns Null
+     */
     @Test
     void redisAndSqlBothMissReturnsNull() {
         when(redisReadService.readValue("dashboard:security-overview:v3_6", V36SecurityOverviewResponse.class))
@@ -98,6 +107,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(result).isNull();
     }
 
+    /**
+     * Sql Fallback Malformed Json Returns Null
+     */
     @Test
     void sqlFallbackMalformedJsonReturnsNull() {
         when(redisReadService.readValue("dashboard:security-overview:v3_6", V36SecurityOverviewResponse.class))
@@ -121,6 +133,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(result).isNull();
     }
 
+    /**
+     * Sql Fallback Read List Handles Array Payload
+     */
     @Test
     void sqlFallbackReadListHandlesArrayPayload() {
         when(dashboardSnapshotRepository.findByViewNameAndSnapshotKey("alerts", "alerts:latest"))
@@ -134,6 +149,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(result.get(1).getEventId()).isEqualTo("evt-2");
     }
 
+    /**
+     * Sql Fallback Read List Handles Items Wrapped Payload
+     */
     @Test
     void sqlFallbackReadListHandlesItemsWrappedPayload() {
         when(dashboardSnapshotRepository.findByViewNameAndSnapshotKey("alerts", "alerts:latest"))
@@ -147,6 +165,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(result.get(0).getEventId()).isEqualTo("evt-1");
     }
 
+    /**
+     * Sql Fallback Read List Handles Empty Sql
+     */
     @Test
     void sqlFallbackReadListHandlesEmptySql() {
         when(dashboardSnapshotRepository.findByViewNameAndSnapshotKey("alerts", "alerts:latest"))
@@ -158,6 +179,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Rehydrate Redis Writes Payload Back
+     */
     @Test
     void rehydrateRedisWritesPayloadBack() {
         V36SecurityOverviewResponse payload = new V36SecurityOverviewResponse();
@@ -168,6 +192,9 @@ class DashboardSnapshotFallbackServiceTest {
         verify(redisReadService).writeJson("dashboard:security-overview:v3_6", payload, java.time.Duration.ofHours(1));
     }
 
+    /**
+     * Deserialization Consistent Between Redis And Sql
+     */
     @Test
     void deserializationConsistentBetweenRedisAndSql() throws Exception {
         String json = "{\"totalEventsToday\":150,\"activeUsersToday\":30,\"snapshotTimestamp\":\"2026-06-17T10:00:00Z\"}";
@@ -196,6 +223,9 @@ class DashboardSnapshotFallbackServiceTest {
         assertThat(sqlResult.payload().getActiveUsersToday()).isEqualTo(fromJson.getActiveUsersToday());
     }
 
+    /**
+     * Security Overview Fallback Chain
+     */
     @Test
     void securityOverviewFallbackChain() {
         when(redisReadService.readValue("dashboard:security-overview:v3_6", V36SecurityOverviewResponse.class))

@@ -13,7 +13,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for SequenceAnomalyScoringService: softmax NLL scoring, continuous error calculation,
+ * context weighting, and handling of unknown target values.
+ */
 class SequenceAnomalyScoringServiceTest {
+
+    /* --- Test methods --- */
 
     @Test
     void appliesSoftmaxNllWeightsAndContinuousErrors() {
@@ -92,6 +98,8 @@ class SequenceAnomalyScoringServiceTest {
         assertThat(result.getCategoricalScore()).isZero();
         assertThat(result.getWarnings()).contains("unknown_target_for_field_page");
     }
+
+    /* --- Helper methods --- */
 
     private org.assertj.core.data.Offset<Double> within(double value) {
         return org.assertj.core.data.Offset.offset(value);

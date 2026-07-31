@@ -8,6 +8,10 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Deserialised schema for the churn prediction model, including feature order,
+ * categorical mappings, numeric defaults, and risk buckets.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ChurnFeatureSchema {

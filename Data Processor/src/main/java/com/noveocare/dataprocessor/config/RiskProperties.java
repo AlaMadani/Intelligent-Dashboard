@@ -12,8 +12,10 @@ import java.util.List;
 @Data
 @ConfigurationProperties(prefix = "app.risk")
 public class RiskProperties {
+    /* --- Risk level thresholds --- */
     private double mediumThreshold;
     private double highThreshold;
     private double criticalThreshold = 80.0;
+    /* --- High-risk event type labels --- */
     private List<String> highRiskTypes = new ArrayList<>();
 }

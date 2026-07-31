@@ -22,16 +22,27 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
+/**
+ * Manages per-model-group thread pools and a per-model circuit-breaker that
+ * temporarily or permanently stops submitting work to models that have timed
+ * out repeatedly.
+ */
 @Service
 @Slf4j
 public class InferenceExecutorManager {
 
+    /* ---- Executor pools ---- */
     private final Map<String, ModelExecutor> executors = new ConcurrentHashMap<>();
+
+    /* ---- Circuit-breaker state ---- */
     private final Map<String, CircuitBreakerState> circuitBreakers = new ConcurrentHashMap<>();
     private final Set<String> permanentlyDisabledModels = ConcurrentHashMap.newKeySet();
 
+    /* ---- Sequence task tracking ---- */
     private final AtomicLong sequenceTaskIdCounter = new AtomicLong();
     private final ConcurrentHashMap<Long, SequenceTaskMeta> sequenceTasks = new ConcurrentHashMap<>();
+
+    /* ---- Initialisation ---- */
 
     public InferenceExecutorManager() {
         createExecutor("tabular", 2, 50);
@@ -48,6 +59,8 @@ public class InferenceExecutorManager {
             log.info("SEQUENCE_EXECUTOR_CONFIG threads={} queue={}", threads, queueSize);
         }
     }
+
+    /* ---- Executor pool life-cycle ---- */
 
     public int getSequenceThreads() {
         ModelExecutor seq = executors.get("sequence");
@@ -78,6 +91,8 @@ public class InferenceExecutorManager {
         executors.put(name, me);
     }
 
+    /* ---- Async submission (fire-and-forget) ---- */
+
     public <T> Future<T> submitAsync(String modelGroup, String modelName, Callable<T> task) {
         ModelExecutor executor = executors.get(modelGroup);
         if (executor == null) {
@@ -101,6 +116,8 @@ public class InferenceExecutorManager {
             return java.util.concurrent.CompletableFuture.completedFuture(null);
         }
     }
+
+    /* ---- Sync submission with timeout and circuit-breaker ---- */
 
     public <T> T submitWithTimeout(String modelGroup, String modelName, Callable<T> task, long timeoutMs, T fallback) {
         if (isCircuitOpen(modelName)) {
@@ -205,6 +222,8 @@ public class InferenceExecutorManager {
         }
     }
 
+    /* ---- Sequence task wrappers ---- */
+
     private <T> Callable<T> wrapSequenceTask(long taskId, String modelName, SequenceTaskMeta meta, Callable<T> task) {
         return () -> {
             long startedNs = System.nanoTime();
@@ -234,6 +253,8 @@ public class InferenceExecutorManager {
             }
         };
     }
+
+    /* ---- Circuit-breaker operations ---- */
 
     public void recordTimeout(String modelName) {
         CircuitBreakerState cb = circuitBreakers.computeIfAbsent(modelName, k -> new CircuitBreakerState());
@@ -276,6 +297,8 @@ public class InferenceExecutorManager {
             log.warn("Circuit OPEN for model {} after {} timeouts, cooldown {}ms", modelName, threshold, cooldownMs);
         }
     }
+
+    /* ---- Diagnostics ---- */
 
     public long getActiveTasks(String modelGroup) {
         ModelExecutor me = executors.get(modelGroup);
@@ -332,12 +355,16 @@ public class InferenceExecutorManager {
         return diag;
     }
 
+    /* ---- Shutdown ---- */
+
     @PreDestroy
     public void shutdown() {
         for (ModelExecutor me : executors.values()) {
             me.executor.shutdownNow();
         }
     }
+
+    /* ---- Internal model: sequence task metadata ---- */
 
     private static class SequenceTaskMeta {
         final long taskId;
@@ -353,6 +380,8 @@ public class InferenceExecutorManager {
             this.submitNs = submitNs;
         }
     }
+
+    /* ---- Internal model: per-group executor wrapper ---- */
 
     private static class ModelExecutor {
         final String name;
@@ -378,6 +407,8 @@ public class InferenceExecutorManager {
             }
         }
     }
+
+    /* ---- Internal model: circuit-breaker state ---- */
 
     private static class CircuitBreakerState {
         final AtomicInteger timeoutCount = new AtomicInteger();

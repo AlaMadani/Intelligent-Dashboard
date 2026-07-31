@@ -7,6 +7,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Structured event values after mapping: categorical and continuous column
+ * values, schema validity flag, and warnings.
+ */
 @Value
 @Builder(toBuilder = true)
 public class SequenceEventValues {

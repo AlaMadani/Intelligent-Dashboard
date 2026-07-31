@@ -9,10 +9,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 @ConfigurationProperties(prefix = "app.kafka.topics")
 public class KafkaTopicProperties {
-    // Input stream consumed from the audit-trail source.
+    /* Input stream consumed from the audit-trail source */
     private String auditTrail;
-    // Output topic that receives detected anomaly alerts.
+    /* Output topic that receives detected anomaly alerts */
     private String anomalyAlerts;
-    // Dead-letter topic receiving malformed or failed records.
+    /* Dead-letter topic receiving malformed or failed records */
     private String dlq;
 }

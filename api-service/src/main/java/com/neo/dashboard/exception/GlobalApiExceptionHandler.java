@@ -17,17 +17,26 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
 @Slf4j
 public class GlobalApiExceptionHandler {
 
+    /**
+     * Checks whether the incoming request is an SSE (Server-Sent Events)
+     * stream by inspecting the {@code Accept} header.
+     */
     private boolean isSseRequest(HttpServletRequest request) {
         if (request == null) return false;
         String accept = request.getHeader("Accept");
         return accept != null && accept.contains("text/event-stream");
     }
 
+    /** Silently swallows SSE client disconnects so they don't pollute the error log. */
     @ExceptionHandler(AsyncRequestNotUsableException.class)
     public void handleSseClientDisconnect(AsyncRequestNotUsableException ex, HttpServletRequest request) {
         log.debug("SSE client disconnected path={}", request != null ? request.getRequestURI() : "unknown");
     }
 
+    /**
+     * Translates a {@link ApiException} into an {@link ApiErrorResponse} JSON body.
+     * For SSE requests only the HTTP status is returned (no body).
+     */
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiErrorResponse> handleApiException(ApiException ex, HttpServletRequest request) {
         if (isSseRequest(request)) {
@@ -42,11 +51,16 @@ public class GlobalApiExceptionHandler {
         ));
     }
 
+    /** Forwards the structured {@link AuthResponse} carried by an {@link AuthException}. */
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<AuthResponse> handleAuthException(AuthException ex) {
         return ResponseEntity.status(ex.getStatus()).body(ex.getResponse());
     }
 
+    /**
+     * Translates an {@link AsrException} (ASR service error) into an error
+     * response. For SSE requests only the HTTP status is returned.
+     */
     @ExceptionHandler(AsrException.class)
     public ResponseEntity<ApiErrorResponse> handleAsrException(AsrException ex, HttpServletRequest request) {
         if (isSseRequest(request)) {
@@ -62,6 +76,7 @@ public class GlobalApiExceptionHandler {
         ));
     }
 
+    /** Handles {@code @Valid} / {@code @Validated} constraint violations as 400. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         if (isSseRequest(request)) {
@@ -76,6 +91,7 @@ public class GlobalApiExceptionHandler {
         ));
     }
 
+    /** Handles malformed JSON in the request body as 400. */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidJson(HttpMessageNotReadableException ex, HttpServletRequest request) {
         if (isSseRequest(request)) {
@@ -90,6 +106,7 @@ public class GlobalApiExceptionHandler {
         ));
     }
 
+    /** Catch-all for any unhandled exception — returns 500. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
         if (isSseRequest(request)) {

@@ -5,6 +5,10 @@ import lombok.Value;
 
 import java.util.List;
 
+/**
+ * Score from a single tabular anomaly model: model name, artifact, score
+ * values, latency, and availability status.
+ */
 @Value
 @Builder(toBuilder = true)
 public class TabularModelScore {
@@ -17,6 +21,7 @@ public class TabularModelScore {
     long latencyMs;
     List<String> warnings;
 
+    /* Returns an unavailable score with a warning. */
     public static TabularModelScore unavailable(String modelName, String artifactName, String warning) {
         return TabularModelScore.builder()
                 .modelName(modelName)

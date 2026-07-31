@@ -3,6 +3,10 @@ package com.noveocare.dataprocessor.ai.tree;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Parses a LightGBM text-format model and provides prediction (raw and
+ * probability) methods.
+ */
 public class LightGbmTxtPredictor {
     private final List<Tree> trees;
 
@@ -10,10 +14,14 @@ public class LightGbmTxtPredictor {
         this.trees = parseTrees(modelText);
     }
 
+    /* ========== Public API ========== */
+
+    /* Predicts class-1 probability via sigmoid(raw). */
     public double predictProbability(double[] features) {
         return sigmoid(predictRaw(features));
     }
 
+    /* Predicts the raw ensemble sum across all trees. */
     public double predictRaw(double[] features) {
         double score = 0.0;
         for (Tree tree : trees) {
@@ -22,10 +30,14 @@ public class LightGbmTxtPredictor {
         return score;
     }
 
+    /* Returns the number of trees in the ensemble. */
     public int treeCount() {
         return trees.size();
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Parses the text-format model into a list of Tree objects. */
     private List<Tree> parseTrees(String modelText) {
         List<Tree> parsed = new ArrayList<>();
         if (modelText == null || modelText.isBlank()) {
@@ -63,6 +75,7 @@ public class LightGbmTxtPredictor {
         return parsed;
     }
 
+    /* Parses a space-separated string into an int array. */
     private static int[] intList(String value) {
         String[] parts = value.trim().split("\\s+");
         int[] result = new int[parts.length];
@@ -72,6 +85,7 @@ public class LightGbmTxtPredictor {
         return result;
     }
 
+    /* Parses a space-separated string into a double array. */
     private static double[] doubleList(String value) {
         String[] parts = value.trim().split("\\s+");
         double[] result = new double[parts.length];
@@ -81,6 +95,7 @@ public class LightGbmTxtPredictor {
         return result;
     }
 
+    /* Numerically stable sigmoid. */
     private static double sigmoid(double value) {
         if (value >= 0) {
             double z = Math.exp(-value);
@@ -90,6 +105,7 @@ public class LightGbmTxtPredictor {
         return z / (1.0 + z);
     }
 
+    /* Accumulates fields for a single tree during text parsing. */
     private static class TreeBuilder {
         int[] splitFeature;
         double[] threshold;
@@ -106,6 +122,7 @@ public class LightGbmTxtPredictor {
         }
     }
 
+    /* A single decision tree in the LightGBM ensemble. */
     private record Tree(int[] splitFeature,
                         double[] threshold,
                         int[] leftChild,

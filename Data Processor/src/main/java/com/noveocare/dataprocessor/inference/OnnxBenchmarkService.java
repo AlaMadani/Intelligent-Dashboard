@@ -20,17 +20,27 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Benchmarks ONNX model inference performance by running warm-up and measured
+ * iterations with synthetic data, logging per-phase latency statistics (tensor
+ * creation, session run, output extraction) for each sequence model.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class OnnxBenchmarkService {
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiDiagnosticsProperties diagnosticsProperties;
 
+    /* ---- State ---- */
     private OrtEnvironment environment;
 
+    /* ---- Internal record for per-run timings ---- */
     record BenchmarkTiming(double tensorCreateMs, double sessionRunMs, double outputExtractMs, double totalMs) {}
+
+    /* ---- Lifecycle ---- */
 
     @PostConstruct
     public void init() {
@@ -38,6 +48,8 @@ public class OnnxBenchmarkService {
             runBenchmark();
         }
     }
+
+    /* ---- Benchmark orchestration ---- */
 
     public void runBenchmark() {
         environment = OrtEnvironment.getEnvironment();
@@ -60,6 +72,8 @@ public class OnnxBenchmarkService {
 
         log.info("=== ONNX Fake Benchmark Complete ===");
     }
+
+    /* ---- Single-model benchmark lifecycle ---- */
 
     private void benchmarkSingleModel(String modelName, String artifactPath, int warmup, int measured) {
         OrtSession session = null;
@@ -112,6 +126,8 @@ public class OnnxBenchmarkService {
         }
     }
 
+    /* ---- Model metadata ---- */
+
     private void logInputOutputMetadata(String modelName, String artifactPath, OrtSession session) throws OrtException {
         log.info("ONNX_MODEL_INFO model={} path={}", modelName, artifactPath);
         for (Map.Entry<String, NodeInfo> entry : session.getInputInfo().entrySet()) {
@@ -126,6 +142,8 @@ public class OnnxBenchmarkService {
         }
     }
 
+    /* ---- Input validation ---- */
+
     private boolean validateInputs(String modelName, OrtSession session) throws OrtException {
         var inputNames = session.getInputNames();
         if (!inputNames.containsAll(List.of("x_cat", "x_cont", "mask"))) {
@@ -135,6 +153,8 @@ public class OnnxBenchmarkService {
         }
         return true;
     }
+
+    /* ---- Benchmark modes ---- */
 
     private void runBenchmarkWithTensorCreation(String modelName, OrtSession session, int warmup, int measured,
                                                  long[][][] xCat, float[][][] xCont, boolean[][] mask) {
@@ -217,6 +237,8 @@ public class OnnxBenchmarkService {
         }
     }
 
+    /* ---- Single measured run ---- */
+
     private BenchmarkTiming runSingleMeasured(OrtSession session, long[][][] xCat, float[][][] xCont, boolean[][] mask)
             throws OrtException {
         long t0 = System.nanoTime();
@@ -252,6 +274,8 @@ public class OnnxBenchmarkService {
         }
     }
 
+    /* ---- Output extraction ---- */
+
     private void extractOutputsMinimal(OrtSession.Result result) throws OrtException {
         for (Map.Entry<String, ? extends OnnxValue> entry : result) {
             OnnxValue value = entry.getValue();
@@ -260,6 +284,8 @@ public class OnnxBenchmarkService {
             }
         }
     }
+
+    /* ---- Logging / statistics ---- */
 
     private void logSummary(String modelName, String mode, int measured, int warmup, List<BenchmarkTiming> timings) {
         double[] tensorCreateArr = timings.stream().mapToDouble(BenchmarkTiming::tensorCreateMs).toArray();

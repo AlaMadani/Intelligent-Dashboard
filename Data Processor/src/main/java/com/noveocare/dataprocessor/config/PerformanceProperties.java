@@ -3,15 +3,24 @@ package com.noveocare.dataprocessor.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * Performance tuning properties: dashboard refresh intervals, evidence filtering,
+ * hot-path optimizations (Redis pipelining, skip flags), and summary logging.
+ */
 @Data
 @ConfigurationProperties(prefix = "app.performance")
 public class PerformanceProperties {
+    /* --- Sub-configurations --- */
     private DashboardRefresh dashboardRefresh = new DashboardRefresh();
     private Evidence evidence = new Evidence();
     private HotPath hotPath = new HotPath();
+    /* --- Logging and tracing --- */
     private long summaryLogIntervalMs = 30000;
     private boolean traceEventProcessing = false;
 
+    /**
+     * Minimum intervals and item limits for dashboard view refreshes.
+     */
     @Data
     public static class DashboardRefresh {
         private long securityOverviewMinIntervalMs = 5000;
@@ -26,12 +35,18 @@ public class PerformanceProperties {
         private int maxRiskySessionItems = 50;
     }
 
+    /**
+     * Thresholds for writing evidence payloads; low-risk evidence can be suppressed.
+     */
     @Data
     public static class Evidence {
         private double fullPayloadMinRiskScore = 35.0;
         private boolean writeLowRiskEvidence = false;
     }
 
+    /**
+     * Hot-path flags that bypass expensive operations on the listener thread.
+     */
     @Data
     public static class HotPath {
         private boolean enableRedisPipelining = true;

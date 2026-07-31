@@ -41,6 +41,9 @@ class V36ChurnEnrichmentTest {
         );
     }
 
+    /**
+     * Deduplicate By Insured Id
+     */
     @Test
     void deduplicateByInsuredId() {
         Instant now = Instant.now();
@@ -61,6 +64,9 @@ class V36ChurnEnrichmentTest {
         assertThat(insuredIds).containsExactly("insured-A", "insured-B");
     }
 
+    /**
+     * Deduplicate Pick Winner By Latest End Time
+     */
     @Test
     void deduplicatePickWinnerByLatestEndTime() {
         Instant now = Instant.now();
@@ -78,6 +84,9 @@ class V36ChurnEnrichmentTest {
         assertThat(result.getItems().get(0).get("churnProbability")).isEqualTo(0.80);
     }
 
+    /**
+     * Deduplicate Pick Winner By Highest Probability When End Time Null
+     */
     @Test
     void deduplicatePickWinnerByHighestProbabilityWhenEndTimeNull() {
         SessionAnalysis lower = sessionWithNullEndTime("insured-A", "sess-low", 0.70, "MEDIUM", 60.0, "MEDIUM");
@@ -94,6 +103,9 @@ class V36ChurnEnrichmentTest {
         assertThat(result.getItems().get(0).get("churnProbability")).isEqualTo(0.95);
     }
 
+    /**
+     * Hydrate With30Day Risk Summary
+     */
     @Test
     void hydrateWith30DayRiskSummary() {
         Instant now = Instant.now();
@@ -124,6 +136,9 @@ class V36ChurnEnrichmentTest {
         assertThat(item.get("criticalAlertCountLast30d")).isEqualTo(1);
     }
 
+    /**
+     * Hydrate With No Risk History
+     */
     @Test
     void hydrateWithNoRiskHistory() {
         Instant now = Instant.now();
@@ -142,6 +157,9 @@ class V36ChurnEnrichmentTest {
         assertThat(item.get("criticalAlertCountLast30d")).isEqualTo(0);
     }
 
+    /**
+     * Sorting By Churn Probability Descending
+     */
     @Test
     void sortingByChurnProbabilityDescending() {
         Instant now = Instant.now();
@@ -161,6 +179,9 @@ class V36ChurnEnrichmentTest {
         assertThat(result.getItems().get(2).get("insuredId")).isEqualTo("insured-A");
     }
 
+    /**
+     * Enriched Fields Present
+     */
     @Test
     void enrichedFieldsPresent() {
         Instant now = Instant.now();
@@ -187,6 +208,9 @@ class V36ChurnEnrichmentTest {
         assertThat(item).containsEntry("source", "sql_fallback");
     }
 
+    /**
+     * Risk Level Filter Still Works
+     */
     @Test
     void riskLevelFilterStillWorks() {
         Instant now = Instant.now();
@@ -238,6 +262,9 @@ class V36ChurnEnrichmentTest {
     /*  Baseline enrichment tests                                          */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Baseline Active Hours From Session Timestamps
+     */
     @Test
     void baselineActiveHoursFromSessionTimestamps() {
         Instant t1 = Instant.parse("2026-06-01T10:15:00Z");
@@ -263,6 +290,9 @@ class V36ChurnEnrichmentTest {
         assertThat(hours.get(0)).isIn(10, 11);
     }
 
+    /**
+     * Baseline Active Hours Empty When No Timestamps
+     */
     @Test
     void baselineActiveHoursEmptyWhenNoTimestamps() {
         SessionAnalysis s = new SessionAnalysis(); s.setStartTime(null); s.setEndTime(null);
@@ -280,6 +310,9 @@ class V36ChurnEnrichmentTest {
         assertThat(response.getBaseline().get("usualActiveHours")).isEqualTo(List.of());
     }
 
+    /**
+     * Baseline Top Api Families From Event Json
+     */
     @Test
     void baselineTopApiFamiliesFromEventJson() throws Exception {
         ObjectMapper om = new ObjectMapper();
@@ -304,6 +337,9 @@ class V36ChurnEnrichmentTest {
         assertThat(families).containsExactly("auth", "documents");
     }
 
+    /**
+     * Baseline Top Api Families Empty When No Event Json
+     */
     @Test
     void baselineTopApiFamiliesEmptyWhenNoEventJson() {
         AnomalyEvent a = new AnomalyEvent(); a.setEventJson(null);
@@ -320,6 +356,9 @@ class V36ChurnEnrichmentTest {
         assertThat(response.getBaseline().get("topApiFamilies")).isEqualTo(List.of());
     }
 
+    /**
+     * Baseline No Hardcoded NA Strings
+     */
     @Test
     void baselineNoHardcodedNAStrings() throws Exception {
         ObjectMapper om = new ObjectMapper();
@@ -352,6 +391,9 @@ class V36ChurnEnrichmentTest {
     /*  User360 No-op fallback for baseline test triggering Redis path     */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Baseline Device And Browser Extracted From Event Json
+     */
     @Test
     void baselineDeviceAndBrowserExtractedFromEventJson() throws Exception {
         ObjectMapper om = new ObjectMapper();
@@ -375,6 +417,9 @@ class V36ChurnEnrichmentTest {
         assertThat(response.getBaseline().get("usualBrowser")).isEqualTo("chrome");
     }
 
+    /**
+     * Baseline Top Api Families From Session Llm Evidence
+     */
     @Test
     void baselineTopApiFamiliesFromSessionLlmEvidence() throws Exception {
         ObjectMapper om = new ObjectMapper();
@@ -398,6 +443,9 @@ class V36ChurnEnrichmentTest {
         assertThat(families).contains("auth");
     }
 
+    /**
+     * Baseline Top Api Families From Session Anomaly Type Evidence
+     */
     @Test
     void baselineTopApiFamiliesFromSessionAnomalyTypeEvidence() throws Exception {
         ObjectMapper om = new ObjectMapper();
@@ -420,6 +468,9 @@ class V36ChurnEnrichmentTest {
         assertThat(families).contains("documents");
     }
 
+    /**
+     * Baseline Top Api Families From Route Sequence
+     */
     @Test
     void baselineTopApiFamiliesFromRouteSequence() {
         SessionAnalysis s = new SessionAnalysis();
@@ -443,6 +494,9 @@ class V36ChurnEnrichmentTest {
     /*  Risk timeline tests                                                */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Risk Timeline Does Not Use Anomaly Tier As Risk Level
+     */
     @Test
     void riskTimelineDoesNotUseAnomalyTierAsRiskLevel() {
         AnomalyEvent anomaly = new AnomalyEvent();
@@ -468,6 +522,9 @@ class V36ChurnEnrichmentTest {
         assertThat(point).doesNotContainEntry("riskLevel", "SESSION_RUNTIME");
     }
 
+    /**
+     * Risk Timeline Derives Risk Level From Score
+     */
     @Test
     void riskTimelineDerivesRiskLevelFromScore() {
         AnomalyEvent anomaly = new AnomalyEvent();
@@ -489,6 +546,9 @@ class V36ChurnEnrichmentTest {
         assertThat(response.getRiskTimeline().get(0)).containsEntry("riskLevel", "MEDIUM");
     }
 
+    /**
+     * Risk Timeline Uses Persisted Risk Level When Available
+     */
     @Test
     void riskTimelineUsesPersistedRiskLevelWhenAvailable() {
         AnomalyEvent anomaly = new AnomalyEvent();
@@ -510,6 +570,9 @@ class V36ChurnEnrichmentTest {
         assertThat(response.getRiskTimeline().get(0)).containsEntry("riskLevel", "HIGH");
     }
 
+    /**
+     * Risk Timeline Preserves Source
+     */
     @Test
     void riskTimelinePreservesSource() {
         AnomalyEvent anomaly = new AnomalyEvent();

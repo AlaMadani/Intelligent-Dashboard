@@ -30,13 +30,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for NextEventPredictionService: softmax decoding, top-K prediction,
+ * deviation evaluation, diagnostics, and cross-session prediction comparisons.
+ */
 class NextEventPredictionServiceTest {
+
+    /* --- Fields --- */
 
     private NextEventPredictionProperties properties;
     private RuntimeArtifactService artifactService;
     private RedisCacheService redisCacheService;
     private NextEventPredictionRepository repository;
     private NextEventPredictionService service;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -84,6 +92,8 @@ class NextEventPredictionServiceTest {
         service.init();
     }
 
+    /* --- Test methods: config --- */
+
     @Test
     void disabledWhenConfigSaysSo() {
         properties.setEnabled(false);
@@ -94,6 +104,8 @@ class NextEventPredictionServiceTest {
     void enabledWhenConfigSaysSo() {
         assertThat(service.isEnabled()).isTrue();
     }
+
+    /* --- Test methods: prediction --- */
 
     @Test
     void predictDecodesFrontendActionNameSoftmaxTopK() {
@@ -153,6 +165,8 @@ class NextEventPredictionServiceTest {
                 anyString(), any(Duration.class));
     }
 
+    /* --- Test methods: context validation --- */
+
     @Test
     void predictSkipsInsufficientContext() {
         SequenceInferenceResult inference = SequenceInferenceResult.builder()
@@ -166,6 +180,8 @@ class NextEventPredictionServiceTest {
         service.predict(inference, "insured-1", "session-1", "event-context-1", 1, null);
     }
 
+    /* --- Test methods: deviation --- */
+
     @Test
     void evaluateDeviationReturnsNullWhenDisabled() {
         properties.setEvaluateDeviation(false);
@@ -173,6 +189,8 @@ class NextEventPredictionServiceTest {
                 mock(AuditTrailEvent.class), "session-1");
         assertThat(deviation).isNull();
     }
+
+    /* --- Test methods: diagnostics --- */
 
     @Test
     void diagnosticsSnapshotContainsExpectedKeys() {
@@ -190,6 +208,8 @@ class NextEventPredictionServiceTest {
                 .containsKey("deviationSkippedNoPreviousPredictionTotal")
                 .containsKey("lastDeviationAt");
     }
+
+    /* --- Test methods: deviation matching --- */
 
     @Test
     void predictWithDeviationMatch() {
@@ -211,6 +231,8 @@ class NextEventPredictionServiceTest {
                 .containsEntry("deviationMatchedTopKTotal", 1L);
     }
 
+    /* --- Test methods: deviation mismatch --- */
+
     @Test
     void predictWithDeviationMismatch() {
         properties.setEvaluateDeviation(true);
@@ -231,6 +253,8 @@ class NextEventPredictionServiceTest {
                 .containsEntry("deviationHighScoreTotal", 1L);
     }
 
+    /* --- Test methods: deviation disabled --- */
+
     @Test
     void predictDeviationDisabledSkipsEvaluation() {
         properties.setEvaluateDeviation(false);
@@ -248,6 +272,8 @@ class NextEventPredictionServiceTest {
         Map<String, Object> diag = service.diagnosticsSnapshot();
         assertThat(diag).containsEntry("deviationEvaluatedTotal", 0L);
     }
+
+    /* --- Test methods: no previous prediction --- */
 
     @Test
     void predictNoPreviousPredictionSkipsDeviation() {
@@ -267,6 +293,8 @@ class NextEventPredictionServiceTest {
                 .containsEntry("deviationSkippedNoPreviousPredictionTotal", 1L)
                 .containsEntry("deviationEvaluatedTotal", 0L);
     }
+
+    /* --- Test methods: deviation snapshot --- */
 
     @SuppressWarnings("unchecked")
     @Test
@@ -333,6 +361,8 @@ class NextEventPredictionServiceTest {
         assertThat((double) deviation.get("deviationScore")).isBetween(0.0, 1.0);
     }
 
+    /* --- Test methods: clean skip --- */
+
     @Test
     void noPreviousPredictionSkipsDeviationCleanly() throws Exception {
         properties.setEvaluateDeviation(true);
@@ -361,6 +391,8 @@ class NextEventPredictionServiceTest {
         assertThat(result.getDeviation()).isNull();
         // No risk score change — no risk-related fields exist on the DTO
     }
+
+    /* --- Test methods: context event ID --- */
 
     @SuppressWarnings("unchecked")
     @Test
@@ -400,6 +432,8 @@ class NextEventPredictionServiceTest {
         // The current prediction's contextEventId should be the current event
         assertThat(result.getContextEventId()).isEqualTo("current-event-003");
     }
+
+    /* --- Test methods: same context --- */
 
     @Test
     void sameContextPredictionSkipsDeviation() throws Exception {
@@ -441,6 +475,8 @@ class NextEventPredictionServiceTest {
                 .containsEntry("deviationSkippedNoPreviousPredictionTotal", 0L)
                 .containsEntry("lastSkippedSameContextEventId", "evt-2");
     }
+
+    /* --- Test methods: deviation invariant --- */
 
     @SuppressWarnings("unchecked")
     @Test
@@ -488,6 +524,8 @@ class NextEventPredictionServiceTest {
         assertThat((String) pp.get("contextEventId")).isNotEqualTo(evaluatedId);
     }
 
+    /* --- Test methods: duplicate processing --- */
+
     @Test
     void duplicateProcessingSkipsSameContextDeviation() throws Exception {
         properties.setEvaluateDeviation(true);
@@ -521,6 +559,8 @@ class NextEventPredictionServiceTest {
         // Current prediction still generated with the event's ID
         assertThat(result.getContextEventId()).isEqualTo("evt-dup");
     }
+
+    /* --- Helper methods --- */
 
     private SequenceInferenceResult baseInference() {
         float[] pageLogits = new float[15];

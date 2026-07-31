@@ -6,6 +6,10 @@ import lombok.Data;
 
 import java.util.Map;
 
+/**
+ * Configuration POJO for sequence anomaly score formula weights, loaded from
+ * anomaly_score_config.json.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AnomalyScoreConfig {

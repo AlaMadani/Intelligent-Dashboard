@@ -8,7 +8,13 @@ import org.springframework.core.io.DefaultResourceLoader;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for RuntimeArtifactService: artifact loading, manifest validation,
+ * sequence metadata contract, and model/resource existence checks.
+ */
 class RuntimeArtifactServiceTest {
+
+    /* --- Test methods --- */
 
     @Test
     void loadsV36ArtifactsAndValidatesSequenceContract() throws Exception {
@@ -30,6 +36,8 @@ class RuntimeArtifactServiceTest {
         assertThat(service.getArtifactHealth().isLlmExplanationInDataprocessor()).isFalse();
         assertThat(service.getArtifactHealth().isLlmEvidencePayloadEnabled()).isTrue();
     }
+
+    /* --- Helper methods --- */
 
     static RuntimeArtifactService artifactService() {
         AiResourceProperties properties = new AiResourceProperties();

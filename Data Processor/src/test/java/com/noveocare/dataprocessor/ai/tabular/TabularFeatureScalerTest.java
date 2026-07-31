@@ -7,7 +7,13 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for TabularFeatureScaler: mean/scale transformation and
+ * replacement of non-finite raw feature values.
+ */
 class TabularFeatureScalerTest {
+
+    /* --- Test methods --- */
 
     @Test
     void appliesMeanScaleAndReplacesNonFiniteValues() {

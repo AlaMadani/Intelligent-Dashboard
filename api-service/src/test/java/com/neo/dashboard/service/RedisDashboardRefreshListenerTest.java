@@ -23,6 +23,9 @@ class RedisDashboardRefreshListenerTest {
             statsService
     );
 
+    /**
+     * Forecast Refresh Preserves Legacy Target And Broadcasts V36Alias
+     */
     @Test
     void forecastRefreshPreservesLegacyTargetAndBroadcastsV36Alias() {
         Message message = mock(Message.class);
@@ -34,6 +37,9 @@ class RedisDashboardRefreshListenerTest {
         verify(liveStatsStreamService).broadcastRefresh("forecast");
     }
 
+    /**
+     * Stats Refresh Still Pushes Stats Snapshot
+     */
     @Test
     void statsRefreshStillPushesStatsSnapshot() {
         Message message = mock(Message.class);

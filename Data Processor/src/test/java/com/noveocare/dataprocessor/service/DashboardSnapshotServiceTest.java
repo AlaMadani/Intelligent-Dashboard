@@ -40,7 +40,13 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for DashboardSnapshotService: security overview refresh with forecast,
+ * top anomaly types aggregation, and session insight caching.
+ */
 class DashboardSnapshotServiceTest {
+
+    /* --- Mock fields --- */
 
     private final RedisCacheService redisCacheService = mock(RedisCacheService.class);
     private final SessionAnalysisRepository sessionAnalysisRepository = mock(SessionAnalysisRepository.class);
@@ -52,7 +58,11 @@ class DashboardSnapshotServiceTest {
     private final DashboardSnapshotPersistenceService snapshotPersistenceService = mock(DashboardSnapshotPersistenceService.class);
     private final AlertCacheService alertCacheService = mock(AlertCacheService.class);
 
+    /* --- Fields --- */
+
     private DashboardSnapshotService service;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -77,6 +87,8 @@ ObjectFactory<ModelHealthService> healthFactory = () -> modelHealthService;
         );
     }
 
+    /* --- Helper methods --- */
+
     private void stubSecurityOverviewDefaults() {
         when(redisCacheService.getSetMembers(any())).thenReturn(Set.of());
         when(statisticsService.countEventsForDate(any(LocalDate.class))).thenReturn(100L);
@@ -84,6 +96,8 @@ ObjectFactory<ModelHealthService> healthFactory = () -> modelHealthService;
         when(sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc()).thenReturn(List.of());
         when(anomalyEventRepository.findByDetectedAtBetween(any(Instant.class), any(Instant.class))).thenReturn(List.of());
     }
+
+    /* --- Test methods: security overview --- */
 
     @Test
     void refreshSecurityOverviewReadsForecastFromCache() {
@@ -106,6 +120,8 @@ ObjectFactory<ModelHealthService> healthFactory = () -> modelHealthService;
                 .containsEntry("expectedAlertVolumeTomorrow", 43.0);
     }
 
+    /* --- Test methods: forecast handling --- */
+
     @Test
     void refreshSecurityOverviewShowsNullWhenNoForecast() {
         when(redisCacheService.getJson(eq(CacheKeys.forecastDashboardV36Key()), any(TypeReference.class))).thenReturn(null);
@@ -123,6 +139,8 @@ ObjectFactory<ModelHealthService> healthFactory = () -> modelHealthService;
                 .containsEntry("expectedAlertVolumeTomorrow", null);
         assertThat(payload).containsKey("forecastWarnings");
     }
+
+    /* --- Test methods: anomaly types --- */
 
     @Test
     void topAnomalyTypesPopulatedFromEvents() {
@@ -264,6 +282,8 @@ ObjectFactory<ModelHealthService> healthFactory = () -> modelHealthService;
         Map<String, Object> warnings = (Map<String, Object>) payload.get("securityWarnings");
         assertThat(warnings).containsKey("top_anomaly_types_empty_despite_alerts");
     }
+
+    /* --- Test methods: cache session insight --- */
 
     @Test
     void cacheSessionInsightPublishesExpandedWorkerContract() {

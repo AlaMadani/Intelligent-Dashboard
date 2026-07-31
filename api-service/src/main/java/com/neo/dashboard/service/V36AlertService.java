@@ -44,19 +44,48 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Service that provides V3.6.1 alert data for live-alert lists, critical alerts,
+ * user-scoped alerts, and alert investigation details.  Reads from Redis ZSETs
+ * first (with payload hydration from separate payload keys), falls back to SQL
+ * snapshot tables, then to the anomaly-event repository.  Enriches investigation
+ * details with evidence, session lifecycle, next-event predictions, and data
+ * integrity guards to prevent cross-event data leakage.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class V36AlertService {
 
+    /** Reads structured data from Redis caches (raw, JSON, typed values, ZSET items). */
     private final V36RedisReadService redisReadService;
+    /** JPA repository for anomaly events, used for SQL fallback queries. */
     private final AnomalyEventRepository anomalyEventRepository;
+    /** JPA repository for session analysis, used for enrichment and fallback. */
     private final SessionAnalysisRepository sessionAnalysisRepository;
+    /** Jackson mapper for JSON parsing, tree-to-value, and type-safe conversion. */
     private final ObjectMapper objectMapper;
+    /** Reads dashboard snapshots from Redis with fallback to SQL snapshot tables. */
     private final DashboardSnapshotFallbackService snapshotFallbackService;
+    /** Reads LLM evidence payloads from Redis for hydrating investigation details. */
     private final LlmEvidenceReadService evidenceReadService;
+    /** Resolves next-event predictions attached to investigation details. */
     private final V36NextEventPredictionService nextEventPredictionService;
 
+    /**
+     * Returns a paginated list of live alerts, optionally filtered by risk
+     * level, anomaly type, insured ID, session ID, and time range.
+     *
+     * @param riskLevel   optional risk-level filter (e.g. "CRITICAL", "HIGH")
+     * @param anomalyType optional anomaly-type filter
+     * @param insuredId   optional insured-entity filter
+     * @param sessionId   optional session filter
+     * @param from        optional start of the time range (inclusive)
+     * @param to          optional end of the time range (inclusive)
+     * @param limit       maximum number of items per page
+     * @param offset      pagination offset
+     * @return a paginated response of live-alert summaries
+     */
     public ApiPageResponse<V36LiveAlertSummaryDto> getLiveAlerts(String riskLevel,
                                                                     String anomalyType,
                                                                     String insuredId,
@@ -68,30 +97,51 @@ public class V36AlertService {
         return queryLiveAlerts(riskLevel, anomalyType, insuredId, sessionId, from, to, limit, offset);
     }
 
+    /**
+     * Returns a paginated list of critical alerts only.  Delegates to
+     * {@link #queryLiveAlerts} with the risk level pre-set to "CRITICAL".
+     *
+     * @param limit  maximum number of items per page
+     * @param offset pagination offset
+     * @return a paginated response of critical-alert summaries
+     */
     public ApiPageResponse<V36LiveAlertSummaryDto> getCriticalAlerts(int limit, int offset) {
         return queryLiveAlerts("CRITICAL", null, null, null, null, null, limit, offset);
     }
 
+    /**
+     * Core query method for live alerts.  Tries three data sources in order:
+     * <ol>
+     *   <li>Redis canonical ZSET with payload-key hydration</li>
+     *   <li>SQL snapshot tables</li>
+     *   <li>Direct anomaly-event repository queries</li>
+     * </ol>
+     * Results are merged with critical alerts, sorted by timestamp descending,
+     * filtered by the given criteria, and paginated.
+     */
     private ApiPageResponse<V36LiveAlertSummaryDto> queryLiveAlerts(String riskLevel,
-                                                                       String anomalyType,
-                                                                       String insuredId,
-                                                                       String sessionId,
-                                                                       Instant from,
-                                                                       Instant to,
-                                                                       int limit,
-                                                                       int offset) {
+                                                                        String anomalyType,
+                                                                        String insuredId,
+                                                                        String sessionId,
+                                                                        Instant from,
+                                                                        Instant to,
+                                                                        int limit,
+                                                                        int offset) {
+        /* Priority 1: Redis canonical ZSET with payload hydration. */
         List<V36LiveAlertSummaryDto> redisAlerts = readCanonicalAlertList(
                 CacheKeys.ALERTS_LIVE_V36_ZSET,
                 CacheKeys.ALERTS_LIVE_V36,
                 CacheKeys.ALERT_LIVE_V36_PAYLOAD_PREFIX,
                 5000);
         if (!redisAlerts.isEmpty()) {
+            /* Merge in any critical alerts that are not already in the live set. */
             List<V36LiveAlertSummaryDto> merged = mergeCriticalAlerts(redisAlerts);
             List<V36LiveAlertSummaryDto> sorted = sortByTimestampDesc(merged);
             List<V36LiveAlertSummaryDto> filtered = filterAlerts(sorted, riskLevel, anomalyType, insuredId, sessionId, from, to);
             return buildPageResponse(filtered, limit, offset);
         }
 
+        /* Priority 2: SQL snapshot tables (fallback when Redis is empty). */
         List<V36LiveAlertSummaryDto> snapshotAlerts = snapshotFallbackService
                 .readListFromSql(V36LiveAlertSummaryDto.class, "alerts", "alerts:latest", 500);
         if (!snapshotAlerts.isEmpty()) {
@@ -107,9 +157,19 @@ public class V36AlertService {
             return buildPageResponse(filtered, limit, offset);
         }
 
+        /* Priority 3: Direct SQL queries against the anomaly_event table. */
         return getSqlAlerts(riskLevel, anomalyType, insuredId, sessionId, from, to, limit, offset);
     }
 
+    /**
+     * Merges critical-alert entries from the dedicated critical ZSET into the
+     * live-alert list when they are not already present.  This ensures that
+     * critical alerts are always surfaced even if they haven't been replicated
+     * to the live ZSET.
+     *
+     * @param candidates the live-alert list from the canonical live ZSET
+     * @return a new list containing both the original candidates and any missing critical alerts
+     */
     private List<V36LiveAlertSummaryDto> mergeCriticalAlerts(List<V36LiveAlertSummaryDto> candidates) {
         List<V36LiveAlertSummaryDto> criticalAlerts = readCanonicalAlertList(
                 CacheKeys.ALERTS_CRITICAL_V36_ZSET,
@@ -120,11 +180,13 @@ public class V36AlertService {
             return candidates;
         }
 
+        /* Build a set of event IDs already present in the live candidates. */
         Set<String> candidateEventIds = candidates.stream()
                 .map(V36LiveAlertSummaryDto::getEventId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
+        /* Find critical alerts whose event ID is not already in the live list. */
         List<V36LiveAlertSummaryDto> missing = criticalAlerts.stream()
                 .filter(a -> a.getEventId() == null || !candidateEventIds.contains(a.getEventId()))
                 .toList();
@@ -144,11 +206,20 @@ public class V36AlertService {
     }
 
     /**
-     * Read alerts from canonical ZSET key with payload hydration.
-     * Falls back to legacy LIST key if ZSET is empty or unavailable.
+     * Reads alert items from the canonical Redis ZSET key with per-member
+     * payload hydration.  Falls back to the legacy Redis list key when the
+     * ZSET is empty or unavailable.  Deduplicates, processes, and hydrates
+     * the result before returning.
+     *
+     * @param zsetKey          the canonical Redis ZSET key
+     * @param legacyListKey    the legacy Redis list key for fallback
+     * @param payloadKeyPrefix the prefix for per-event payload keys
+     * @param maxFetch         maximum number of ZSET members to fetch
+     * @return a list of fully-processed alert summaries
      */
     private List<V36LiveAlertSummaryDto> readCanonicalAlertList(String zsetKey, String legacyListKey,
-                                                                  String payloadKeyPrefix, int maxFetch) {
+                                                                   String payloadKeyPrefix, int maxFetch) {
+        /* Try the canonical ZSET first. */
         List<V36LiveAlertSummaryDto> zsetAlerts = redisReadService.readZSetAlertItems(
                 zsetKey, payloadKeyPrefix, V36LiveAlertSummaryDto.class, maxFetch);
         if (!zsetAlerts.isEmpty()) {
@@ -159,6 +230,7 @@ public class V36AlertService {
             return hydrated;
         }
 
+        /* Fall back to the legacy list key. */
         List<V36LiveAlertSummaryDto> legacyAlerts = readAlertList(legacyListKey, maxFetch);
         if (!legacyAlerts.isEmpty()) {
             log.warn("CANONICAL_ZSET_EMPTY_LEGACY_LIST_USED zsetKey={} legacyListKey={} legacyCount={}",
@@ -175,6 +247,14 @@ public class V36AlertService {
         return List.of();
     }
 
+    /**
+     * Processes a raw list of alert summaries by setting the source marker,
+     * normalising fields, and hydrating risk-level from scores where missing.
+     *
+     * @param alerts the raw alert list
+     * @param source the source string to assign (e.g. "redis_zset")
+     * @return the processed list
+     */
     private List<V36LiveAlertSummaryDto> processAlertList(List<V36LiveAlertSummaryDto> alerts, String source) {
         if (alerts == null || alerts.isEmpty()) return alerts;
         return alerts.stream()
@@ -184,6 +264,10 @@ public class V36AlertService {
                 .toList();
     }
 
+    /**
+     * Logs diagnostic information about Redis alert sources (ZSET vs legacy
+     * list) at DEBUG level for operational monitoring.
+     */
     private void logAlertRedisDiagnostics(String zsetKey, String legacyListKey, int zsetCount, boolean canonicalUsed) {
         if (!log.isDebugEnabled()) return;
         try {
@@ -195,12 +279,24 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Returns a paginated list of alerts for a specific insured user.
+     * Reads from the user-scoped Redis ZSET first; falls back to SQL queries.
+     *
+     * @param insuredId the insured entity to filter by
+     * @param riskLevel optional risk-level filter
+     * @param from      optional start of time range
+     * @param to        optional end of time range
+     * @param limit     maximum items per page
+     * @param offset    pagination offset
+     * @return a paginated response of user-scoped alert summaries
+     */
     public ApiPageResponse<V36LiveAlertSummaryDto> getUserAlerts(String insuredId,
-                                                                   String riskLevel,
-                                                                   Instant from,
-                                                                   Instant to,
-                                                                   int limit,
-                                                                   int offset) {
+                                                                    String riskLevel,
+                                                                    Instant from,
+                                                                    Instant to,
+                                                                    int limit,
+                                                                    int offset) {
         List<V36LiveAlertSummaryDto> redisAlerts = readCanonicalAlertList(
                 CacheKeys.userAlertsZSetKey(insuredId),
                 CacheKeys.userAlertsKey(insuredId),
@@ -214,6 +310,22 @@ public class V36AlertService {
         return getSqlAlerts(riskLevel, null, insuredId, null, from, to, limit, offset);
     }
 
+    /**
+     * Returns the full investigation detail for a given alert event ID.
+     * Tries the following sources in order:
+     * <ol>
+     *   <li>Redis investigation payload</li>
+     *   <li>SQL anomaly event's investigation payload (exact match)</li>
+     *   <li>SQL session analysis payload (exact event match)</li>
+     *   <li>Constructed from raw anomaly-event and session-analysis entity fields</li>
+     * </ol>
+     * Also enriches with evidence, session lifecycle, next-event prediction,
+     * and applies hard guards to prevent cross-event data leakage.
+     *
+     * @param eventId the event identifier to look up
+     * @return a fully-populated investigation detail DTO
+     * @throws ApiException with 404 NOT_FOUND when the event is not in the database
+     */
     @Transactional(readOnly = true)
     public V36AlertInvestigationDetailDto getAlertDetail(String eventId) {
         Optional<V36AlertInvestigationDetailDto> redisDetail = redisReadService
@@ -330,10 +442,22 @@ public class V36AlertService {
         return detail;
     }
 
+    /**
+     * Applies response-level data-integrity guards to prevent cross-event data
+     * leakage.  Checks three areas:
+     * <ul>
+     *   <li>{@code eventMetadata.eventId} must match the requested event</li>
+     *   <li>{@code anomalyTypeAttribution.evidence.finalRiskScore} must match the detail's score</li>
+     *   <li>{@code nextEventPredictionEvidence} must reference the correct context</li>
+     * </ul>
+     *
+     * @param detail  the investigation detail to guard
+     * @param eventId the requested event identifier
+     */
     private void applyHardGuards(V36AlertInvestigationDetailDto detail, String eventId) {
         if (detail == null) return;
 
-        // Hard response-level guard: never return mismatched eventMetadata.eventId
+        /* Hard guard: never return mismatched eventMetadata.eventId. */
         if (detail.getEventMetadata() != null) {
             Object metaId = detail.getEventMetadata().get("eventId");
             if (metaId instanceof String && !eventId.equals(metaId) && !Objects.equals(detail.getRecordId(), metaId)) {
@@ -345,7 +469,7 @@ public class V36AlertService {
             }
         }
 
-        // Hard guard: anomalyTypeAttribution evidence must not reference a different event
+        /* Hard guard: anomalyTypeAttribution evidence must not reference a different event. */
         if (detail.getAnomalyTypeAttribution() != null && detail.getAnomalyTypeAttribution().getEvidence() != null) {
             Map<String, Object> evidence = detail.getAnomalyTypeAttribution().getEvidence();
             Object scoreInEvidence = evidence.get("finalRiskScore");
@@ -356,7 +480,7 @@ public class V36AlertService {
             }
         }
 
-        // Hard guard: nextEventPredictionEvidence context must match (uses same logic as enrichNextEventPrediction)
+        /* Hard guard: nextEventPredictionEvidence context must match the requested event. */
         if (detail.getNextEventPredictionEvidence() != null && eventId != null) {
             Map<String, Object> predictionEv = detail.getNextEventPredictionEvidence();
             if (predictionEv.containsKey("prediction")) {
@@ -375,6 +499,13 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Builds a safe, minimal event-metadata map from the detail's own fields,
+     * used when the original metadata contains a mismatching event ID.
+     *
+     * @param detail the investigation detail
+     * @return a map with only eventId, recordId, and timestamp keys
+     */
     private Map<String, Object> buildPartialEventMetadataFromSql(V36AlertInvestigationDetailDto detail) {
         Map<String, Object> meta = new LinkedHashMap<>();
         if (detail.getEventId() != null) meta.put("eventId", detail.getEventId());
@@ -383,6 +514,15 @@ public class V36AlertService {
         return meta;
     }
 
+    /**
+     * Hydrates the investigation detail's evidence fields (sequence, tabular,
+     * rule, churn, forecast, attribution, model scores, model contributions,
+     * event metadata) from the LLM evidence payload when they are null.
+     *
+     * @param detail  the investigation detail to hydrate
+     * @param eventId the event identifier for fetching evidence
+     * @return the same detail instance with any null evidence fields populated
+     */
     private V36AlertInvestigationDetailDto hydrateEvidenceFields(V36AlertInvestigationDetailDto detail, String eventId) {
         if (detail == null) {
             return null;
@@ -399,6 +539,7 @@ public class V36AlertService {
             evidenceReadService.readEvidence(eventId).ifPresent(evidence -> {
                 try {
                     V36LlmEvidencePayloadDto evidencePayload = objectMapper.treeToValue(evidence, V36LlmEvidencePayloadDto.class);
+                    /* Only set fields that are still null on the detail. */
                     if (detail.getSequenceEvidence() == null && evidencePayload.getSequenceEvidence() != null) {
                         detail.setSequenceEvidence(evidencePayload.getSequenceEvidence());
                     }
@@ -436,6 +577,10 @@ public class V36AlertService {
         return detail;
     }
 
+    /**
+     * Sets the investigation detail's timestamp from the anomaly event when the
+     * detail's own timestamp is null.
+     */
     private V36AlertInvestigationDetailDto hydrateDetailTimestamp(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly) {
         if (detail != null && detail.getTimestamp() == null && anomaly != null) {
             detail.setTimestamp(firstNonNull(anomaly.getEventTime(), anomaly.getDetectedAt()));
@@ -443,6 +588,14 @@ public class V36AlertService {
         return detail;
     }
 
+    /**
+     * Reads alert summaries from a Redis list key, normalises, deduplicates,
+     * hydrates, and enriches them with stored payload data.
+     *
+     * @param key   the Redis list key
+     * @param limit maximum items to read
+     * @return a fully-processed list of alert summaries
+     */
     private List<V36LiveAlertSummaryDto> readAlertList(String key, int limit) {
         List<V36LiveAlertSummaryDto> alerts = redisReadService.readItems(key, V36LiveAlertSummaryDto.class, normalizeLimit(limit)).stream()
                 .map(alert -> {
@@ -457,6 +610,14 @@ public class V36AlertService {
         return hydrateLiveAlertsFromStoredPayloads(hydrated);
     }
 
+    /**
+     * Deduplicates a list of alert summaries by event ID, keeping the entry
+     * with the highest "richness score" (most populated fields).  Logs a
+     * warning when duplicates are found.
+     *
+     * @param alerts the raw alert list (possibly with duplicates)
+     * @return a deduplicated list preserving the richest entry per event ID
+     */
     private List<V36LiveAlertSummaryDto> deduplicateByEventIdWithRichness(List<V36LiveAlertSummaryDto> alerts) {
         if (alerts == null || alerts.size() <= 1) {
             return alerts;
@@ -484,6 +645,14 @@ public class V36AlertService {
         return List.copyOf(best.values());
     }
 
+    /**
+     * Computes a "richness" score for an alert summary based on how many of
+     * its fields are populated.  Used to select the best duplicate when
+     * multiple rows exist for the same event ID.
+     *
+     * @param a the alert summary to score
+     * @return an integer score where higher means richer
+     */
     private int computeRichnessScore(V36LiveAlertSummaryDto a) {
         int score = 0;
         if (hasText(a.getRiskLevel())) score += 10;
@@ -515,14 +684,18 @@ public class V36AlertService {
         return score;
     }
 
+    /**
+     * Queries alert summaries directly from the anomaly_event database table
+     * with pagination and optional filters.
+     */
     private ApiPageResponse<V36LiveAlertSummaryDto> getSqlAlerts(String riskLevel,
-                                                                 String anomalyType,
-                                                                 String insuredId,
-                                                                 String sessionId,
-                                                                 Instant from,
-                                                                 Instant to,
-                                                                 int limit,
-                                                                 int offset) {
+                                                                  String anomalyType,
+                                                                  String insuredId,
+                                                                  String sessionId,
+                                                                  Instant from,
+                                                                  Instant to,
+                                                                  int limit,
+                                                                  int offset) {
         PageRequest pageable = PageRequest.of(
                 Math.max(offset, 0) / normalizeLimit(limit),
                 normalizeLimit(limit),
@@ -543,6 +716,10 @@ public class V36AlertService {
         return ApiPageResponse.of(items, normalizeLimit(limit), offset, (int) page.getTotalElements());
     }
 
+    /**
+     * Sorts a list of alert summaries by timestamp descending, then by
+     * createdAt descending, then by eventId descending as tiebreakers.
+     */
     private List<V36LiveAlertSummaryDto> sortByTimestampDesc(List<V36LiveAlertSummaryDto> alerts) {
         if (alerts == null || alerts.size() <= 1) return alerts;
         return alerts.stream()
@@ -557,6 +734,10 @@ public class V36AlertService {
                 .toList();
     }
 
+    /**
+     * Paginates a candidate list: slices a sublist based on offset + limit and
+     * wraps it in an {@link ApiPageResponse} with the total count.
+     */
     private ApiPageResponse<V36LiveAlertSummaryDto> buildPageResponse(List<V36LiveAlertSummaryDto> candidates, int limit, int offset) {
         int normalizedLimit = normalizeLimit(limit);
         int normalizedOffset = Math.max(offset, 0);
@@ -568,13 +749,17 @@ public class V36AlertService {
         return ApiPageResponse.of(candidates.subList(normalizedOffset, end), normalizedLimit, normalizedOffset, totalCount);
     }
 
+    /**
+     * Filters a list of alert summaries by the given optional criteria using
+     * case-insensitive matching.  Fields are matched with {@link #matches}.
+     */
     private List<V36LiveAlertSummaryDto> filterAlerts(List<V36LiveAlertSummaryDto> source,
-                                                      String riskLevel,
-                                                      String anomalyType,
-                                                      String insuredId,
-                                                      String sessionId,
-                                                      Instant from,
-                                                      Instant to) {
+                                                       String riskLevel,
+                                                       String anomalyType,
+                                                       String insuredId,
+                                                       String sessionId,
+                                                       Instant from,
+                                                       Instant to) {
         return source.stream()
                 .filter(alert -> matches(riskLevel, alert.getRiskLevel()))
                 .filter(alert -> matches(anomalyType, alert.getAnomalyType()))
@@ -585,6 +770,12 @@ public class V36AlertService {
                 .toList();
     }
 
+    /**
+     * Converts an {@link AnomalyEvent} entity into a {@link V36LiveAlertSummaryDto}
+     * by mapping all relevant fields, populating event-metadata from the event
+     * JSON, and attempting to hydrate from investigation payload, LLM evidence,
+     * or session data when primary fields are missing.
+     */
     private V36LiveAlertSummaryDto toLiveAlert(AnomalyEvent anomaly) {
         V36LiveAlertSummaryDto dto = new V36LiveAlertSummaryDto();
         dto.setId(anomaly.getId());
@@ -639,6 +830,11 @@ public class V36AlertService {
         return normalizeAlert(dto);
     }
 
+    /**
+     * Attempts to hydrate a live alert summary with data from the session
+     * analysis associated with the same anomaly event.  Checks the session's
+     * investigation payload and LLM evidence payload.
+     */
     private void tryHydrateFromSession(V36LiveAlertSummaryDto dto, AnomalyEvent anomaly) {
         String eventId = anomaly.getEventId();
         sessionAnalysisRepository
@@ -670,6 +866,12 @@ public class V36AlertService {
                 });
     }
 
+    /**
+     * Populates event-metadata fields (eventAction, apiTemplate, apiFamily,
+     * controller, page, country, device, browser, os, httpMethod, status) on
+     * the DTO by extracting them from the event's JSON payload.  Skips fields
+     * that are already set.
+     */
     private void populateEventMetadataFields(V36LiveAlertSummaryDto dto, String eventJson) {
         JsonNode node = parseJson(eventJson);
         if (node == null) {
@@ -688,6 +890,19 @@ public class V36AlertService {
         dto.setStatus(firstText(dto.getStatus(), textAt(node, "status")));
     }
 
+    /**
+     * Builds an investigation detail from an {@link AnomalyEvent} entity and an
+     * optional {@link SessionAnalysis}.  Maps all entity columns, reads the raw
+     * investigation payload (only from the anomaly, never from the session),
+     * extracts session lifecycle from available payloads, and constructs evidence
+     * DTOs (model scores, model contributions, sequence, tabular, rule,
+     * attribution, churn, forecast, persona).  Applies event-scoping guards to
+     * prevent cross-event data leakage.
+     *
+     * @param anomaly the anomaly event entity (required)
+     * @param session the associated session analysis (may be null)
+     * @return a fully-constructed investigation detail with source set to "sql"
+     */
     private V36AlertInvestigationDetailDto buildInvestigationFromSql(AnomalyEvent anomaly, SessionAnalysis session) {
         V36AlertInvestigationDetailDto detail = new V36AlertInvestigationDetailDto();
         detail.setId(anomaly.getId());
@@ -767,6 +982,10 @@ public class V36AlertService {
         return normalizeInvestigation(detail);
     }
 
+    /**
+     * Builds a {@link V36ModelScoresDto} by merging anomaly and session model
+     * scores, preferring the anomaly value when available.
+     */
     private V36ModelScoresDto buildModelScores(AnomalyEvent anomaly, SessionAnalysis session) {
         V36ModelScoresDto scores = new V36ModelScoresDto();
         scores.setXgboostAnomalyScore(firstNonNull(anomaly.getXgboostAnomalyScore(), session == null ? null : session.getXgboostAnomalyScore()));
@@ -786,6 +1005,10 @@ public class V36AlertService {
         return scores;
     }
 
+    /**
+     * Parses model contributions from either the anomaly's or session's
+     * model-contributions JSON, preferring the first non-null value.
+     */
     private V36ModelContributionsDto buildModelContributions(String eventJson, String sessionJson) {
         Map<String, Object> raw = parseObjectMap(firstText(eventJson, sessionJson));
         V36ModelContributionsDto dto = new V36ModelContributionsDto();
@@ -800,6 +1023,10 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Builds sequence-evidence DTO from a session analysis, or returns
+     * {@code null} when no session is available.
+     */
     private V36SequenceEvidenceDto buildSequenceEvidence(SessionAnalysis session) {
         if (session == null) {
             return null;
@@ -814,6 +1041,10 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Builds tabular-evidence DTO from a session analysis, or returns
+     * {@code null} when no session is available.
+     */
     private V36TabularEvidenceDto buildTabularEvidence(SessionAnalysis session) {
         if (session == null) {
             return null;
@@ -824,6 +1055,10 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Builds rule-evidence DTO from anomaly and optional session data,
+     * merging triggered rules, risk score, and rule contributions.
+     */
     private V36RuleEvidenceDto buildRuleEvidence(AnomalyEvent anomaly, SessionAnalysis session) {
         V36RuleEvidenceDto dto = new V36RuleEvidenceDto();
         dto.setRuleRiskScore(firstNonNull(anomaly.getRuleRiskScore(), session == null ? null : session.getRuleRiskScore()));
@@ -832,6 +1067,10 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Builds anomaly-type attribution DTO by merging anomaly and session data,
+     * preferring the anomaly's type, confidence, source, and evidence.
+     */
     private V36AnomalyTypeAttributionDto buildAttribution(AnomalyEvent anomaly, SessionAnalysis session) {
         V36AnomalyTypeAttributionDto dto = new V36AnomalyTypeAttributionDto();
         dto.setAnomalyType(anomaly.getAnomalyType());
@@ -841,6 +1080,11 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Builds churn-context DTO by merging anomaly and optional session data
+     * for churn probability, risk level, model name, model artifact, and
+     * feature warnings.
+     */
     private V36ChurnContextDto buildChurnContext(AnomalyEvent anomaly, SessionAnalysis session) {
         V36ChurnContextDto dto = new V36ChurnContextDto();
         dto.setProbability(firstNonNull(anomaly.getChurnProbability(), session == null ? null : session.getChurnProbability()));
@@ -851,6 +1095,10 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Builds forecast-context DTO from a session analysis, or returns
+     * {@code null} when no session is available.
+     */
     private V36ForecastContextDto buildForecastContext(SessionAnalysis session) {
         if (session == null) {
             return null;
@@ -860,6 +1108,10 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Builds a persona DTO (always disabled in V3.6.1), extracting cluster,
+     * label, source, and confidence from session or anomaly data.
+     */
     private V36PersonaDisabledDto buildPersona(SessionAnalysis session, AnomalyEvent anomaly) {
         V36PersonaDisabledDto dto = new V36PersonaDisabledDto();
         dto.setEnabled(false);
@@ -870,10 +1122,21 @@ public class V36AlertService {
         return dto;
     }
 
+    /**
+     * Calls {@link V36AlertInvestigationDetailDto#buildSessionLifecycle()} to
+     * rebuild the nested sessionLifecycle map from authoritative top-level fields.
+     */
     private void populateSessionLifecycle(V36AlertInvestigationDetailDto detail) {
         detail.buildSessionLifecycle();
     }
 
+    /**
+     * Enriches session-lifecycle fields on the detail (sessionEndReason,
+     * sessionEndedExplicitly, sessionEndedAt, sessionDurationMs,
+     * sessionEventCount, sessionLifecycle, runtimeWarnings, modelScores,
+     * modelContributions, triggeredRules) from the given payload JSON.
+     * Only sets fields that are currently null.
+     */
     private void enrichSessionLifecycleFromPayload(V36AlertInvestigationDetailDto detail, String payloadJson) {
         if (!hasText(payloadJson)) {
             return;
@@ -943,6 +1206,10 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Safely parses a JSON string into a {@link V36AlertInvestigationDetailDto},
+     * returning empty on parse failure.
+     */
     private Optional<V36AlertInvestigationDetailDto> parseInvestigationPayload(String payload) {
         if (!hasText(payload)) {
             return Optional.empty();
@@ -955,6 +1222,12 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Normalises an investigation detail by setting defaults for schema version,
+     * LLM evidence Redis key, warnings, runtime warnings, triggered rules, LLM
+     * section, and source.  Also extracts session lifecycle from nested maps
+     * and rebuilds the lifecycle map.
+     */
     private V36AlertInvestigationDetailDto normalizeInvestigation(V36AlertInvestigationDetailDto detail) {
         detail.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
         if (!hasText(detail.getLlmEvidenceRedisKey()) && hasText(detail.getEventId())) {
@@ -980,6 +1253,12 @@ public class V36AlertService {
         return detail;
     }
 
+    /**
+     * Extracts top-level session-lifecycle fields (sessionEndReason,
+     * sessionEndedExplicitly, sessionEndedAt, sessionDurationMs,
+     * sessionEventCount) from the nested sessionLifecycle map when they are
+     * not already set directly on the detail.
+     */
     private void extractSessionLifecycleFromNested(V36AlertInvestigationDetailDto detail) {
         Map<String, Object> lifecycle = detail.getSessionLifecycle();
         if (lifecycle == null || lifecycle.isEmpty()) {
@@ -1009,6 +1288,11 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Normalises a live alert summary by setting defaults for schema version,
+     * recordId, LLM evidence Redis key, triggered rule codes, persona label,
+     * and warnings list.
+     */
     private V36LiveAlertSummaryDto normalizeAlert(V36LiveAlertSummaryDto alert) {
         alert.setSchemaVersion(CacheKeys.V36_SCHEMA_VERSION);
         if (!hasText(alert.getRecordId())) {
@@ -1029,6 +1313,10 @@ public class V36AlertService {
         return alert;
     }
 
+    /**
+     * Hydrates missing alert fields: derives risk level from final risk score
+     * when absent and adds a warning if the risk level is still unavailable.
+     */
     private V36LiveAlertSummaryDto hydrateAlertFields(V36LiveAlertSummaryDto alert) {
         if (alert == null) return null;
         hydrateRiskLevelFromScore(alert);
@@ -1038,6 +1326,11 @@ public class V36AlertService {
         return alert;
     }
 
+    /**
+     * Derives a risk-level string from the alert's final risk score when the
+     * risk level is not already set.  Uses standard thresholds: CRITICAL >= 80,
+     * HIGH >= 60, MEDIUM >= 35, otherwise LOW.
+     */
     private void hydrateRiskLevelFromScore(V36LiveAlertSummaryDto alert) {
         if (hasText(alert.getRiskLevel()) || alert.getFinalRiskScore() == null) {
             return;
@@ -1054,6 +1347,13 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Enriches the investigation detail with a next-event prediction for the
+     * current session + event context.  Sets nextEventPredictionEvidence with
+     * the prediction and optional deviation data, and adds warnings when the
+     * prediction is unavailable, mismatched, or the deviation refers to the
+     * same context.
+     */
     private void enrichNextEventPrediction(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly) {
         if (detail == null) return;
         String sessionId = detail.getSessionId();
@@ -1093,6 +1393,11 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Checks whether a prediction was generated for (or evaluated against) the
+     * given event.  Returns {@code true} if the contextEventId or the deviation's
+     * evaluatedEventId matches.
+     */
     private boolean isPredictionMatchingEvent(V36NextEventPredictionDto prediction, String eventId) {
         if (eventId == null) return true;
         if (eventId.equals(prediction.getContextEventId())) return true;
@@ -1102,6 +1407,11 @@ public class V36AlertService {
         return false;
     }
 
+    /**
+     * Checks whether the deviation's "actual" values differ from the event
+     * metadata.  Returns {@code true} when there is a significant difference,
+     * meaning the deviation should be kept rather than suppressed.
+     */
     @SuppressWarnings("unchecked")
     private boolean isDeviationActualMismatch(Map<String, Object> eventMetadata, Map<String, Object> deviationMap) {
         if (eventMetadata == null || deviationMap == null) return false;
@@ -1115,14 +1425,23 @@ public class V36AlertService {
         return true;
     }
 
+    /**
+     * Compares a metadata field with a deviation's "actual" field.
+     * Returns {@code true} if both values are present and equal (match).
+     */
     private boolean matchesMetadata(Map<String, Object> metadata, Map<String, Object> actual,
-                                     String metadataKey, String actualKey) {
+                                      String metadataKey, String actualKey) {
         Object meta = metadata.get(metadataKey);
         Object act = actual.get(actualKey);
         if (meta == null || act == null) return true;
         return meta.toString().equals(act.toString());
     }
 
+    /**
+     * Detects "same-context" deviations where the evaluated event is the same
+     * as the previous prediction's context event.  These deviations contain no
+     * new information and should be suppressed.
+     */
     private boolean isSameContextDeviation(Map<String, Object> deviationMap) {
         String evaluatedEventId = deviationMap.get("evaluatedEventId") instanceof String s ? s : null;
         if (evaluatedEventId == null) return false;
@@ -1136,6 +1455,14 @@ public class V36AlertService {
         return false;
     }
 
+    /**
+     * Enriches a list of alert summaries with data from stored anomaly-event
+     * payloads by bulk-fetching anomaly entities for all event IDs and
+     * hydrating missing fields.
+     *
+     * @param alerts the list of alerts to enrich
+     * @return the same list with additional fields populated from DB payloads
+     */
     private List<V36LiveAlertSummaryDto> hydrateLiveAlertsFromStoredPayloads(List<V36LiveAlertSummaryDto> alerts) {
         if (alerts == null || alerts.isEmpty()) return alerts;
 
@@ -1171,6 +1498,15 @@ public class V36AlertService {
         return result;
     }
 
+    /**
+     * Hydrates a single alert summary from the corresponding anomaly event
+     * entity, filling in missing fields from the entity's columns, investigation
+     * payload, and LLM evidence payload.
+     *
+     * @param alert   the alert summary to enrich
+     * @param anomaly the anomaly event entity
+     * @return a list of field names that were hydrated (for diagnostics)
+     */
     private List<String> hydrateFromAnomalyEvent(V36LiveAlertSummaryDto alert, AnomalyEvent anomaly) {
         List<String> fields = new ArrayList<>();
 
@@ -1295,6 +1631,13 @@ public class V36AlertService {
         return fields;
     }
 
+    /**
+     * Hydrates a live alert summary from an investigation detail DTO, copying
+     * timestamp, event-metadata fields, model scores, model contributions,
+     * triggered rule codes, and LLM evidence availability.
+     *
+     * @return a list of field names that were hydrated
+     */
     private List<String> hydrateFromInvestigationDetail(V36LiveAlertSummaryDto alert, V36AlertInvestigationDetailDto detail) {
         List<String> fields = new ArrayList<>();
         if (detail == null) return fields;
@@ -1368,6 +1711,13 @@ public class V36AlertService {
         return fields;
     }
 
+    /**
+     * Hydrates a live alert summary from an LLM evidence JSON node, extracting
+     * event-metadata fields, model scores, model contributions, and marking
+     * LLM evidence as available.
+     *
+     * @return a list of field names that were hydrated
+     */
     private List<String> hydrateFromEvidenceNode(V36LiveAlertSummaryDto alert, JsonNode evidenceNode) {
         List<String> fields = new ArrayList<>();
         if (evidenceNode == null) return fields;
@@ -1454,6 +1804,13 @@ public class V36AlertService {
         return fields;
     }
 
+    /**
+     * Parses a string that may be a JSON array, a JSON object (keys become
+     * items), or a comma-separated list into a {@link List} of strings.
+     *
+     * @param jsonOrValue the raw string value
+     * @return a list of parsed string values
+     */
     private List<String> parseStringList(String jsonOrValue) {
         if (!hasText(jsonOrValue)) {
             return List.of();
@@ -1470,6 +1827,7 @@ public class V36AlertService {
             Map<String, Object> map = parseObjectMap(trimmed);
             return map.keySet().stream().toList();
         }
+        /* Treat as comma-separated values. */
         List<String> values = new ArrayList<>();
         for (String value : trimmed.split(",")) {
             String item = value.trim();
@@ -1480,6 +1838,14 @@ public class V36AlertService {
         return values;
     }
 
+    /**
+     * Builds an event-metadata map from the event's JSON payload.  Handles
+     * both per-event JSON objects and session-summary objects (identified by
+     * the presence of a "lastEventId" field).
+     *
+     * @param eventJson the raw event JSON string
+     * @return a map of metadata key-value pairs, or {@code null}
+     */
     private Map<String, Object> buildEventMetadataFromEventJson(String eventJson) {
         JsonNode node = parseJson(eventJson);
         if (node == null || !node.isObject()) {
@@ -1512,6 +1878,10 @@ public class V36AlertService {
         return meta.isEmpty() ? null : meta;
     }
 
+    /**
+     * Puts a value into the map only if at least one of the candidate values
+     * is non-empty.  Uses the first non-empty value found.
+     */
     private void putIfPresent(Map<String, Object> map, String key, String... values) {
         String value = firstText(values);
         if (value != null) {
@@ -1519,6 +1889,12 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Extracts session-lifecycle fields (sessionEndReason,
+     * sessionEndedExplicitly, sessionEndedAt, sessionDurationMs,
+     * sessionEventCount, sessionLifecycle) from a raw payload JSON string
+     * and sets them on the detail if they are currently null.
+     */
     private void extractLifecycleFromPayload(V36AlertInvestigationDetailDto detail, String payloadJson) {
         if (!hasText(payloadJson)) return;
         try {
@@ -1554,6 +1930,18 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Checks whether a JSON payload pertains to the requested event by
+     * scanning multiple identity fields (eventId, recordId, contextEventId,
+     * evaluatedEventId) at the root level, inside eventMetadata, and inside
+     * a nested "data" object.  Returns {@code true} only if at least one
+     * field matches and none conflict.
+     *
+     * @param payload           the JSON payload to validate
+     * @param requestedEventId  the expected event identifier
+     * @param recordId          an alternative record identifier (may be null)
+     * @return {@code true} if the payload is for the requested event
+     */
     private boolean isPayloadForRequestedEvent(JsonNode payload, String requestedEventId, String recordId) {
         if (payload == null || !payload.isObject() || requestedEventId == null) return false;
         Set<String> allowedIds = new HashSet<>();
@@ -1587,6 +1975,10 @@ public class V36AlertService {
         return true;
     }
 
+    /**
+     * Inspects a field in a JSON node and classifies its value as either
+     * matching or conflicting with the set of allowed IDs.
+     */
     private void addCandidate(JsonNode parent, Set<String> matchingIds, Set<String> conflictingIds, Set<String> allowedIds, String field) {
         JsonNode node = parent.path(field);
         if (node.isMissingNode() || !node.isTextual()) return;
@@ -1598,6 +1990,10 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Validates that a raw payload map is for the requested event by checking
+     * the top-level eventId and the nested eventMetadata.eventId fields.
+     */
     private boolean isRawPayloadForEvent(Map<String, Object> rawPayload, String requestedEventId) {
         if (rawPayload == null || requestedEventId == null) return false;
         String eventId = mapText(rawPayload, "eventId");
@@ -1611,11 +2007,17 @@ public class V36AlertService {
         return true;
     }
 
+    /** Extracts a String value from a map by key, returning {@code null} if absent or not a String. */
     private String mapText(Map<String, Object> map, String key) {
         Object value = map.get(key);
         return value instanceof String s ? s : null;
     }
 
+    /**
+     * Checks whether a {@link V36AlertInvestigationDetailDto} corresponds to
+     * the requested event by comparing eventId and recordId, and also validating
+     * the eventMetadata.eventId field.
+     */
     private boolean isDetailForRequestedEvent(V36AlertInvestigationDetailDto detail, String requestedEventId) {
         if (detail == null || requestedEventId == null) return false;
         if (!requestedEventId.equals(detail.getEventId()) && !requestedEventId.equals(detail.getRecordId())) {
@@ -1633,6 +2035,18 @@ public class V36AlertService {
         return true;
     }
 
+    /**
+     * Enriches the investigation detail with session-lifecycle data from
+     * multiple sources in priority order:
+     * <ol>
+     *   <li>Session analysis entity columns (duration, event count)</li>
+     *   <li>Session analysis investigation payload</li>
+     *   <li>Anomaly event investigation payload</li>
+     *   <li>Existing detail values (Redis / stale data, lowest priority)</li>
+     * </ol>
+     * Rebuilds the nested sessionLifecycle map and adds a warning if no
+     * lifecycle data is found.
+     */
     private void enrichSessionLifecycle(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly, SessionAnalysis session) {
         if (detail == null) return;
 
@@ -1706,6 +2120,11 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Enriches the investigation detail with a timestamp from one of several
+     * sources in priority order: Redis live alert payload, eventMetadata.eventTime,
+     * or the SQL anomaly event's timestamp.
+     */
     private void enrichTimestamp(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly, String eventId) {
         if (detail == null || detail.getTimestamp() != null || eventId == null) return;
 
@@ -1742,6 +2161,11 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Enriches a SQL-sourced investigation detail with metadata from the Redis
+     * live alert payload when available and matching the requested event.
+     * Sets the source to "sql+redis-payload" and adds appropriate warnings.
+     */
     private void enrichFromLivePayloadIfNeeded(V36AlertInvestigationDetailDto detail, String eventId, AnomalyEvent anomaly) {
         if (detail == null || !"sql".equals(detail.getSource())) return;
 
@@ -1783,6 +2207,12 @@ public class V36AlertService {
         detail.addWarning("redis_event_payload_used");
     }
 
+    /**
+     * Applies event-scoping guards to prevent cross-event data leakage.
+     * Verifies raw-payload eventId, clears session-derived evidence when no
+     * exact payload is available, checks anomaly-type attribution score
+     * consistency, and cleans leaked fields from eventMetadata.
+     */
     private void guardEventScoping(V36AlertInvestigationDetailDto detail, AnomalyEvent anomaly, SessionAnalysis session) {
         if (detail == null) return;
 
@@ -1843,6 +2273,10 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Parses a JSON string into a {@code Map<String, Object>}.
+     * Returns an empty map on parse failure or when the JSON is not an object.
+     */
     private Map<String, Object> parseObjectMap(String json) {
         if (!hasText(json)) {
             return Map.of();
@@ -1858,6 +2292,10 @@ public class V36AlertService {
         }
     }
 
+    /**
+     * Parses a JSON string into a {@code List<Map<String, Object>>}.
+     * Returns an empty list on parse failure.
+     */
     private List<Map<String, Object>> parseListOfMaps(String json) {
         if (!hasText(json)) {
             return List.of();
@@ -1869,6 +2307,7 @@ public class V36AlertService {
         }
     }
 
+    /** Safely parses a JSON string into a {@link JsonNode}, returning {@code null} on failure. */
     private JsonNode parseJson(String json) {
         if (!hasText(json)) {
             return null;
@@ -1880,6 +2319,7 @@ public class V36AlertService {
         }
     }
 
+    /** Returns the text value of a JSON field, or {@code null} if absent or not a value node. */
     private String textAt(JsonNode node, String fieldName) {
         if (node == null || fieldName == null) {
             return null;
@@ -1888,6 +2328,10 @@ public class V36AlertService {
         return hasText(value) ? value : null;
     }
 
+    /**
+     * Returns the first numeric value found in the map for any of the given
+     * candidate names, converted to {@link Double}.
+     */
     private Double number(Map<String, Object> map, String... names) {
         if (map == null || names == null) {
             return null;
@@ -1901,6 +2345,7 @@ public class V36AlertService {
         return null;
     }
 
+    /** Returns the first non-null value from a varargs array. */
     @SafeVarargs
     private <T> T firstNonNull(T... values) {
         if (values == null) {
@@ -1914,6 +2359,7 @@ public class V36AlertService {
         return null;
     }
 
+    /** Returns the first non-blank string from a varargs array, or {@code null} if all blank. */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -1926,10 +2372,18 @@ public class V36AlertService {
         return null;
     }
 
+    /**
+     * Case-insensitive equality check for filter matching.  Returns {@code true}
+     * when the expected value is blank (no filter) or when actual equals expected.
+     */
     private boolean matches(String expected, String actual) {
         return !hasText(expected) || (hasText(actual) && expected.equalsIgnoreCase(actual));
     }
 
+    /**
+     * Builds the LLM explanation section for an investigation detail, containing
+     * evidence availability, Redis key, and REST endpoint URLs.
+     */
     private Map<String, Object> buildLlmSection(String eventId, Boolean evidenceAvailable, String evidenceRedisKey) {
         Map<String, Object> llm = new LinkedHashMap<>();
         llm.put("evidenceAvailable", Boolean.TRUE.equals(evidenceAvailable));
@@ -1940,10 +2394,15 @@ public class V36AlertService {
         return llm;
     }
 
+    /** Converts a blank string to {@code null} (for optional query parameters). */
     private String blankToNull(String value) {
         return hasText(value) ? value : null;
     }
 
+    /**
+     * Normalises a user-provided limit to the range [1, 500], defaulting to
+     * 100 when the input is less than 1.
+     */
     private int normalizeLimit(int limit) {
         if (limit < 1) {
             return 100;
@@ -1951,6 +2410,7 @@ public class V36AlertService {
         return Math.min(limit, 500);
     }
 
+    /** Returns {@code true} if the string is non-null and contains non-whitespace characters. */
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }

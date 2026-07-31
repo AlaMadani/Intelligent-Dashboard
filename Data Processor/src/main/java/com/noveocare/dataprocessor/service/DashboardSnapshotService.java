@@ -39,11 +39,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Builds and caches dashboard snapshot views (alerts, risky sessions, security overview,
+ * forecasts, cluster mix, etc.) in Redis and PostgreSQL.
+ *
+ * <p>Each view can be refreshed independently. A dirty-flag mechanism prevents unnecessary
+ * recomputation. Rate-limiting per view is controlled via {@link PerformanceProperties}.</p>
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class DashboardSnapshotService {
 
+    /* Injected dependencies */
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties cacheProperties;
     private final SessionAnalysisRepository sessionAnalysisRepository;
@@ -58,6 +66,7 @@ public class DashboardSnapshotService {
     private final DashboardSnapshotPersistenceService dashboardSnapshotPersistenceService;
     private final AlertCacheService alertCacheService;
 
+    /* Dashboard-wide refresh state and metrics */
     private final AtomicReference<Instant> dashboardLastRefreshAt = new AtomicReference<>();
     private final AtomicInteger dashboardRefreshSkippedDueToRateLimit = new AtomicInteger();
     private final AtomicReference<Instant> lastRefreshAttemptAt = new AtomicReference<>();
@@ -67,11 +76,13 @@ public class DashboardSnapshotService {
     private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
     private final AtomicLong refreshAlreadyRunningSkipped = new AtomicLong();
 
+    /* Per-view last refresh timestamps */
     private final AtomicReference<Instant> lastSecurityOverviewRefresh = new AtomicReference<>();
     private final AtomicReference<Instant> lastAlertsRefresh = new AtomicReference<>();
     private final AtomicReference<Instant> lastRiskySessionsRefresh = new AtomicReference<>();
     private final AtomicReference<Instant> lastModelHealthRefresh = new AtomicReference<>();
 
+    /* Per-view duration tracking */
     private final AtomicLong lastAlertsRefreshMs = new AtomicLong();
     private final AtomicLong lastSecurityOverviewRefreshMs = new AtomicLong();
     private final AtomicLong lastRiskySessionsRefreshMs = new AtomicLong();
@@ -81,9 +92,12 @@ public class DashboardSnapshotService {
     private final AtomicReference<Instant> lastRefreshStartedAt = new AtomicReference<>();
     private final AtomicReference<Instant> lastRefreshCompletedAt = new AtomicReference<>();
 
+    /* Dirty flags controlling which views need refresh */
     private volatile boolean alertsDirty = false;
     private volatile boolean riskySessionsDirty = false;
     private volatile boolean securityOverviewDirty = false;
+
+    /* --- Dirty-flag setters --- */
 
     public void markDirty() {
         alertsDirty = true;
@@ -102,6 +116,8 @@ public class DashboardSnapshotService {
     public void markRiskySessionsDirty() {
         riskySessionsDirty = true;
     }
+
+    /* --- Session insight caching --- */
 
     public void cacheSessionInsight(SessionSummary summary, SessionInsight insight) {
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -233,6 +249,7 @@ public class DashboardSnapshotService {
         return value != null && value == 1;
     }
 
+    /* Builds the user-360 profile and caches it in Redis */
     private void cacheUser360(SessionSummary summary, SessionInsight insight) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", "v3.6.1");
@@ -267,11 +284,14 @@ public class DashboardSnapshotService {
     }
 
     public void removeSessionInsight(String insuredId, String sessionId) {
+        /* Removes the insight from Redis cache and index sets */
         String insightKey = CacheKeys.sessionInsightKey(insuredId, sessionId);
         redisCacheService.deleteKey(insightKey);
         redisCacheService.removeSetMember(CacheKeys.activeSessionInsightsIndexKey(), insightKey);
         redisCacheService.removeSetMember(CacheKeys.activeSessionInsightsIndexKey(insuredId), insightKey);
     }
+
+    /* --- Refresh lifecycle control --- */
 
     public boolean tryStartRefresh() {
         if (refreshInProgress.getAndSet(true)) {
@@ -286,6 +306,8 @@ public class DashboardSnapshotService {
         refreshInProgress.set(false);
         lastRefreshCompletedAt.set(Instant.now());
     }
+
+    /* --- Full dashboard refresh --- */
 
     public void refreshAll() {
         if (!tryStartRefresh()) {
@@ -323,6 +345,8 @@ public class DashboardSnapshotService {
             }
         }
     }
+
+    /* --- Per-view refresh methods --- */
 
     public void refreshAlertsFeed() {
         if (!canRefresh(lastAlertsRefresh, performanceProperties.getDashboardRefresh().getAlertsMinIntervalMs())) {
@@ -396,6 +420,7 @@ public class DashboardSnapshotService {
         }
     }
 
+    /* Converts a live alert summary DTO into a flat map for the dashboard payload */
     private Map<String, Object> alertFromSummary(V36LiveAlertSummary s) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("eventId", s.getEventId());
@@ -441,6 +466,7 @@ public class DashboardSnapshotService {
         return row;
     }
 
+    /* Refreshes the risky-sessions dashboard view from Redis insights and SQL fallback */
     public void refreshRiskySessions() {
         if (!canRefresh(lastRiskySessionsRefresh, performanceProperties.getDashboardRefresh().getRiskySessionsMinIntervalMs())) {
             if (lastRiskySessionsRefresh.get() != null && riskySessionsDirty) {
@@ -513,6 +539,7 @@ public class DashboardSnapshotService {
         }
     }
 
+    /* Computes persona-cluster traffic share from recent sessions */
     public void refreshClusterMix() {
         List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
         if (sessions.isEmpty()) {
@@ -545,6 +572,7 @@ public class DashboardSnapshotService {
                 "itemCount", rows.size()));
     }
 
+    /* Refreshes the drop-offs dashboard view */
     public void refreshDropOffs() {
         List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
         if (sessions.isEmpty()) {
@@ -564,6 +592,7 @@ public class DashboardSnapshotService {
                 "itemCount", 0));
     }
 
+    /* Refreshes the path-deviations dashboard view */
     public void refreshPathDeviations() {
         List<Map<String, Object>> rows = runtimeExport("path_deviations.csv");
         if (rows.isEmpty()) {
@@ -577,12 +606,14 @@ public class DashboardSnapshotService {
                 "itemCount", rows.size()));
     }
 
+    /* Refreshes forecast dashboard views in both legacy and v3.6 formats */
     public void refreshForecasts() {
         Map<String, Object> payload = buildForecastSnapshot(LocalDate.now(ZoneOffset.UTC));
         cacheDashboard("forecasts", payload);
         redisCacheService.setJson(CacheKeys.forecastDashboardV36Key(), buildForecastDashboardPayload(LocalDate.now(ZoneOffset.UTC)), cacheProperties.getForecast());
     }
 
+    /* Aggregates today's security metrics and caches the overview dashboard */
     public void refreshSecurityOverview() {
         if (!canRefresh(lastSecurityOverviewRefresh, performanceProperties.getDashboardRefresh().getSecurityOverviewMinIntervalMs())) {
             if (lastSecurityOverviewRefresh.get() != null && securityOverviewDirty) {
@@ -695,6 +726,7 @@ public class DashboardSnapshotService {
         }
     }
 
+    /* Builds churn-risk distribution and top users from recent sessions */
     public void refreshChurnDashboard() {
         List<SessionAnalysis> sessions = sessionAnalysisRepository.findTop50ByOrderByCreatedAtDesc();
         int high = 0;
@@ -748,11 +780,14 @@ public class DashboardSnapshotService {
         dashboardSnapshotPersistenceService.persistSnapshot("churn-dashboard", "churn-dashboard:latest", payload, "dashboard_refresh");
     }
 
+    /* Persists the v3.6 forecast dashboard snapshot */
     public void refreshForecastDashboardV36() {
         Map<String, Object> payload = buildForecastDashboardPayload(LocalDate.now(ZoneOffset.UTC));
         redisCacheService.setJson(CacheKeys.forecastDashboardV36Key(), payload, cacheProperties.getForecast());
         dashboardSnapshotPersistenceService.persistSnapshot("forecast-dashboard", "forecast-dashboard:latest", payload, "dashboard_refresh");
     }
+
+    /* --- Forecast payload builders --- */
 
     public Map<String, Object> buildForecastSnapshot(LocalDate referenceDate) {
         LocalDate effectiveDate = referenceDate == null ? LocalDate.now(ZoneOffset.UTC) : referenceDate;
@@ -799,6 +834,7 @@ public class DashboardSnapshotService {
         return payload;
     }
 
+    /* Builds the v3.6 forecast dashboard payload combining prediction + historical data */
     private Map<String, Object> buildForecastDashboardPayload(LocalDate referenceDate) {
         LocalDate effectiveDate = referenceDate == null ? LocalDate.now(ZoneOffset.UTC) : referenceDate;
         ForecastPrediction forecast = forecastRuntimeService.forecast(effectiveDate);
@@ -820,6 +856,7 @@ public class DashboardSnapshotService {
         return payload;
     }
 
+    /* Injects forecast fields into the security overview payload */
     private void populateForecastFields(Map<String, Object> payload) {
         Map<String, Object> forecast = null;
         try {
@@ -854,6 +891,7 @@ public class DashboardSnapshotService {
         }
     }
 
+    /* Queries anomaly events for the given date and returns top-10 anomaly type counts */
     private Map<String, Long> buildTopAnomalyTypes(LocalDate date) {
         Map<String, Long> counts = new LinkedHashMap<>();
         try {
@@ -883,6 +921,7 @@ public class DashboardSnapshotService {
 
     @SuppressWarnings("unchecked")
     private List<String> castWarnings(Object obj) {
+        /* Safely casts a raw object to List<String> */
         if (obj instanceof List<?> list) {
             for (Object item : list) {
                 if (!(item instanceof String)) return null;
@@ -892,12 +931,14 @@ public class DashboardSnapshotService {
         return null;
     }
 
+    /* Rate-limiter: returns true if at least minIntervalMs have elapsed since last refresh */
     private boolean canRefresh(AtomicReference<Instant> lastRefresh, long minIntervalMs) {
         Instant last = lastRefresh.get();
         if (last == null) return true;
         return System.currentTimeMillis() - last.toEpochMilli() >= minIntervalMs;
     }
 
+    /* Returns the top-N entries from a count map, sorted descending */
     private Map<String, Long> topNMap(Map<String, Long> counts, int limit) {
         Map<String, Long> ordered = new LinkedHashMap<>();
         counts.entrySet().stream()
@@ -907,6 +948,7 @@ public class DashboardSnapshotService {
         return ordered;
     }
 
+    /* Writes a dashboard view to Redis and persists to SQL */
     private void cacheDashboard(String view, Object payload) {
         Object versionedPayload = withSchemaVersion(payload);
         redisCacheService.setJson(CacheKeys.dashboardKey(view), versionedPayload, cacheProperties.getDashboard());
@@ -914,6 +956,7 @@ public class DashboardSnapshotService {
         dashboardSnapshotPersistenceService.persistSnapshot(view, view + ":latest", versionedPayload, "dashboard_refresh");
     }
 
+    /* Ensures the payload contains a schemaVersion field */
     private Object withSchemaVersion(Object payload) {
         if (!(payload instanceof Map<?, ?> map) || map.containsKey("schemaVersion")) {
             return payload;
@@ -925,6 +968,8 @@ public class DashboardSnapshotService {
         }
         return versioned;
     }
+
+    /* --- Insight index management --- */
 
     private List<Map<String, Object>> activeSessionInsights() {
         Set<String> keys = redisCacheService.getSetMembers(CacheKeys.activeSessionInsightsIndexKey());
@@ -950,6 +995,7 @@ public class DashboardSnapshotService {
         return rows;
     }
 
+    /* Removes a stale key from both global and per-user insight index sets */
     private void removeStaleInsightIndexEntry(String key) {
         if (key == null || key.isBlank()) {
             return;
@@ -961,6 +1007,7 @@ public class DashboardSnapshotService {
         }
     }
 
+    /* Scans Redis for existing insight keys and populates the index sets */
     private Set<String> seedInsightIndex() {
         Set<String> scannedKeys = redisTemplate.keys(CacheKeys.sessionInsightPattern());
         if (scannedKeys == null || scannedKeys.isEmpty()) {
@@ -979,6 +1026,7 @@ public class DashboardSnapshotService {
         return scannedKeys;
     }
 
+    /* Extracts the insuredId from a session insight Redis key */
     private String insuredIdFromInsightKey(String key) {
         String prefix = "session:insight:";
         if (key == null || !key.startsWith(prefix)) {
@@ -992,6 +1040,7 @@ public class DashboardSnapshotService {
         return remainder.substring(0, separator);
     }
 
+    /* Converts an AnomalyEvent entity into a flat map for the alerts dashboard */
     private Map<String, Object> alertRow(AnomalyEvent event) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("insuredId", event.getInsuredId());
@@ -1018,6 +1067,7 @@ public class DashboardSnapshotService {
         return row;
     }
 
+    /* Converts a SessionAnalysis entity into a flat map for the risky-sessions dashboard */
     private Map<String, Object> sessionRow(SessionAnalysis session) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("sessionId", session.getSessionId());
@@ -1052,10 +1102,12 @@ public class DashboardSnapshotService {
         return row;
     }
 
+    /* Placeholder: returns an empty list for runtime CSV export fallback */
     private List<Map<String, Object>> runtimeExport(String name) {
         return List.of();
     }
 
+    /* Safely converts an object to a double, defaulting to 0.0 */
     private double numeric(Object value) {
         if (value instanceof Number number) {
             return number.doubleValue();
@@ -1070,6 +1122,7 @@ public class DashboardSnapshotService {
         }
     }
 
+    /* Parses a JSON string into an Object, returning the raw string on failure */
     private Object parseJsonValue(String rawJson) {
         if (rawJson == null || rawJson.isBlank()) {
             return null;
@@ -1080,6 +1133,8 @@ public class DashboardSnapshotService {
             return rawJson;
         }
     }
+
+    /* --- Diagnostics getters --- */
 
     public Instant getDashboardLastRefreshAt() {
         return dashboardLastRefreshAt.get();

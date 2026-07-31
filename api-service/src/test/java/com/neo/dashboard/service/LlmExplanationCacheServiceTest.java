@@ -41,6 +41,9 @@ class LlmExplanationCacheServiceTest {
         ReflectionTestUtils.setField(cacheService, "cacheTtlHours", 24L);
     }
 
+    /**
+     * Get Latest Returns Redis Hit
+     */
     @Test
     void getLatestReturnsRedisHit() {
         V36LlmExplanationResponse redisResponse = new V36LlmExplanationResponse();
@@ -57,6 +60,9 @@ class LlmExplanationCacheServiceTest {
         verify(explanationRepository, never()).findTopByEventIdAndCurrentTrueOrderByUpdatedAtDesc(anyString());
     }
 
+    /**
+     * Get Latest Falls Back To Sql And Rehydrates Redis
+     */
     @Test
     void getLatestFallsBackToSqlAndRehydratesRedis() {
         when(redisReadService.readValue(CacheKeys.explanationV36LatestKey("evt-2"),
@@ -87,6 +93,9 @@ class LlmExplanationCacheServiceTest {
                 any(), any(Duration.class));
     }
 
+    /**
+     * Get Latest Both Miss Returns Empty
+     */
     @Test
     void getLatestBothMissReturnsEmpty() {
         when(redisReadService.readValue(CacheKeys.explanationV36LatestKey("evt-3"),
@@ -99,6 +108,9 @@ class LlmExplanationCacheServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Get Returns Redis Hit
+     */
     @Test
     void getReturnsRedisHit() {
         V36LlmExplanationResponse redisResponse = new V36LlmExplanationResponse();
@@ -118,6 +130,9 @@ class LlmExplanationCacheServiceTest {
                         anyString(), anyString(), anyString(), eq(true), anyString());
     }
 
+    /**
+     * Get Falls Back To Sql And Rehydrates Redis
+     */
     @Test
     void getFallsBackToSqlAndRehydratesRedis() {
         when(redisReadService.readValue(
@@ -148,6 +163,9 @@ class LlmExplanationCacheServiceTest {
                 any(), any(Duration.class));
     }
 
+    /**
+     * Get Both Miss Returns Empty
+     */
     @Test
     void getBothMissReturnsEmpty() {
         when(redisReadService.readValue(
@@ -163,6 +181,9 @@ class LlmExplanationCacheServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Put Saves To Redis And Sql
+     */
     @Test
     void putSavesToRedisAndSql() {
         V36LlmExplanationResponse response = new V36LlmExplanationResponse();
@@ -190,6 +211,9 @@ class LlmExplanationCacheServiceTest {
         verify(explanationRepository).save(any(LlmExplanation.class));
     }
 
+    /**
+     * Try Acquire Lock Succeeds
+     */
     @Test
     void tryAcquireLockSucceeds() {
         ValueOperations<String, String> ops = mock(ValueOperations.class);
@@ -202,6 +226,9 @@ class LlmExplanationCacheServiceTest {
         assertThat(result).isTrue();
     }
 
+    /**
+     * Try Acquire Lock Fails When Held
+     */
     @Test
     void tryAcquireLockFailsWhenHeld() {
         ValueOperations<String, String> ops = mock(ValueOperations.class);

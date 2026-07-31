@@ -11,12 +11,23 @@ import java.util.List;
 @Configuration
 public class LlmConfig {
 
+    /**
+     * Resolves the active {@link LlmProvider} bean based on the
+     * {@code app.llm.provider}配置 property.
+     * <p>
+     * All registered {@code LlmProvider} beans are injected; the one whose
+     * {@link LlmProvider#providerName()} matches the configured value is
+     * returned as the {@code @Primary} bean.
+     *
+     * @throws IllegalStateException if no provider matches the configured name
+     */
     @Bean
     @Primary
     public LlmProvider activeLlmProvider(
             @Value("${app.llm.provider:nvidia-nim}") String providerName,
             List<LlmProvider> providers
     ) {
+        /* Find the first provider whose name matches the configured value */
         return providers.stream()
                 .filter(p -> p.providerName().equals(providerName))
                 .findFirst()

@@ -44,7 +44,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.ArgumentCaptor;
 
+/**
+ * Tests for ModelHealthService: snapshot diagnostics distinguishing artifact presence,
+ * runtime initialization, inference state, and Redis health publishing.
+ */
 class ModelHealthServiceTest {
+
+    /* --- Test methods: snapshot --- */
 
     @Test
     void snapshotDistinguishesArtifactPresenceFromRuntimeInitializationAndInferenceState() {
@@ -161,6 +167,8 @@ class ModelHealthServiceTest {
         assertThat(persona).containsEntry("runtimeInitialized", false);
         assertThat(persona).containsEntry("inferenceEnabledByConfig", false);
     }
+
+    /* --- Test methods: publishing --- */
 
     @Test
     void publishWritesVersionedHealthToRedisKey() {

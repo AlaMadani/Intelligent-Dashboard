@@ -13,16 +13,26 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for AuditTrailConsumer partition assignment and rebalance behavior:
+ * aggregation across consumers, revocation, diagnostics, and derived fields.
+ */
 class AuditTrailConsumerPartitionTest {
+
+    /* --- Fields --- */
 
     private final KafkaTopicProperties topicProperties = new KafkaTopicProperties();
     private final KafkaConsumerProperties consumerProperties = new KafkaConsumerProperties();
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
         topicProperties.setAuditTrail("topic-audit-trail");
         consumerProperties.setConcurrency(5);
     }
+
+    /* --- Test methods: assignment aggregation --- */
 
     @Test
     void aggregatesAssignmentsAcrossMultipleConsumers() {
@@ -49,6 +59,8 @@ class AuditTrailConsumerPartitionTest {
         assertThat(consumer.getAllAssignedPartitions()).hasSize(6);
     }
 
+    /* --- Test methods: rebalancing --- */
+
     @Test
     void updatesAssignmentWhenConsumerReassigned() {
         AuditTrailConsumer consumer = new AuditTrailConsumer(null, null, null, null, null, null, null, null, null, null,
@@ -71,6 +83,8 @@ class AuditTrailConsumerPartitionTest {
                 "topic-audit-trail-2", "topic-audit-trail-3");
     }
 
+    /* --- Test methods: revocation --- */
+
     @Test
     void removesAssignmentOnRevocation() {
         AuditTrailConsumer consumer = new AuditTrailConsumer(null, null, null, null, null, null, null, null, null, null,
@@ -90,6 +104,8 @@ class AuditTrailConsumerPartitionTest {
         assertThat(consumer.getAllAssignedPartitions()).containsExactly("topic-audit-trail-0", "topic-audit-trail-1");
     }
 
+    /* --- Test methods: diagnostics --- */
+
     @Test
     void reportsTopicPartitionCount() {
         AuditTrailConsumer consumer = new AuditTrailConsumer(null, null, null, null, null, null, null, null, null, null,
@@ -99,6 +115,8 @@ class AuditTrailConsumerPartitionTest {
         Map<String, Object> diag = consumer.diagnosticsSnapshot();
         assertThat(diag).containsEntry("topicPartitionCount", 6);
     }
+
+    /* --- Test methods: derived fields --- */
 
     @Test
     void derivedFieldsOkWhenFullAssignment() {
@@ -149,6 +167,8 @@ class AuditTrailConsumerPartitionTest {
         assertThat(diag).containsEntry("maxPollIntervalMs", 900000L);
     }
 
+    /* --- Test methods: edge cases --- */
+
     @Test
     void assignedPartitionsIsNullWhenNoAssignments() {
         AuditTrailConsumer consumer = new AuditTrailConsumer(null, null, null, null, null, null, null, null, null, null,
@@ -158,6 +178,8 @@ class AuditTrailConsumerPartitionTest {
         assertThat(diag.get("assignedPartitions")).isNull();
         assertThat(diag).containsEntry("assignedPartitionCount", 0);
     }
+
+    /* --- Helper methods --- */
 
     private static Collection<TopicPartition> partitions(int... ids) {
         return java.util.Arrays.stream(ids)

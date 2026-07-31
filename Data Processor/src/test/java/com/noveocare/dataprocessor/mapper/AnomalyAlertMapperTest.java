@@ -17,11 +17,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for DTO/entity conversion performed by MapStruct.
+ * Tests for AnomalyAlertMapper: DTO/entity conversion, investigation payload
+ * JSON serialization, and fallback for missing detected-at timestamps.
  */
 class AnomalyAlertMapperTest {
 
+    /* --- Fields --- */
+
     private final AnomalyAlertMapper mapper = Mappers.getMapper(AnomalyAlertMapper.class);
+
+    /* --- Test methods: entity mapping --- */
 
     @Test
     void mapsAlertAndRawPayloadToEntity() {
@@ -55,6 +60,8 @@ class AnomalyAlertMapperTest {
         assertEquals(rawEventJson, entity.getEventJson());
         assertEquals(detectedAt, entity.getDetectedAt());
     }
+
+    /* --- Test methods: investigation payload --- */
 
     @Test
     void investigationPayloadJsonContainsEventIdMatchingRow() {
@@ -94,6 +101,8 @@ class AnomalyAlertMapperTest {
         AnomalyEvent entity = mapper.toEntity(alert, "{}");
         assertNull(entity.getInvestigationPayloadJson());
     }
+
+    /* --- Test methods: fallback --- */
 
     @Test
     void setsDetectedAtWhenMissingOnDto() {

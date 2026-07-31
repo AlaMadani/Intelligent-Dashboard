@@ -9,9 +9,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Assembles session-level feature vectors for churn prediction from session
+ * summaries and raw event data.
+ */
 @Service
 public class ChurnFeatureAssembler {
 
+    /* ========== Public API ========== */
+
+    /* Builds a flat feature map from session summary and events. */
     public Map<String, Object> assemble(SessionSummary summary, List<AuditTrailEvent> events, boolean anomalousUser) {
         Map<String, Object> values = new LinkedHashMap<>();
         int total = summary == null || summary.getTotalEvents() == null ? 0 : summary.getTotalEvents();
@@ -50,6 +57,9 @@ public class ChurnFeatureAssembler {
         return values;
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Proportion of events occurring during business hours (8-19). */
     private double businessHoursRatio(List<AuditTrailEvent> events) {
         if (events == null || events.isEmpty()) {
             return 0.0;
@@ -58,6 +68,7 @@ public class ChurnFeatureAssembler {
         return (double) count / events.size();
     }
 
+    /* Proportion of events originating from France. */
     private double frRatio(List<AuditTrailEvent> events) {
         if (events == null || events.isEmpty()) {
             return 0.0;
@@ -66,6 +77,7 @@ public class ChurnFeatureAssembler {
         return (double) count / events.size();
     }
 
+    /* Proportion of events using a given device type. */
     private double deviceRatio(List<AuditTrailEvent> events, String device) {
         if (events == null || events.isEmpty()) {
             return 0.0;
@@ -74,6 +86,7 @@ public class ChurnFeatureAssembler {
         return (double) count / events.size();
     }
 
+    /* Proportion of events matching a given action type keyword. */
     private double actionTypeRatio(List<AuditTrailEvent> events, String actionType) {
         if (events == null || events.isEmpty()) {
             return 0.0;
@@ -84,6 +97,7 @@ public class ChurnFeatureAssembler {
         return (double) count / events.size();
     }
 
+    /* Returns the most frequent value for a given field (device, browser, os, region). */
     private String primary(List<AuditTrailEvent> events, String field) {
         if (events == null || events.isEmpty()) {
             return null;
@@ -105,10 +119,12 @@ public class ChurnFeatureAssembler {
         return counts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
     }
 
+    /* Utility: returns first non-blank value. */
     private String firstNonBlank(String first, String second) {
         return first != null && !first.isBlank() ? first : second;
     }
 
+    /* Utility: null-safe integer default. */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }

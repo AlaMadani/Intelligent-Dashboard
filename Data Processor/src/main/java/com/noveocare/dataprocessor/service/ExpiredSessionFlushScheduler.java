@@ -17,11 +17,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Periodically flushes sessions that have exceeded inactivity timeout or max open duration.
+ * For each expired session it enriches events, builds a summary, evaluates rules,
+ * runs model inference, and orchestrates finalization.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ExpiredSessionFlushScheduler {
 
+    /* Injected dependencies */
     private final SessionFinalizationService finalizationService;
     private final SessionFinalizationOrchestrator finalizationOrchestrator;
     private final FeatureEngineeringService featureEngineeringService;
@@ -29,6 +35,8 @@ public class ExpiredSessionFlushScheduler {
     private final ModelInferenceService modelInferenceService;
     private final RedisSessionBufferService sessionBufferService;
     private final SessionFinalizationProperties finalizationProperties;
+
+    /* --- Scheduled task --- */
 
     @Scheduled(fixedDelayString = "${app.session.finalization.expired-flush-interval-ms:30000}")
     public void flushExpiredSessions() {

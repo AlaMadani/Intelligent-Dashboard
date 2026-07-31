@@ -69,6 +69,9 @@ class V36AlertServiceTest {
         );
     }
 
+    /**
+     * Live Alerts Use Redis And Apply Filters
+     */
     @Test
     void liveAlertsUseRedisAndApplyFilters() {
         V36LiveAlertSummaryDto critical = new V36LiveAlertSummaryDto();
@@ -91,6 +94,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getSchemaVersion()).isEqualTo("v3.6.1");
     }
 
+    /**
+     * Alert Detail Throws Structured Not Found When Redis And Sql Miss
+     */
     @Test
     void alertDetailThrowsStructuredNotFoundWhenRedisAndSqlMiss() {
         when(redisReadService.readValue(CacheKeys.alertInvestigationKey("evt-missing"), com.neo.dashboard.dto.v36.V36AlertInvestigationDetailDto.class))
@@ -102,6 +108,9 @@ class V36AlertServiceTest {
                 .hasMessageContaining("Alert not found");
     }
 
+    /**
+     * Alert Investigation Maps Session Lifecycle From Redis Payload
+     */
     @Test
     void alertInvestigationMapsSessionLifecycleFromRedisPayload() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -130,6 +139,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionLifecycle()).containsEntry("sessionEndedExplicitly", true);
     }
 
+    /**
+     * Alert Investigation Remains Compatible When Session Lifecycle Absent
+     */
     @Test
     void alertInvestigationRemainsCompatibleWhenSessionLifecycleAbsent() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -148,6 +160,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionLifecycle()).isNull();
     }
 
+    /**
+     * Sql Payload Fallback Preserves Session Lifecycle Fields
+     */
     @Test
     void sqlPayloadFallbackPreservesSessionLifecycleFields() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -178,6 +193,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionLifecycle()).containsEntry("sessionEndedExplicitly", true);
     }
 
+    /**
+     * Alert Investigation Maps Nested Session Lifecycle From Redis
+     */
     @Test
     void alertInvestigationMapsNestedSessionLifecycleFromRedis() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -208,6 +226,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionLifecycle()).containsEntry("sessionDurationMs", 1200000L);
     }
 
+    /**
+     * Alert Investigation Maps Flat Session End Reason Fields From Redis
+     */
     @Test
     void alertInvestigationMapsFlatSessionEndReasonFieldsFromRedis() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -236,6 +257,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionLifecycle()).containsEntry("sessionDurationMs", 3600000L);
     }
 
+    /**
+     * Duplicate Alert Rows Do Not Crash Endpoint
+     */
     @Test
     void duplicateAlertRowsDoNotCrashEndpoint() {
         V36LiveAlertSummaryDto alert1 = new V36LiveAlertSummaryDto();
@@ -257,6 +281,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getEventId()).isEqualTo("evt-dup");
     }
 
+    /**
+     * Sql Build Investigation Maps Session Duration From Session Analysis
+     */
     @Test
     void sqlBuildInvestigationMapsSessionDurationFromSessionAnalysis() {
         com.neo.dashboard.entity.AnomalyEvent anomaly = new com.neo.dashboard.entity.AnomalyEvent();
@@ -286,6 +313,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionLifecycle()).containsEntry("sessionEventCount", 14);
     }
 
+    /**
+     * Alert Detail Hydrates Null Evidence Fields From Evidence Payload
+     */
     @Test
     void alertDetailHydratesNullEvidenceFieldsFromEvidencePayload() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -400,6 +430,9 @@ class V36AlertServiceTest {
         assertThat(result.getSource()).isEqualTo("redis");
     }
 
+    /**
+     * Alert Detail Skips Hydration When All Evidence Fields Present
+     */
     @Test
     void alertDetailSkipsHydrationWhenAllEvidenceFieldsPresent() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -427,6 +460,9 @@ class V36AlertServiceTest {
         assertThat(result.getForecastContext()).isNotNull();
     }
 
+    /**
+     * Alert Detail Evidence Hydration Preserves Already Present Event Metadata
+     */
     @Test
     void alertDetailEvidenceHydrationPreservesAlreadyPresentEventMetadata() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -463,6 +499,9 @@ class V36AlertServiceTest {
         assertThat(result.getRuleEvidence().getRuleRiskScore()).isEqualTo(35.0);
     }
 
+    /**
+     * Alert Detail Evidence Hydration Handles Missing Evidence Gracefully
+     */
     @Test
     void alertDetailEvidenceHydrationHandlesMissingEvidenceGracefully() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -486,6 +525,9 @@ class V36AlertServiceTest {
         assertThat(result.getModelContributions()).isNull();
     }
 
+    /**
+     * Alert Detail Evidence Hydration Fills Event Metadata When Null
+     */
     @Test
     void alertDetailEvidenceHydrationFillsEventMetadataWhenNull() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -520,6 +562,9 @@ class V36AlertServiceTest {
         assertThat(result.getRuleEvidence()).isNotNull();
         assertThat(result.getRuleEvidence().getRuleRiskScore()).isEqualTo(25.0);
     }
+    /**
+     * Dedup Keeps Richer Row When Incomplete Duplicate Exists
+     */
     @Test
     void dedupKeepsRicherRowWhenIncompleteDuplicateExists() {
         V36LiveAlertSummaryDto sparse = new V36LiveAlertSummaryDto();
@@ -548,6 +593,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getEventAction()).isEqualTo("LOGIN");
     }
 
+    /**
+     * Hydrates Risk Level From Final Risk Score When Missing
+     */
     @Test
     void hydratesRiskLevelFromFinalRiskScoreWhenMissing() {
         V36LiveAlertSummaryDto alert = new V36LiveAlertSummaryDto();
@@ -565,6 +613,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getRiskLevel()).isEqualTo("HIGH");
     }
 
+    /**
+     * Does Not Overwrite Existing Risk Level With Hydration
+     */
     @Test
     void doesNotOverwriteExistingRiskLevelWithHydration() {
         V36LiveAlertSummaryDto alert = new V36LiveAlertSummaryDto();
@@ -583,6 +634,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getRiskLevel()).isEqualTo("LOW");
     }
 
+    /**
+     * Adds Warning When Risk Level Unavailable
+     */
     @Test
     void addsWarningWhenRiskLevelUnavailable() {
         V36LiveAlertSummaryDto alert = new V36LiveAlertSummaryDto();
@@ -600,6 +654,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getWarnings()).contains("Risk level unavailable");
     }
 
+    /**
+     * Snapshot Fallback Deduplicates By Event Id
+     */
     @Test
     void snapshotFallbackDeduplicatesByEventId() {
         V36LiveAlertSummaryDto incomplete = new V36LiveAlertSummaryDto();
@@ -631,6 +688,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getSource()).isEqualTo("sql_fallback");
     }
 
+    /**
+     * Detail Endpoint Hydrates Timestamp From Anomaly Event
+     */
     @Test
     void detailEndpointHydratesTimestampFromAnomalyEvent() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -660,6 +720,9 @@ class V36AlertServiceTest {
         assertThat(result.getTimestamp()).isEqualTo(eventTime);
     }
 
+    /**
+     * Dedup With Richness Picks Highest Score For Multiple Same Event Id
+     */
     @Test
     void dedupWithRichnessPicksHighestScoreForMultipleSameEventId() {
         V36LiveAlertSummaryDto sparse = new V36LiveAlertSummaryDto();
@@ -692,6 +755,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getAnomalyType()).isEqualTo("data_exfiltration");
     }
 
+    /**
+     * Risk Level Hydration Uses Correct Thresholds
+     */
     @Test
     void riskLevelHydrationUsesCorrectThresholds() {
         V36LiveAlertSummaryDto critical = new V36LiveAlertSummaryDto();
@@ -721,6 +787,9 @@ class V36AlertServiceTest {
                 .containsExactlyInAnyOrder("CRITICAL", "HIGH", "MEDIUM", "LOW");
     }
 
+    /**
+     * Detail Endpoint Hydrates Timestamp From Detected At When Event Time Null
+     */
     @Test
     void detailEndpointHydratesTimestampFromDetectedAtWhenEventTimeNull() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -750,6 +819,9 @@ class V36AlertServiceTest {
         assertThat(result.getTimestamp()).isEqualTo(detectedAt);
     }
 
+    /**
+     * Live Row Hydrates Timestamp From Anomaly Event Via Snapshot Path
+     */
     @Test
     void liveRowHydratesTimestampFromAnomalyEventViaSnapshotPath() {
         V36LiveAlertSummaryDto snapshotRow = new V36LiveAlertSummaryDto();
@@ -776,6 +848,9 @@ class V36AlertServiceTest {
                 .isEqualTo(Instant.parse("2026-06-18T09:42:12.277Z"));
     }
 
+    /**
+     * Live Row Hydrates Event Metadata From Anomaly Event Json
+     */
     @Test
     void liveRowHydratesEventMetadataFromAnomalyEventJson() {
         V36LiveAlertSummaryDto snapshotRow = new V36LiveAlertSummaryDto();
@@ -804,6 +879,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getApiFamily()).isEqualTo("insured");
     }
 
+    /**
+     * Live Row Hydrates Model Scores From Anomaly Event
+     */
     @Test
     void liveRowHydratesModelScoresFromAnomalyEvent() {
         V36LiveAlertSummaryDto snapshotRow = new V36LiveAlertSummaryDto();
@@ -835,6 +913,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getTcnRiskScore100()).isNull();
     }
 
+    /**
+     * Live Row Hydrates Model Contributions From Anomaly Event
+     */
     @Test
     void liveRowHydratesModelContributionsFromAnomalyEvent() {
         V36LiveAlertSummaryDto snapshotRow = new V36LiveAlertSummaryDto();
@@ -863,6 +944,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getModelContributions().getLightgbm()).isEqualTo(25.37);
     }
 
+    /**
+     * Live Row Hydrates From Investigation Payload
+     */
     @Test
     void liveRowHydratesFromInvestigationPayload() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -903,6 +987,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getApiFamily()).isEqualTo("insured");
     }
 
+    /**
+     * Live Row Does Not Overwrite Non Null Values From Stored Payload
+     */
     @Test
     void liveRowDoesNotOverwriteNonNullValuesFromStoredPayload() {
         Instant originalTs = Instant.parse("2026-06-18T08:00:00Z");
@@ -937,6 +1024,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getEventAction()).isEqualTo("existing_action");
     }
 
+    /**
+     * Live Row Hydrates Evidence Availability From Anomaly
+     */
     @Test
     void liveRowHydratesEvidenceAvailabilityFromAnomaly() {
         V36LiveAlertSummaryDto snapshotRow = new V36LiveAlertSummaryDto();
@@ -963,6 +1053,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().getFirst().getLlmEvidencePayloadAvailable()).isTrue();
     }
 
+    /**
+     * Live Row Hydrates In Redis Path From Anomaly Event
+     */
     @Test
     void liveRowHydratesInRedisPathFromAnomalyEvent() {
         V36LiveAlertSummaryDto redisRow = new V36LiveAlertSummaryDto();
@@ -986,6 +1079,9 @@ class V36AlertServiceTest {
                 .isEqualTo(Instant.parse("2026-06-18T09:42:12.277Z"));
     }
 
+    /**
+     * Live Row Hydrates From Evidence Node When Anomaly Has Evidence Payload
+     */
     @Test
     void liveRowHydratesFromEvidenceNodeWhenAnomalyHasEvidencePayload() {
         V36LiveAlertSummaryDto snapshotRow = new V36LiveAlertSummaryDto();
@@ -1018,6 +1114,9 @@ class V36AlertServiceTest {
     /*  Alert enrichment: event metadata from investigation/evidence       */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * User Alerts Sql Fallback Hydrates Event Action From Investigation Payload
+     */
     @Test
     void userAlertsSqlFallbackHydratesEventActionFromInvestigationPayload() throws Exception {
         when(redisReadService.readItems(eq(CacheKeys.userAlertsKey("insured-1")), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1058,6 +1157,9 @@ class V36AlertServiceTest {
         assertThat(alert.getApiFamily()).isEqualTo("auth");
     }
 
+    /**
+     * User Alerts Sql Fallback Hydrates From Llm Evidence When Investigation Missing
+     */
     @Test
     void userAlertsSqlFallbackHydratesFromLlmEvidenceWhenInvestigationMissing() throws Exception {
         when(redisReadService.readItems(eq(CacheKeys.userAlertsKey("insured-1")), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1099,6 +1201,9 @@ class V36AlertServiceTest {
         assertThat(alert.getApiFamily()).isEqualTo("payments");
     }
 
+    /**
+     * User Alerts Does Not Overwrite Existing Event Action With Null
+     */
     @Test
     void userAlertsDoesNotOverwriteExistingEventActionWithNull() throws Exception {
         when(redisReadService.readItems(eq(CacheKeys.userAlertsKey("insured-1")), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1145,6 +1250,9 @@ class V36AlertServiceTest {
         assertThat(alert.getApiFamily()).isEqualTo("auth");
     }
 
+    /**
+     * User Alerts Sql Fallback Hydrates From Session When Anomaly Payload Empty
+     */
     @Test
     void userAlertsSqlFallbackHydratesFromSessionWhenAnomalyPayloadEmpty() throws Exception {
         when(redisReadService.readItems(eq(CacheKeys.userAlertsKey("insured-1")), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1193,6 +1301,9 @@ class V36AlertServiceTest {
         assertThat(alert.getApiFamily()).isEqualTo("auth");
     }
 
+    /**
+     * User Alerts Session Hydration Sets Llm Evidence Available
+     */
     @Test
     void userAlertsSessionHydrationSetsLlmEvidenceAvailable() throws Exception {
         when(redisReadService.readItems(eq(CacheKeys.userAlertsKey("insured-1")), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1234,6 +1345,9 @@ class V36AlertServiceTest {
         assertThat(alert.getLlmEvidencePayloadAvailable()).isTrue();
     }
 
+    /**
+     * User Alerts Zset Returns Alerts With Source Redis Zset
+     */
     @Test
     void userAlertsZsetReturnsAlertsWithSourceRedisZset() {
         V36LiveAlertSummaryDto alert = new V36LiveAlertSummaryDto();
@@ -1256,6 +1370,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(0).getSource()).isEqualTo("redis_zset");
     }
 
+    /**
+     * User Alerts Zset Prefer Zset Over Legacy
+     */
     @Test
     void userAlertsZsetPreferZsetOverLegacy() {
         V36LiveAlertSummaryDto zsetAlert = new V36LiveAlertSummaryDto();
@@ -1287,6 +1404,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(0).getSource()).isEqualTo("redis_zset");
     }
 
+    /**
+     * User Alerts Zset Empty Falls To Legacy
+     */
     @Test
     void userAlertsZsetEmptyFallsToLegacy() {
         V36LiveAlertSummaryDto legacyAlert = new V36LiveAlertSummaryDto();
@@ -1313,6 +1433,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(0).getWarnings()).contains("canonical_zset_empty_legacy_list_used");
     }
 
+    /**
+     * User Alerts Session Hydration Respects Exact Event Id Match
+     */
     @Test
     void userAlertsSessionHydrationRespectsExactEventIdMatch() throws Exception {
         when(redisReadService.readItems(eq(CacheKeys.userAlertsKey("insured-1")), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1359,6 +1482,9 @@ class V36AlertServiceTest {
         assertThat(alert.getEventAction()).isEqualTo("ActionForEvt5");
     }
 
+    /**
+     * Live Alerts Redis Returns Alerts In Timestamp Descending Order
+     */
     @Test
     void liveAlertsRedisReturnsAlertsInTimestampDescendingOrder() {
         V36LiveAlertSummaryDto older = new V36LiveAlertSummaryDto();
@@ -1378,6 +1504,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(1).getEventId()).isEqualTo("evt-old");
     }
 
+    /**
+     * Live Alerts Redis Sorts By Timestamp Then Created At Then Event Id As Tiebreaker
+     */
     @Test
     void liveAlertsRedisSortsByTimestampThenCreatedAtThenEventIdAsTiebreaker() {
         Instant sameTime = Instant.parse("2026-06-01T00:00:00Z");
@@ -1405,6 +1534,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(2).getEventId()).isEqualTo("evt-a");
     }
 
+    /**
+     * Live Alerts Redis Timestamp Null Falls Back To Created At
+     */
     @Test
     void liveAlertsRedisTimestampNullFallsBackToCreatedAt() {
         V36LiveAlertSummaryDto noTs = new V36LiveAlertSummaryDto();
@@ -1425,6 +1557,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(1).getEventId()).isEqualTo("evt-no-ts");
     }
 
+    /**
+     * Live Alerts Stable Pagination Returns Same Sort Across Pages
+     */
     @Test
     void liveAlertsStablePaginationReturnsSameSortAcrossPages() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1450,6 +1585,9 @@ class V36AlertServiceTest {
         assertThat(page2.getItems().get(4).getEventId()).isEqualTo("evt-0");
     }
 
+    /**
+     * Critical Alerts Redis Sorted By Timestamp Desc
+     */
     @Test
     void criticalAlertsRedisSortedByTimestampDesc() {
         V36LiveAlertSummaryDto older = new V36LiveAlertSummaryDto();
@@ -1472,6 +1610,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(1).getEventId()).isEqualTo("evt-old");
     }
 
+    /**
+     * User Alerts Redis Sorted By Timestamp Desc
+     */
     @Test
     void userAlertsRedisSortedByTimestampDesc() {
         V36LiveAlertSummaryDto older = new V36LiveAlertSummaryDto();
@@ -1493,6 +1634,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(1).getEventId()).isEqualTo("evt-old");
     }
 
+    /**
+     * Redis Path Pagination Page1Metadata
+     */
     @Test
     void redisPathPaginationPage1Metadata() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1514,6 +1658,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isTrue();
     }
 
+    /**
+     * Redis Path Pagination Page2Metadata
+     */
     @Test
     void redisPathPaginationPage2Metadata() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1535,6 +1682,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isTrue();
     }
 
+    /**
+     * Redis Path Pagination Last Page Metadata
+     */
     @Test
     void redisPathPaginationLastPageMetadata() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1556,6 +1706,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isFalse();
     }
 
+    /**
+     * Redis Path Pagination Partial Last Page
+     */
     @Test
     void redisPathPaginationPartialLastPage() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1577,6 +1730,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isFalse();
     }
 
+    /**
+     * Redis Path Stable Pagination No Duplicates
+     */
     @Test
     void redisPathStablePaginationNoDuplicates() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1613,6 +1769,9 @@ class V36AlertServiceTest {
         assertThat(page2Ids).doesNotContainAnyElementsOf(page3Ids);
     }
 
+    /**
+     * Sql Path Pagination Page1Metadata
+     */
     @Test
     void sqlPathPaginationPage1Metadata() {
         when(redisReadService.readItems(eq(CacheKeys.ALERTS_LIVE_V36), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1647,6 +1806,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isTrue();
     }
 
+    /**
+     * Sql Path Pagination Last Page Metadata
+     */
     @Test
     void sqlPathPaginationLastPageMetadata() {
         when(redisReadService.readItems(eq(CacheKeys.ALERTS_LIVE_V36), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1681,6 +1843,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isFalse();
     }
 
+    /**
+     * Global Sort Before Pagination Newest On Page1
+     */
     @Test
     void globalSortBeforePaginationNewestOnPage1() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1709,6 +1874,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isTrue();
     }
 
+    /**
+     * Global Sort With Filter Respects Pagination Metadata
+     */
     @Test
     void globalSortWithFilterRespectsPaginationMetadata() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1731,6 +1899,9 @@ class V36AlertServiceTest {
         assertThat(result.getHasMore()).isTrue();
     }
 
+    /**
+     * Critical Endpoint Equals Filtered Live
+     */
     @Test
     void criticalEndpointEqualsFilteredLive() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1759,6 +1930,9 @@ class V36AlertServiceTest {
         assertThat(criticalIds).containsExactlyElementsOf(filteredIds);
     }
 
+    /**
+     * Critical Alerts Are Subset Of Live Alerts
+     */
     @Test
     void criticalAlertsAreSubsetOfLiveAlerts() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1785,6 +1959,9 @@ class V36AlertServiceTest {
         }
     }
 
+    /**
+     * Divergent Redis Live And Critical Sources Merged
+     */
     @Test
     void divergentRedisLiveAndCriticalSourcesMerged() {
         V36LiveAlertSummaryDto liveOnly = new V36LiveAlertSummaryDto();
@@ -1822,6 +1999,9 @@ class V36AlertServiceTest {
         assertThat(criticalIds).contains("evt-both", "evt-critical-only");
     }
 
+    /**
+     * Critical Pagination After Filtering
+     */
     @Test
     void criticalPaginationAfterFiltering() {
         List<V36LiveAlertSummaryDto> allAlerts = new java.util.ArrayList<>();
@@ -1849,6 +2029,9 @@ class V36AlertServiceTest {
         assertThat(page2.getHasMore()).isFalse();
     }
 
+    /**
+     * Critical Sql Fallback Consistent With Live Sql Fallback
+     */
     @Test
     void criticalSqlFallbackConsistentWithLiveSqlFallback() {
         when(redisReadService.readItems(eq(CacheKeys.ALERTS_LIVE_V36), eq(V36LiveAlertSummaryDto.class), anyInt()))
@@ -1883,6 +2066,9 @@ class V36AlertServiceTest {
         assertThat(criticalResult.getCount()).isEqualTo(4);
     }
 
+    /**
+     * No Duplicate Event Ids Across Live And Critical Sources
+     */
     @Test
     void noDuplicateEventIdsAcrossLiveAndCriticalSources() {
         V36LiveAlertSummaryDto alert = new V36LiveAlertSummaryDto();
@@ -1902,6 +2088,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(0).getEventId()).isEqualTo("evt-duplicate");
     }
 
+    /**
+     * Canonical Zset Read Returns Alerts With Source Redis Zset
+     */
     @Test
     void canonicalZsetReadReturnsAlertsWithSourceRedisZset() {
         V36LiveAlertSummaryDto alert = new V36LiveAlertSummaryDto();
@@ -1923,6 +2112,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(0).getSource()).isEqualTo("redis_zset");
     }
 
+    /**
+     * Canonical Zset Preferred Over Legacy List
+     */
     @Test
     void canonicalZsetPreferredOverLegacyList() {
         V36LiveAlertSummaryDto zsetAlert = new V36LiveAlertSummaryDto();
@@ -1952,6 +2144,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(0).getSource()).isEqualTo("redis_zset");
     }
 
+    /**
+     * Legacy List Fallback When Zset Empty
+     */
     @Test
     void legacyListFallbackWhenZsetEmpty() {
         V36LiveAlertSummaryDto legacyAlert = new V36LiveAlertSummaryDto();
@@ -1977,6 +2172,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems().get(0).getWarnings()).contains("canonical_zset_empty_legacy_list_used");
     }
 
+    /**
+     * Critical From Zset Subset Of Live From Zset
+     */
     @Test
     void criticalFromZsetSubsetOfLiveFromZset() {
         V36LiveAlertSummaryDto liveAlert = new V36LiveAlertSummaryDto();
@@ -2012,6 +2210,9 @@ class V36AlertServiceTest {
         assertThat(criticalResult.getItems().get(0).getEventId()).isEqualTo("evt-critical");
     }
 
+    /**
+     * Zset Read Handles Missing Payload Gracefully
+     */
     @Test
     void zsetReadHandlesMissingPayloadGracefully() {
         when(redisReadService.readZSetAlertItems(
@@ -2045,6 +2246,9 @@ class V36AlertServiceTest {
         assertThat(result.getItems()).hasSize(1);
     }
 
+    /**
+     * Alert Detail Evidence Contains Deviation With Previous Prediction
+     */
     @Test
     void alertDetailEvidenceContainsDeviationWithPreviousPrediction() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2095,6 +2299,9 @@ class V36AlertServiceTest {
         assertThat(deviationMap).containsEntry("deviationScore", 0.893);
     }
 
+    /**
+     * Alert Detail Evidence Survives Missing Previous Prediction
+     */
     @Test
     void alertDetailEvidenceSurvivesMissingPreviousPrediction() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2130,6 +2337,9 @@ class V36AlertServiceTest {
         assertThat(deviationMap).containsEntry("deviationScore", 0.893);
     }
 
+    /**
+     * Alert Detail Evidence Does Not Change Risk Score
+     */
     @Test
     void alertDetailEvidenceDoesNotChangeRiskScore() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2160,6 +2370,9 @@ class V36AlertServiceTest {
         assertThat(result.getNextEventPredictionEvidence()).isNotNull();
     }
 
+    /**
+     * Raw Payload Mismatch Dropped
+     */
     @Test
     void rawPayloadMismatchDropped() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -2192,6 +2405,9 @@ class V36AlertServiceTest {
         assertThat(result.getEventId()).isEqualTo("evt-752");
     }
 
+    /**
+     * Attribution Mismatch Dropped
+     */
     @Test
     void attributionMismatchDropped() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -2228,6 +2444,9 @@ class V36AlertServiceTest {
         assertThat(result.getAnomalyTypeAttribution().getSource()).isEqualTo("hybrid_rules_models");
     }
 
+    /**
+     * Exact Payload Unavailable Safe Mode
+     */
     @Test
     void exactPayloadUnavailableSafeMode() {
         AnomalyEvent anomaly = new AnomalyEvent();
@@ -2260,6 +2479,9 @@ class V36AlertServiceTest {
         assertThat(result.getAnomalyType()).isEqualTo("unknown_suspicious_behavior");
     }
 
+    /**
+     * Exact Payload Match Allowed
+     */
     @Test
     void exactPayloadMatchAllowed() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -2295,6 +2517,9 @@ class V36AlertServiceTest {
         assertThat(result.getWarnings()).doesNotContain("raw_payload_event_mismatch");
     }
 
+    /**
+     * Redis Exact Payload Hydrates Sql Fallback
+     */
     @Test
     void redisExactPayloadHydratesSqlFallback() {
         Instant eventTime = Instant.parse("2026-05-25T02:15:00Z");
@@ -2353,6 +2578,9 @@ class V36AlertServiceTest {
         assertThat(result.getRawPayload()).isNull();
     }
 
+    /**
+     * Redis Payload Mismatch Rejected
+     */
     @Test
     void redisPayloadMismatchRejected() {
         V36LiveAlertSummaryDto livePayload = new V36LiveAlertSummaryDto();
@@ -2384,6 +2612,9 @@ class V36AlertServiceTest {
         assertThat(result.getWarnings()).contains("exact_event_payload_unavailable");
     }
 
+    /**
+     * Redis Payload Missing Safe Mode
+     */
     @Test
     void redisPayloadMissingSafeMode() {
         AnomalyEvent anomaly = new AnomalyEvent();
@@ -2409,6 +2640,9 @@ class V36AlertServiceTest {
         assertThat(result.getSequenceEvidence()).isNull();
     }
 
+    /**
+     * Timestamp Fallback From Redis
+     */
     @Test
     void timestampFallbackFromRedis() {
         Instant redisTimestamp = Instant.parse("2026-06-25T16:01:26.140Z");
@@ -2442,6 +2676,9 @@ class V36AlertServiceTest {
         assertThat(result.getWarnings()).contains("redis_event_payload_used");
     }
 
+    /**
+     * Same Context Deviation Removed
+     */
     @Test
     void sameContextDeviationRemoved() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2479,6 +2716,9 @@ class V36AlertServiceTest {
         assertThat(result.getWarnings()).contains("next_event_prediction_same_context_deviation_ignored");
     }
 
+    /**
+     * Same Context Deviation Removed Via Previous Prediction
+     */
     @Test
     void sameContextDeviationRemovedViaPreviousPrediction() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2516,6 +2756,9 @@ class V36AlertServiceTest {
         assertThat(result.getWarnings()).contains("next_event_prediction_same_context_deviation_ignored");
     }
 
+    /**
+     * Real Mismatch Shape Rejected
+     */
     @Test
     void realMismatchShapeRejected() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -2553,6 +2796,9 @@ class V36AlertServiceTest {
         assertThat(result.getEventId()).isEqualTo("anom-000000004393");
     }
 
+    /**
+     * Redis Investigation Mismatch Rejected
+     */
     @Test
     void redisInvestigationMismatchRejected() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2584,6 +2830,9 @@ class V36AlertServiceTest {
         assertThat(result.getEventMetadata()).isNull();
     }
 
+    /**
+     * Session Payload Event Metadata Mismatch Rejected
+     */
     @Test
     void sessionPayloadEventMetadataMismatchRejected() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -2623,6 +2872,9 @@ class V36AlertServiceTest {
         assertThat(result.getSequenceEvidence()).isNull();
     }
 
+    /**
+     * Redis Exact Fallback After Payload Mismatch
+     */
     @Test
     void redisExactFallbackAfterPayloadMismatch() {
         Instant eventTime = Instant.parse("2026-05-25T02:15:00Z");
@@ -2663,6 +2915,9 @@ class V36AlertServiceTest {
         assertThat(result.getEventMetadata()).containsEntry("eventAction", "download_file");
     }
 
+    /**
+     * Session Lifecycle From Session Analysis
+     */
     @Test
     void sessionLifecycleFromSessionAnalysis() {
         SessionAnalysis session = new SessionAnalysis();
@@ -2693,6 +2948,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionEventCount()).isEqualTo(8);
     }
 
+    /**
+     * Valid Payload Accepted
+     */
     @Test
     void validPayloadAccepted() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -2728,6 +2986,9 @@ class V36AlertServiceTest {
         assertThat(result.getRawPayload()).isNotNull();
     }
 
+    /**
+     * Event Json Session Summary Metadata Suppressed
+     */
     @Test
     void eventJsonSessionSummaryMetadataSuppressed() throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -2760,6 +3021,9 @@ class V36AlertServiceTest {
         assertThat(result.getSource()).isEqualTo("sql");
     }
 
+    /**
+     * Redis Source Lifecycle Enrichment Overrides Stale
+     */
     @Test
     void redisSourceLifecycleEnrichmentOverridesStale() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2800,6 +3064,9 @@ class V36AlertServiceTest {
         assertThat(result.getSource()).isEqualTo("redis");
     }
 
+    /**
+     * Session Analysis Payload Lifecycle Parsed
+     */
     @Test
     void sessionAnalysisPayloadLifecycleParsed() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2840,6 +3107,9 @@ class V36AlertServiceTest {
         assertThat(result.getSource()).isEqualTo("redis");
     }
 
+    /**
+     * No Session Analysis Lifecycle Warning
+     */
     @Test
     void noSessionAnalysisLifecycleWarning() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2873,6 +3143,9 @@ class V36AlertServiceTest {
         assertThat(result.getSource()).isEqualTo("redis");
     }
 
+    /**
+     * Timestamp Fallback Redis Payload Timestamp
+     */
     @Test
     void timestampFallbackRedisPayloadTimestamp() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2898,6 +3171,9 @@ class V36AlertServiceTest {
         assertThat(result.getTimestamp()).isEqualTo(Instant.parse("2026-06-29T16:35:13Z"));
     }
 
+    /**
+     * Timestamp Fallback Redis Created At
+     */
     @Test
     void timestampFallbackRedisCreatedAt() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2924,6 +3200,9 @@ class V36AlertServiceTest {
         assertThat(result.getTimestamp()).isEqualTo(Instant.parse("2026-06-29T17:00:00Z"));
     }
 
+    /**
+     * Timestamp Fallback Event Metadata Event Time
+     */
     @Test
     void timestampFallbackEventMetadataEventTime() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2946,6 +3225,9 @@ class V36AlertServiceTest {
         assertThat(result.getTimestamp()).isEqualTo(Instant.parse("2026-06-29T18:00:00Z"));
     }
 
+    /**
+     * Timestamp Fallback Sql Anomaly
+     */
     @Test
     void timestampFallbackSqlAnomaly() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -2974,6 +3256,9 @@ class V36AlertServiceTest {
         assertThat(result.getTimestamp()).isEqualTo(Instant.parse("2026-05-25T02:15:00Z"));
     }
 
+    /**
+     * Stale Nested Session Lifecycle Syncs To Top Level
+     */
     @Test
     void staleNestedSessionLifecycleSyncsToTopLevel() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -3027,6 +3312,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionLifecycle()).containsEntry("sessionEventCount", 13);
     }
 
+    /**
+     * Nested Session Lifecycle Matches Redis Source
+     */
     @Test
     void nestedSessionLifecycleMatchesRedisSource() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();
@@ -3065,6 +3353,9 @@ class V36AlertServiceTest {
         assertThat(result.getSessionEventCount()).isEqualTo(25);
     }
 
+    /**
+     * No Lifecycle Nested Object Null
+     */
     @Test
     void noLifecycleNestedObjectNull() {
         V36AlertInvestigationDetailDto redisDetail = new V36AlertInvestigationDetailDto();

@@ -13,10 +13,17 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class JacksonConfig {
 
+    /**
+     * Provides a shared {@link ObjectMapper} configured for the application's
+     * JSON serialisation needs — Java 8 date/time support and ISO-8601 date
+     * formatting instead of numeric timestamps.
+     */
     @Bean
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
+        /* Register module that handles LocalDate, LocalDateTime, etc. */
         mapper.registerModule(new JavaTimeModule());
+        /* Write dates as ISO-8601 strings rather than milliseconds-since-epoch */
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return mapper;
     }

@@ -8,16 +8,26 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for risk tier boundary logic: verifies correct risk level assignment
+ * across the full [0..100] score range including edge cases and clamping.
+ */
 class RiskTierBoundaryTest {
+
+    /* --- Fields --- */
 
     private final AiRiskFusionProperties properties = new AiRiskFusionProperties();
     private final RiskFusionServiceV36 service = new RiskFusionServiceV36(properties);
+
+    /* --- Test methods: LOW tier --- */
 
     @Test
     void below35IsLOW() {
         RiskFusionResult result = fuseWithFinal(34.9);
         assertThat(result.getRiskLevel()).isEqualTo("LOW");
     }
+
+    /* --- Test methods: MEDIUM tier --- */
 
     @Test
     void exactly35IsMEDIUM() {
@@ -31,6 +41,8 @@ class RiskTierBoundaryTest {
         assertThat(result.getRiskLevel()).isEqualTo("MEDIUM");
     }
 
+    /* --- Test methods: HIGH tier --- */
+
     @Test
     void exactly60IsHIGH() {
         RiskFusionResult result = fuseWithFinal(60.0);
@@ -43,6 +55,8 @@ class RiskTierBoundaryTest {
         assertThat(result.getRiskLevel()).isEqualTo("HIGH");
     }
 
+    /* --- Test methods: CRITICAL tier --- */
+
     @Test
     void exactly80IsCRITICAL() {
         RiskFusionResult result = fuseWithFinal(80.0);
@@ -54,6 +68,8 @@ class RiskTierBoundaryTest {
         RiskFusionResult result = fuseWithFinal(100.0);
         assertThat(result.getRiskLevel()).isEqualTo("CRITICAL");
     }
+
+    /* --- Test methods: scale and clamping --- */
 
     @Test
     void resultHasRiskScale() {
@@ -86,6 +102,8 @@ class RiskTierBoundaryTest {
         assertThat(result.getFinalRiskScore()).isEqualTo(100.0);
         assertThat(result.getRiskLevel()).isEqualTo("CRITICAL");
     }
+
+    /* --- Helper methods --- */
 
     private RiskFusionResult fuseWithFinal(double finalRiskScore) {
         double seqScore = finalRiskScore;

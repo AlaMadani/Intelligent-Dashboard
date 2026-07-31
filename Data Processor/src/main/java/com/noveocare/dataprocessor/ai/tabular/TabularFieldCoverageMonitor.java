@@ -12,12 +12,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Monitors tabular feature coverage (missing features, unknown categoricals,
+ * NaN replacements) and publishes live stats to Redis.
+ */
 @Service
 @RequiredArgsConstructor
 public class TabularFieldCoverageMonitor {
+    /* ---- Dependencies ---- */
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties cacheProperties;
 
+    /* ---- Live counters ---- */
     private final AtomicLong missingFeatureCount = new AtomicLong();
     private final AtomicLong defaultedFeatureCount = new AtomicLong();
     private final AtomicLong unknownCategoricalCount = new AtomicLong();
@@ -26,6 +32,9 @@ public class TabularFieldCoverageMonitor {
     private final AtomicLong featureContractMismatchCount = new AtomicLong();
     private final AtomicLong featureVectorLengthMismatchCount = new AtomicLong();
 
+    /* ========== Public API ========== */
+
+    /* Records a single feature vector's coverage metrics and publishes. */
     public void record(List<String> warnings, int expectedLength, int actualLength, int unknownCategoricals, int categoricalValues) {
         if (warnings != null) {
             for (String warning : warnings) {
@@ -51,6 +60,7 @@ public class TabularFieldCoverageMonitor {
         publish();
     }
 
+    /* Returns a snapshot of coverage statistics. */
     public Map<String, Object> snapshot() {
         long categoricalTotal = categoricalValueCount.get();
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -64,6 +74,9 @@ public class TabularFieldCoverageMonitor {
         return payload;
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Publishes the current snapshot to Redis. */
     private void publish() {
         redisCacheService.setJson(CacheKeys.tabularFieldCoverageKey(), snapshot(), cacheProperties.getLiveStats());
     }

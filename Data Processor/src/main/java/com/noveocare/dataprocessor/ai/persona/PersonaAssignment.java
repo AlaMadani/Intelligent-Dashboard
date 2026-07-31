@@ -5,6 +5,10 @@ import lombok.Value;
 
 import java.util.List;
 
+/**
+ * Immutable result of a persona assignment: cluster ID, label, confidence
+ * score, source, and any warnings.
+ */
 @Value
 @Builder
 public class PersonaAssignment {

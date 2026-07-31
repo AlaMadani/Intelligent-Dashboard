@@ -13,7 +13,13 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for ExtraTreesJsonChurnInferenceService: feature vector construction
+ * in schema order and handling of unknown categorical values.
+ */
 class ExtraTreesJsonChurnInferenceServiceTest {
+
+    /* --- Test methods --- */
 
     @Test
     void buildsFeatureVectorInExactSchemaOrderAndDefaultsUnknowns() throws Exception {

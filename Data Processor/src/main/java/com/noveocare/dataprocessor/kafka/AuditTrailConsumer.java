@@ -51,11 +51,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Kafka consumer that ingests audit-trail events, runs the full detection
+ * pipeline (enrichment, feature engineering, model inference, rule evaluation),
+ * and orchestrates session finalisation or alert publication.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class AuditTrailConsumer {
 
+    /* -- Injected services and configuration -- */
     private final ObjectMapper objectMapper;
     private final RedisSessionBufferService sessionBufferService;
     private final FeatureEngineeringService featureEngineeringService;
@@ -76,12 +82,14 @@ public class AuditTrailConsumer {
     private final SessionRunningSummaryService sessionRunningSummaryService;
     private final AiLiveSessionProperties liveSessionProperties;
 
+    /* -- Processing counters and diagnostics -- */
     private final AtomicLong recordsProcessedTotal = new AtomicLong();
     private final AtomicLong processingFailuresTotal = new AtomicLong();
     private final AtomicReference<Instant> lastConsumedAt = new AtomicReference<>();
     private final AtomicReference<Instant> lastAckAt = new AtomicReference<>();
     private final AtomicReference<String> lastProcessingError = new AtomicReference<>();
 
+    /* -- Performance tracking -- */
     private final AtomicLong totalEventProcessingMsAcc = new AtomicLong();
     private final AtomicLong totalEventProcessingCount = new AtomicLong();
     private final AtomicReference<String> lastSlowEventId = new AtomicReference<>();
@@ -90,6 +98,7 @@ public class AuditTrailConsumer {
     private final AtomicLong summaryRunCount = new AtomicLong();
     private final AtomicReference<Instant> performanceSummaryLastRunAt = new AtomicReference<>();
 
+    /* -- Consumer rebalance state -- */
     private final AtomicInteger rebalanceCount = new AtomicInteger();
     private final AtomicLong commitFailedCount = new AtomicLong();
     private final AtomicReference<Instant> lastCommitFailedAt = new AtomicReference<>();
@@ -101,17 +110,20 @@ public class AuditTrailConsumer {
     private final Set<String> revokedPartitionSet = ConcurrentHashMap.newKeySet();
     private volatile boolean hotPathBlocked = false;
 
+    /* -- Configurable consumer parameters -- */
     private volatile int topicPartitionCount = 0;
     private volatile String autoOffsetReset = "latest";
     private volatile int maxPollRecords = 50;
     private volatile long maxPollIntervalMs = 900000;
     private volatile String testConsumerIdOverride;
 
+    /* -- Rate calculation -- */
     private final AtomicLong lastRateCalcCount = new AtomicLong();
     private final AtomicReference<Instant> lastRateCalcAt = new AtomicReference<>(Instant.now());
     private volatile double recordsProcessedPerSecond = 0.0;
     private volatile long kafkaLagCached = 0;
 
+    /* -- Performance sample buffers -- */
     private static final int PERF_AGGREGATE_MAX_SAMPLES = 1000;
     private final java.util.List<Long> perfTotalMsSamples = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
     private final java.util.List<Long> perfSequenceMsSamples = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
@@ -125,11 +137,18 @@ public class AuditTrailConsumer {
     private final java.util.List<Long> perfRunningSummaryMsSamples = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
     private final java.util.List<Long> perfRulesMsSamples = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
+    /* Increments the summary-run counter and records the run timestamp. */
     private void trackInferenceSummary() {
         summaryRunCount.incrementAndGet();
         performanceSummaryLastRunAt.set(Instant.now());
     }
 
+    /**
+     * Main Kafka listener method.  Each incoming record goes through:
+     * parsing, idempotency check, session-state update, event storage,
+     * history fetch, enrichment, running-summary update, rule evaluation,
+     * model inference, and either session finalization or alert publication.
+     */
     @KafkaListener(
             topics = "${app.kafka.topics.audit-trail}",
             groupId = "${spring.kafka.consumer.group-id}",
@@ -144,6 +163,7 @@ public class AuditTrailConsumer {
             return;
         }
 
+        /* -- Parse the raw JSON into an AuditTrailEvent -- */
         long t1 = System.nanoTime();
         AuditTrailEvent event;
         try {
@@ -165,6 +185,7 @@ public class AuditTrailConsumer {
         long eventTimestamp = record.timestamp();
         long kafkaEventAgeAtReceiveMs = kafkaReceiveTs - eventTimestamp;
 
+        /* -- Idempotency check to avoid double-processing -- */
         long t2 = System.nanoTime();
         if (!eventIdempotencyService.tryMarkProcessing(event)) {
             ack.acknowledge();
@@ -174,18 +195,22 @@ public class AuditTrailConsumer {
 
         boolean processingMarkerRemoved = false;
         try {
+            /* -- Session state management -- */
             long t3 = System.nanoTime();
             sessionFinalizationService.handleIncomingEvent(event);
             long sessionStateMs = (System.nanoTime() - t3) / 1_000_000L;
 
+            /* -- Record event statistics -- */
             long t4 = System.nanoTime();
             statisticsService.recordEvent(event);
             long statsMs = (System.nanoTime() - t4) / 1_000_000L;
 
+            /* -- Append event to the Redis session buffer -- */
             long t5 = System.nanoTime();
             sessionBufferService.appendEvent(event);
             long redisAppendMs = (System.nanoTime() - t5) / 1_000_000L;
 
+            /* -- Fetch and sort recent session history -- */
             int historyLimit = liveSessionProperties.getRecentEventsLimit();
             long t6 = System.nanoTime();
             List<AuditTrailEvent> sessionEvents = new java.util.ArrayList<>(
@@ -205,10 +230,12 @@ public class AuditTrailConsumer {
                         event.getSessionId(), historySize, historyLimit);
             }
 
+            /* -- Feature engineering / enrichment -- */
             long t7 = System.nanoTime();
             List<AuditTrailEvent> enrichedEvents = featureEngineeringService.enrichSessionEvents(sessionEvents);
             long enrichmentMs = (System.nanoTime() - t7) / 1_000_000L;
 
+            /* -- Build / update the running session summary -- */
             long t8 = System.nanoTime();
             SessionRunningSummary runningSummary = sessionRunningSummaryService.loadOrCreate(event.getSessionId(), event.getInsuredId());
             AuditTrailEvent currentEnriched = event;
@@ -220,6 +247,7 @@ public class AuditTrailConsumer {
             SessionSummary summary = sessionRunningSummaryService.toLiveSessionSummary(runningSummary, enrichedEvents);
             long summaryBuildMs = (System.nanoTime() - t8) / 1_000_000L;
 
+            /* -- Evaluate session-level rules -- */
             long t9 = System.nanoTime();
             List<String> triggeredRules = sessionRuleEvaluator.evaluateSessionRules(enrichedEvents);
             long rulesMs = (System.nanoTime() - t9) / 1_000_000L;
@@ -227,12 +255,14 @@ public class AuditTrailConsumer {
             long lag = estimatePartitionLag(record, consumer);
             kafkaLagCached = lag;
 
+            /* -- Run model inference -- */
             long t10 = System.nanoTime();
             SessionInsight insight = modelInferenceService.infer(summary, enrichedEvents, triggeredRules, lag);
             long inferenceMs = (System.nanoTime() - t10) / 1_000_000L;
 
             boolean isExplicitEnd = sessionFinalizationService.isExplicitSessionEnd(event);
 
+            /* -- Handle session end or alert publication -- */
             long t11 = System.nanoTime();
             long finalizationMs = 0;
             long alertPublishMs = 0;
@@ -255,10 +285,12 @@ public class AuditTrailConsumer {
             long outputMs = (System.nanoTime() - t11) / 1_000_000L;
             Map<String, Long> inferenceTiming = modelInferenceService.getLastTimingBreakdown();
 
+            /* -- Cache insight for the dashboard -- */
             long t12 = System.nanoTime();
             dashboardSnapshotService.cacheSessionInsight(summary, insight);
             long dashboardMs = (System.nanoTime() - t12) / 1_000_000L;
 
+            /* -- Mark processed and acknowledge -- */
             long t13 = System.nanoTime();
             eventIdempotencyService.markProcessed(event);
             processingMarkerRemoved = true;
@@ -273,6 +305,7 @@ public class AuditTrailConsumer {
 
             String resolvedAction = resolveAction(event);
 
+            /* -- Collect performance samples -- */
             addPerfSample(perfTotalMsSamples, totalProcessingMs);
             addPerfSample(perfAgeReceiveMsSamples, kafkaEventAgeAtReceiveMs);
             addPerfSample(perfAgeOutputMsSamples, kafkaEventAgeAtOutputMs);
@@ -315,6 +348,7 @@ public class AuditTrailConsumer {
                         dashboardMs, ackMs, totalProcessingMs, kafkaEventAgeAtOutputMs);
             }
 
+            /* -- Build stage-breakdown map for slow-event logging -- */
             Map<String, Long> baseBreakdown = new LinkedHashMap<>();
             baseBreakdown.put("parseMs", parseMs);
             baseBreakdown.put("idempotencyMs", idempotencyMs);
@@ -336,6 +370,7 @@ public class AuditTrailConsumer {
             baseBreakdown.put("dashboardMs", dashboardMs);
             baseBreakdown.put("ackMs", ackMs);
 
+            /* -- Slow-event warnings -- */
             if (totalProcessingMs > 30000) {
                 hotPathBlocked = true;
                 lastSlowEventId.set(event.getInsuredId() + "/" + event.getSessionId());
@@ -358,6 +393,7 @@ public class AuditTrailConsumer {
             totalEventProcessingCount.incrementAndGet();
 
         } catch (CommitFailedException ex) {
+            /* -- Handle commit failures that may indicate a rebalance -- */
             commitFailedCount.incrementAndGet();
             lastCommitFailedAt.set(Instant.now());
             lastCommitFailedReason.set(ex.getClass().getSimpleName() + ": " + ex.getMessage());
@@ -368,6 +404,7 @@ public class AuditTrailConsumer {
                 eventIdempotencyService.removeProcessingMarker(event);
             }
         } catch (Exception ex) {
+            /* -- General processing failure: route to DLQ -- */
             processingFailuresTotal.incrementAndGet();
             lastProcessingError.set(ex.getClass().getSimpleName() + ": " + ex.getMessage());
             log.error("Processing failed for topic={} partition={} offset={} event={}/{}",
@@ -387,6 +424,7 @@ public class AuditTrailConsumer {
         }
     }
 
+    /* Resolve a human-readable action label from the event fields. */
     private String resolveAction(AuditTrailEvent event) {
         if (event == null) return null;
         if (event.getActionValue() != null && !event.getActionValue().isBlank()) {
@@ -398,6 +436,7 @@ public class AuditTrailConsumer {
         return event.getAction();
     }
 
+    /* Append a latency sample to a sliding window list, capping at PERF_AGGREGATE_MAX_SAMPLES. */
     private void addPerfSample(java.util.List<Long> samples, long value) {
         samples.add(value);
         while (samples.size() > PERF_AGGREGATE_MAX_SAMPLES) {
@@ -405,6 +444,7 @@ public class AuditTrailConsumer {
         }
     }
 
+    /* Log aggregated P50 / P95 / max latency statistics every 100 records. */
     private void logPerformanceAggregate() {
         long count = recordsProcessedTotal.get();
         if (count == 0) return;
@@ -428,6 +468,7 @@ public class AuditTrailConsumer {
                 percentile(perfAgeOutputMsSamples, 50), percentile(perfAgeOutputMsSamples, 95));
     }
 
+    /* Compute the p-th percentile from an unsorted list of long samples. */
     private static long percentile(java.util.List<Long> samples, int pct) {
         if (samples == null || samples.isEmpty()) return 0L;
         long[] arr;
@@ -444,6 +485,7 @@ public class AuditTrailConsumer {
         return arr[index];
     }
 
+    /* Return the maximum value from a list, or 0 if the list is empty. */
     private static long maxOrZero(java.util.List<Long> samples) {
         if (samples == null || samples.isEmpty()) return 0L;
         long max = 0L;
@@ -455,6 +497,7 @@ public class AuditTrailConsumer {
         return max;
     }
 
+    /* Estimate the number of unread messages remaining on this partition. */
     private long estimatePartitionLag(ConsumerRecord<String, String> record, Consumer<?, ?> consumer) {
         try {
             TopicPartition topicPartition = new TopicPartition(record.topic(), record.partition());
@@ -469,6 +512,7 @@ public class AuditTrailConsumer {
         }
     }
 
+    /* Send a failed record to the configured dead-letter topic. */
     private void routeToDlq(ConsumerRecord<String, String> record, String reason, Exception ex) {
         if (kafkaTopicProperties.getDlq() == null || kafkaTopicProperties.getDlq().isBlank()) {
             return;
@@ -490,11 +534,13 @@ public class AuditTrailConsumer {
         }
     }
 
+    /* Resolve a stable consumer identifier for partition assignment tracking. */
     private String resolveConsumerId() {
         if (testConsumerIdOverride != null) return testConsumerIdOverride;
         return Thread.currentThread().getName();
     }
 
+    /* Factory method for a ConsumerRebalanceListener that tracks partition assignments. */
     public ConsumerRebalanceListener createRebalanceListener() {
         return new ConsumerRebalanceListener() {
             @Override
@@ -525,6 +571,7 @@ public class AuditTrailConsumer {
         };
     }
 
+    /* Collect all assigned partitions across all consumer instances tracked locally. */
     Set<String> getAllAssignedPartitions() {
         java.util.Set<String> all = new java.util.TreeSet<>();
         for (Set<String> parts : assignedPartitionsByConsumer.values()) {
@@ -532,6 +579,8 @@ public class AuditTrailConsumer {
         }
         return all;
     }
+
+    /* -- Config setters for test / runtime overrides -- */
 
     public void setTopicPartitionCount(int count) {
         this.topicPartitionCount = count;
@@ -553,10 +602,16 @@ public class AuditTrailConsumer {
         this.testConsumerIdOverride = id;
     }
 
+    /* Check whether a specific partition has been revoked in the last rebalance. */
     private boolean isPartitionRevoked(String topic, int partition) {
         return revokedPartitionSet.contains(topic + "-" + partition);
     }
 
+    /**
+     * Return a comprehensive diagnostics snapshot including consumer-group
+     * state, partition assignment, processing counters, and performance
+     * percentiles.
+     */
     public Map<String, Object> diagnosticsSnapshot() {
         Map<String, Object> diag = new LinkedHashMap<>();
         diag.put("consumerGroupId", kafkaConsumerProperties != null ? "data-processor-group" : null);
@@ -613,6 +668,7 @@ public class AuditTrailConsumer {
         return diag;
     }
 
+    /* Recompute the rolling processing rate based on the last sample window. */
     private void updateProcessingRate() {
         long currentCount = recordsProcessedTotal.get();
         Instant now = Instant.now();
@@ -626,6 +682,7 @@ public class AuditTrailConsumer {
         }
     }
 
+    /* Assemble the performance sub-map for the diagnostics snapshot. */
     private Map<String, Object> buildPerformanceDiagnostics() {
         updateProcessingRate();
         Map<String, Object> perf = new LinkedHashMap<>();
@@ -660,6 +717,7 @@ public class AuditTrailConsumer {
         return perf;
     }
 
+    /* Compute the average of a list of long samples. */
     static long avgOf(java.util.List<Long> samples) {
         if (samples == null || samples.isEmpty()) return 0L;
         long sum = 0L;
@@ -670,6 +728,8 @@ public class AuditTrailConsumer {
             return sum / samples.size();
         }
     }
+
+    /* -- Public getters for metrics and JMX exposure -- */
 
     public void markSummaryRun() {
         trackInferenceSummary();

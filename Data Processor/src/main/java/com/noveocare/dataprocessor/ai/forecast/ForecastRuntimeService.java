@@ -20,18 +20,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Forecast service that predicts next-day total events and anomaly rate using
+ * Ridge (anomaly rate) and XGBoost (total events) models with fallback logic.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ForecastRuntimeService {
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final StatisticsService statisticsService;
     private final AiForecastProperties forecastProperties;
+
+    /* ---- Loaded models (populated by init()) ---- */
     private RidgeModel anomalyRateModel;
     private XGBoostJsonPredictor totalEventsModel;
     private final List<String> loadWarnings = new ArrayList<>();
 
+    /* ========== Initialisation ========== */
+
+    /* Loads Ridge and XGBoost forecast models; falls back gracefully. */
     @PostConstruct
     public void init() {
         if (!forecastProperties.isEnabled()) {
@@ -62,18 +72,24 @@ public class ForecastRuntimeService {
         }
     }
 
+    /* ========== Public API ========== */
+
+    /* Returns true if at least one model is loaded. */
     public boolean isLoaded() {
         return anomalyRateModel != null || totalEventsModel != null;
     }
 
+    /* Returns true if the Ridge anomaly-rate model is loaded. */
     public boolean ridgeLoaded() {
         return anomalyRateModel != null;
     }
 
+    /* Returns true if the XGBoost total-events model is loaded. */
     public boolean xgboostLoaded() {
         return totalEventsModel != null;
     }
 
+    /* Runs the full forecast pipeline and returns a ForecastPrediction. */
     public ForecastPrediction forecast(LocalDate referenceDate) {
         if (!forecastProperties.isEnabled()) {
             return ForecastPrediction.builder()
@@ -107,10 +123,12 @@ public class ForecastRuntimeService {
                 .build();
     }
 
+    /* Builds feature map for the total-events model. */
     public Map<String, Double> buildTotalEventsFeatures(LocalDate date) {
         return buildForecastFeatures(date, totalEventsFeatureOrder());
     }
 
+    /* Converts a feature map to a float array in the expected order. */
     public float[] buildFeatureVector(Map<String, Double> features) {
         List<String> order = totalEventsFeatureOrder();
         float[] vector = new float[order.size()];
@@ -120,6 +138,9 @@ public class ForecastRuntimeService {
         return vector;
     }
 
+    /* ========== Private prediction helpers ========== */
+
+    /* Runs XGBoost total-events prediction with fallback. */
     private Double predictTotalEvents(Map<String, Double> features, List<String> warnings) {
         if (totalEventsModel == null) {
             warnings.add("forecast_total_events_model_unavailable");
@@ -137,6 +158,7 @@ public class ForecastRuntimeService {
         }
     }
 
+    /* Runs Ridge anomaly-rate prediction with fallback. */
     private Double predictAnomalyRate(Map<String, Double> features, List<String> warnings) {
         if (anomalyRateModel != null) {
             try {
@@ -150,6 +172,7 @@ public class ForecastRuntimeService {
         return fallbackAnomalyRate(features);
     }
 
+    /* Fallback: uses lag-7 or rolling mean for total events. */
     private Double fallbackTotalEvents(Map<String, Double> features) {
         Double lag7 = features.get("total_events_lag_7");
         if (lag7 != null && lag7 > 0.0) {
@@ -158,6 +181,7 @@ public class ForecastRuntimeService {
         return features.getOrDefault("total_events_roll_mean_7", 0.0);
     }
 
+    /* Fallback: uses lag-7 or rolling mean for anomaly rate. */
     private Double fallbackAnomalyRate(Map<String, Double> features) {
         Double lag7 = features.get("anomaly_rate_lag_7");
         if (lag7 != null && lag7 > 0.0) {
@@ -170,6 +194,7 @@ public class ForecastRuntimeService {
         return 0.0;
     }
 
+    /* Builds the full feature map for a given feature order. */
     private Map<String, Double> buildForecastFeatures(LocalDate date, List<String> featureOrder) {
         Map<String, Double> values = new LinkedHashMap<>();
         for (String feature : featureOrder) {
@@ -178,6 +203,7 @@ public class ForecastRuntimeService {
         return values;
     }
 
+    /* Resolves the feature order for the total-events model. */
     private List<String> totalEventsFeatureOrder() {
         ForecastConfig.ModelConfig model = artifactService.getForecastConfig().totalEventsModel();
         if (!model.getFeatureOrder().isEmpty()) {
@@ -186,6 +212,7 @@ public class ForecastRuntimeService {
         return artifactService.getForecastConfig().getTotalEvents().getFeatureOrder();
     }
 
+    /* Resolves the feature order for the anomaly-rate model. */
     private List<String> anomalyRateFeatureOrder() {
         ForecastConfig.ModelConfig model = artifactService.getForecastConfig().anomalyRateModel();
         if (!model.getFeatureOrder().isEmpty()) {
@@ -194,6 +221,7 @@ public class ForecastRuntimeService {
         return anomalyRateModel == null ? totalEventsFeatureOrder() : anomalyRateModel.featureOrder();
     }
 
+    /* Computes the value of a single forecast feature by name. */
     private double valueForFeature(String feature, LocalDate date) {
         if (feature.startsWith("total_events_lag_")) {
             int lag = Integer.parseInt(feature.substring("total_events_lag_".length()));
@@ -228,6 +256,7 @@ public class ForecastRuntimeService {
         };
     }
 
+    /* Computes the actual anomaly rate for a given date. */
     private double anomalyRate(LocalDate date) {
         long events = statisticsService.countEventsForDate(date);
         if (events == 0L) {
@@ -236,6 +265,7 @@ public class ForecastRuntimeService {
         return (double) statisticsService.countAlertsForDate(date) / events;
     }
 
+    /* Computes the rolling 7-day mean or std of total events. */
     private double rollingEvents(LocalDate date, boolean mean) {
         double[] values = new double[7];
         for (int i = 0; i < 7; i++) {
@@ -244,6 +274,7 @@ public class ForecastRuntimeService {
         return mean ? mean(values) : std(values);
     }
 
+    /* Computes the rolling 7-day mean or std of anomaly rate. */
     private double rollingAnomalyRate(LocalDate date, boolean mean) {
         double[] values = new double[7];
         for (int i = 0; i < 7; i++) {
@@ -252,6 +283,7 @@ public class ForecastRuntimeService {
         return mean ? mean(values) : std(values);
     }
 
+    /* Statistical utilities. */
     private double mean(double[] values) {
         double sum = 0.0;
         for (double value : values) {
@@ -270,10 +302,12 @@ public class ForecastRuntimeService {
         return values.length == 0 ? 0.0 : Math.sqrt(sum / values.length);
     }
 
+    /* Clamps a value to [min, max]. */
     private double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
 
+    /* In-memory Ridge regression model with standardisation. */
     private record RidgeModel(List<String> featureOrder,
                               double[] coef,
                               double intercept,

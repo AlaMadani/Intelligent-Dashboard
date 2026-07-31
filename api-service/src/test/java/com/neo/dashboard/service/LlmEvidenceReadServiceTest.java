@@ -37,6 +37,9 @@ class LlmEvidenceReadServiceTest {
         ReflectionTestUtils.setField(service, "evidenceRehydrateTtlHours", 24L);
     }
 
+    /**
+     * Evidence Prefers Redis Payload
+     */
     @Test
     void evidencePrefersRedisPayload() throws Exception {
         JsonNode payload = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-1\"}");
@@ -49,6 +52,9 @@ class LlmEvidenceReadServiceTest {
         verify(redisReadService, never()).writeJson(any(), any(), any());
     }
 
+    /**
+     * Evidence Falls Back To Sql Session Payload And Rehydrates Redis
+     */
     @Test
     void evidenceFallsBackToSqlSessionPayloadAndRehydratesRedis() {
         when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-2"))).thenReturn(Optional.empty());
@@ -69,6 +75,9 @@ class LlmEvidenceReadServiceTest {
         verify(redisReadService).writeJson(eq(CacheKeys.alertLlmEvidenceKey("evt-2")), any(JsonNode.class), any(Duration.class));
     }
 
+    /**
+     * Malformed Sql Evidence Returns Empty
+     */
     @Test
     void malformedSqlEvidenceReturnsEmpty() {
         when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-3"))).thenReturn(Optional.empty());
@@ -82,6 +91,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Evidence Hash Uses Existing Field When Present
+     */
     @Test
     void evidenceHashUsesExistingFieldWhenPresent() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"evidenceHash\":\"abcdef1234567890abcdef1234567890\"}");
@@ -91,6 +103,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(hash).isEqualTo("abcdef1234567890abcdef1234567890");
     }
 
+    /**
+     * Evidence Hash Computes When Field Missing
+     */
     @Test
     void evidenceHashComputesWhenFieldMissing() throws Exception {
         JsonNode evidence = objectMapper.readTree("{\"schemaVersion\":\"v3.6.1\",\"eventId\":\"evt-5\"}");
@@ -101,6 +116,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(hash).isAlphanumeric();
     }
 
+    /**
+     * Both Evidence Sources Missing Returns Empty
+     */
     @Test
     void bothEvidenceSourcesMissingReturnsEmpty() {
         when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-6"))).thenReturn(Optional.empty());
@@ -111,6 +129,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Redis Evidence Exact Match Accepted
+     */
     @Test
     void redisEvidenceExactMatchAccepted() throws Exception {
         JsonNode payload = objectMapper.readTree("{\"eventId\":\"evt-7\",\"recordId\":\"evt-7\",\"schemaVersion\":\"v3.6.1\"}");
@@ -122,6 +143,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(result.orElseThrow().path("eventId").asText()).isEqualTo("evt-7");
     }
 
+    /**
+     * Redis Evidence Mismatched Rejected
+     */
     @Test
     void redisEvidenceMismatchedRejected() throws Exception {
         JsonNode payload = objectMapper.readTree("{\"eventId\":\"evt-other\",\"eventMetadata\":{\"eventId\":\"evt-other\"}}");
@@ -132,6 +156,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Redis Evidence Conflict Rejected
+     */
     @Test
     void redisEvidenceConflictRejected() throws Exception {
         JsonNode payload = objectMapper.readTree("{\"eventId\":\"evt-9\",\"eventMetadata\":{\"eventId\":\"evt-other\"}}");
@@ -142,6 +169,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Sql Evidence Mismatched Rejected
+     */
     @Test
     void sqlEvidenceMismatchedRejected() throws Exception {
         when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-10"))).thenReturn(Optional.empty());
@@ -155,6 +185,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Sql Session Evidence Mismatched Rejected
+     */
     @Test
     void sqlSessionEvidenceMismatchedRejected() throws Exception {
         when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-11"))).thenReturn(Optional.empty());
@@ -174,6 +207,9 @@ class LlmEvidenceReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Sql Session Evidence Exact Match Accepted
+     */
     @Test
     void sqlSessionEvidenceExactMatchAccepted() throws Exception {
         when(redisReadService.readJson(CacheKeys.alertLlmEvidenceKey("evt-12"))).thenReturn(Optional.empty());

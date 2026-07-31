@@ -12,14 +12,22 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Manages per-session sequence windows in Redis: loads, appends, trims to
+ * max window size, and converts state into ONNX-compatible tensors.
+ */
 @Service
 @RequiredArgsConstructor
 public class SequenceWindowService {
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties cacheProperties;
 
+    /* ========== Public API ========== */
+
+    /* Loads the current window state for a session from Redis. */
     public SequenceWindowState load(String sessionId) {
         SequenceWindowState state = redisCacheService.getJson(CacheKeys.sequenceWindowKey(sessionId), SequenceWindowState.class);
         if (state == null || state.getEvents() == null) {
@@ -29,6 +37,7 @@ public class SequenceWindowService {
         return state;
     }
 
+    /* Appends an encoded event, trims to window size, and persists to Redis. */
     public void appendAndSave(String sessionId, EncodedSequenceEvent encodedEvent) {
         SequenceWindowState state = load(sessionId);
         List<EncodedSequenceEvent> events = new ArrayList<>(state.getEvents());
@@ -44,6 +53,7 @@ public class SequenceWindowService {
                 cacheProperties.getSessionBuffer());
     }
 
+    /* Converts window state to ONNX input tensors (x_cat, x_cont, mask). */
     public SequenceWindow toWindow(SequenceWindowState state) {
         int windowSize = artifactService.getSequenceMetadata().getWindowSize();
         int catCount = artifactService.getSequenceMetadata().getCatCols().size();
@@ -83,6 +93,7 @@ public class SequenceWindowService {
                 .build();
     }
 
+    /* Returns the timestamp of the latest event in the window. */
     public Instant latestTimestamp(SequenceWindowState state) {
         EncodedSequenceEvent last = state == null ? null : state.lastEvent();
         return last == null ? null : last.getTimestamp();

@@ -7,6 +7,10 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Configuration POJO for forecast models, loaded from forecast_config.json.
+ * Contains sub-configs for anomaly-rate and total-events models.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ForecastConfig {
@@ -21,14 +25,17 @@ public class ForecastConfig {
     @JsonProperty("anomaly_rate")
     private AnomalyRate anomalyRate = new AnomalyRate();
 
+    /* Returns the model config for anomaly-rate prediction. */
     public ModelConfig anomalyRateModel() {
         return models.getOrDefault("anomaly_rate", new ModelConfig());
     }
 
+    /* Returns the model config for total-events prediction. */
     public ModelConfig totalEventsModel() {
         return models.getOrDefault("total_events", new ModelConfig());
     }
 
+    /* Config for a single forecast model (preferred model, artifact, feature order). */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ModelConfig {
@@ -41,6 +48,7 @@ public class ForecastConfig {
         private String javaRuntime;
     }
 
+    /* Config for total-events sub-model (file, type, feature order). */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class TotalEvents {
@@ -56,6 +64,7 @@ public class ForecastConfig {
         private double missingValue;
     }
 
+    /* Config for anomaly-rate sub-model (strategy, formula, feature). */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AnomalyRate {

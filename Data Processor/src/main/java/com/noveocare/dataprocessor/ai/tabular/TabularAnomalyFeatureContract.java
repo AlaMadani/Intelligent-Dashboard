@@ -7,6 +7,10 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Describes the tabular anomaly feature contract: feature order, count, and
+ * logical groups.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TabularAnomalyFeatureContract {

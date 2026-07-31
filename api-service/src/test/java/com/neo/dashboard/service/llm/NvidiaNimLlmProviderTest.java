@@ -32,23 +32,35 @@ class NvidiaNimLlmProviderTest {
         ReflectionTestUtils.setField(provider, "maxTokens", 128);
     }
 
+    /**
+     * Provider Name Is Nvidia Nim
+     */
     @Test
     void providerNameIsNvidiaNim() {
         assertThat(provider.providerName()).isEqualTo("nvidia-nim");
     }
 
+    /**
+     * Is Configured Returns False When Key Missing
+     */
     @Test
     void isConfiguredReturnsFalseWhenKeyMissing() {
         ReflectionTestUtils.setField(provider, "apiKey", "");
         assertThat(provider.isConfigured()).isFalse();
     }
 
+    /**
+     * Is Configured Returns True When Key Present
+     */
     @Test
     void isConfiguredReturnsTrueWhenKeyPresent() {
         ReflectionTestUtils.setField(provider, "apiKey", "test-key");
         assertThat(provider.isConfigured()).isTrue();
     }
 
+    /**
+     * Generate Returns Not Configured Error When Key Missing
+     */
     @Test
     void generateReturnsNotConfiguredErrorWhenKeyMissing() {
         ReflectionTestUtils.setField(provider, "apiKey", "");
@@ -63,6 +75,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(response.getModel()).isEqualTo("test-model");
     }
 
+    /**
+     * Minimal Request Body Matches Power Shell Shape
+     */
     @Test
     void minimalRequestBodyMatchesPowerShellShape() {
         ReflectionTestUtils.setField(provider, "minimalRequestMode", true);
@@ -88,6 +103,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(body.get("stream")).isEqualTo(false);
     }
 
+    /**
+     * Minimal Request Body Exact Key Set
+     */
     @Test
     void minimalRequestBodyExactKeySet() {
         ReflectionTestUtils.setField(provider, "minimalRequestMode", true);
@@ -99,6 +117,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(body.keySet()).containsExactly("model", "messages", "temperature", "top_p", "max_tokens", "stream");
     }
 
+    /**
+     * Minimal Request Body Excludes All Unsupported Fields
+     */
     @Test
     void minimalRequestBodyExcludesAllUnsupportedFields() {
         ReflectionTestUtils.setField(provider, "minimalRequestMode", true);
@@ -124,6 +145,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(body.containsKey("input")).isFalse();
     }
 
+    /**
+     * Minimal Request Body Serializes To Expected Json
+     */
     @Test
     void minimalRequestBodySerializesToExpectedJson() throws Exception {
         ReflectionTestUtils.setField(provider, "minimalRequestMode", true);
@@ -149,6 +173,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(parsed.has("chat_template_kwargs")).isFalse();
     }
 
+    /**
+     * Normal Mode With Extra Body False Excludes Unsupported Fields
+     */
     @Test
     void normalModeWithExtraBodyFalseExcludesUnsupportedFields() {
         ReflectionTestUtils.setField(provider, "minimalRequestMode", false);
@@ -170,6 +197,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(body.containsKey("tool_choice")).isFalse();
     }
 
+    /**
+     * Normal Mode With Extra Body True Contains Top Level Fields
+     */
     @Test
     void normalModeWithExtraBodyTrueContainsTopLevelFields() {
         ReflectionTestUtils.setField(provider, "minimalRequestMode", false);
@@ -195,6 +225,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(body.containsKey("extra_body")).isFalse();
     }
 
+    /**
+     * Normal Mode Has System And User Messages
+     */
     @Test
     void normalModeHasSystemAndUserMessages() {
         ReflectionTestUtils.setField(provider, "minimalRequestMode", false);
@@ -215,6 +248,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(((Map<?, ?>) messages.get(1)).get("content")).isEqualTo("Evidence payload here");
     }
 
+    /**
+     * Response Body Extracted From Web Client Response Exception
+     */
     @Test
     void responseBodyExtractedFromWebClientResponseException() throws Exception {
         WebClientResponseException ex = WebClientResponseException.create(
@@ -226,24 +262,36 @@ class NvidiaNimLlmProviderTest {
         assertThat(body).contains("invalid request");
     }
 
+    /**
+     * Response Body Extraction Handles Non Http Exception
+     */
     @Test
     void responseBodyExtractionHandlesNonHttpException() throws Exception {
         String body = invokeExtractNvidiaResponseBody(new RuntimeException("network error"));
         assertThat(body).isEqualTo("(no response body)");
     }
 
+    /**
+     * Extract Null Response Body Returns No Body
+     */
     @Test
     void extractNullResponseBodyReturnsNoBody() throws Exception {
         String body = invokeExtractNvidiaResponseBody(null);
         assertThat(body).isEqualTo("(no response body)");
     }
 
+    /**
+     * Truncate Returns Full String When Under Limit
+     */
     @Test
     void truncateReturnsFullStringWhenUnderLimit() throws Exception {
         String result = invokeTruncate("short text", 100);
         assertThat(result).isEqualTo("short text");
     }
 
+    /**
+     * Truncate Returns Truncated String When Over Limit
+     */
     @Test
     void truncateReturnsTruncatedStringWhenOverLimit() throws Exception {
         String result = invokeTruncate("a".repeat(3000), 2000);
@@ -251,12 +299,18 @@ class NvidiaNimLlmProviderTest {
         assertThat(result).endsWith("...");
     }
 
+    /**
+     * Truncate Returns Empty For Null
+     */
     @Test
     void truncateReturnsEmptyForNull() throws Exception {
         String result = invokeTruncate(null, 2000);
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Response Text Extraction From Choices
+     */
     @Test
     void responseTextExtractionFromChoices() throws Exception {
         JsonNode response = objectMapper.readTree("""
@@ -281,6 +335,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(text.orElseThrow()).isEqualTo("Generated explanation text");
     }
 
+    /**
+     * Response Text With Reasoning Content Returns Content Only
+     */
     @Test
     void responseTextWithReasoningContentReturnsContentOnly() throws Exception {
         JsonNode response = objectMapper.readTree("""
@@ -309,6 +366,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(text.orElseThrow()).isEqualTo("Hello!");
     }
 
+    /**
+     * Response Text Extraction From Empty Choices
+     */
     @Test
     void responseTextExtractionFromEmptyChoices() throws Exception {
         JsonNode response = objectMapper.readTree("""
@@ -321,6 +381,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(text).isEmpty();
     }
 
+    /**
+     * Response Text Extraction From Missing Choices
+     */
     @Test
     void responseTextExtractionFromMissingChoices() throws Exception {
         JsonNode response = objectMapper.readTree("{}");
@@ -329,6 +392,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(text).isEmpty();
     }
 
+    /**
+     * Response Text Extraction From Missing Content
+     */
     @Test
     void responseTextExtractionFromMissingContent() throws Exception {
         JsonNode response = objectMapper.readTree("""
@@ -367,6 +433,9 @@ class NvidiaNimLlmProviderTest {
         return (String) method.invoke(provider, s, max);
     }
 
+    /**
+     * Successful Raw Response Parse
+     */
     @Test
     void successfulRawResponseParse() {
         String rawBody = """
@@ -400,6 +469,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(response.getProvider()).isEqualTo("nvidia-nim");
     }
 
+    /**
+     * Invalid Response Json Returns Invalid Response Error
+     */
     @Test
     void invalidResponseJsonReturnsInvalidResponseError() {
         LlmProviderResponse response = provider.parseRawResponse(
@@ -409,6 +481,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(response.getErrorCode()).isEqualTo("INVALID_RESPONSE");
     }
 
+    /**
+     * Empty Raw Body Returns Invalid Response Error
+     */
     @Test
     void emptyRawBodyReturnsInvalidResponseError() {
         LlmProviderResponse response = provider.parseRawResponse(
@@ -418,6 +493,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(response.getErrorCode()).isEqualTo("INVALID_RESPONSE");
     }
 
+    /**
+     * Missing Content Returns Empty Content Error
+     */
     @Test
     void missingContentReturnsEmptyContentError() {
         String rawBody = """
@@ -436,6 +514,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(response.getErrorCode()).isEqualTo("EMPTY_CONTENT");
     }
 
+    /**
+     * Empty Choices Array Returns Empty Content Error
+     */
     @Test
     void emptyChoicesArrayReturnsEmptyContentError() {
         String rawBody = """
@@ -450,6 +531,9 @@ class NvidiaNimLlmProviderTest {
         assertThat(response.getErrorCode()).isEqualTo("EMPTY_CONTENT");
     }
 
+    /**
+     * Missing Usage Returns Null Tokens
+     */
     @Test
     void missingUsageReturnsNullTokens() {
         String rawBody = """

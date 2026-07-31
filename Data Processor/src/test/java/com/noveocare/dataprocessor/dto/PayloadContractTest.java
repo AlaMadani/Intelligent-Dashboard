@@ -12,10 +12,18 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for DTO payload contracts: AnomalyAlert serialization/deserialization,
+ * SessionInsight risk scale, and V36LiveAlertSummary round-trip.
+ */
 class PayloadContractTest {
+
+    /* --- Fields --- */
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
+
+    /* --- Test methods: alert payload --- */
 
     @Test
     @SuppressWarnings("unchecked")
@@ -200,6 +208,8 @@ class PayloadContractTest {
         assertThat(alert.getModelScores()).containsEntry("xgboostAnomalyScore100", 0.22);
     }
 
+    /* --- Test methods: session insight --- */
+
     @Test
     void sessionInsightHasRiskScale() {
         SessionInsight insight = SessionInsight.builder()
@@ -217,6 +227,8 @@ class PayloadContractTest {
 
         assertThat(insight.getRiskScale()).isEqualTo("ZERO_TO_ONE_HUNDRED");
     }
+
+    /* --- Test methods: V36LiveAlertSummary --- */
 
     @Test
     void v36LiveAlertSummaryRoundTrip() throws Exception {
@@ -338,6 +350,8 @@ class PayloadContractTest {
         assertThat(read.getTimestamp()).isNotNull();
         assertThat(read.getTimestamp()).isEqualTo("2026-06-25T12:00:00Z");
     }
+
+    /* --- Test methods: defaults --- */
 
     @Test
     void defaultTransformerTcnBothNullWhenNotSet() {

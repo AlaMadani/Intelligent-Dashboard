@@ -32,8 +32,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+/**
+ * Tests for SessionFinalizationOrchestrator: LLM evidence payload event ID
+ * matching, mismatched event ID handling, and explicit logout evidence writing.
+ */
 @ExtendWith(MockitoExtension.class)
 class SessionFinalizationOrchestratorTest {
+
+    /* --- Mock fields --- */
 
     @Mock
     private AlertPublisher alertPublisher;
@@ -56,9 +62,13 @@ class SessionFinalizationOrchestratorTest {
     @Mock
     private AlertCacheService alertCacheService;
 
+    /* --- Fields --- */
+
     private FeatureEngineeringProperties featureProperties;
     private RedisCacheProperties redisCacheProperties;
     private SessionFinalizationOrchestrator orchestrator;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -80,6 +90,8 @@ class SessionFinalizationOrchestratorTest {
                 redisCacheProperties, featureProperties,
                 finalizationService, new PerformanceProperties(), alertCacheService);
     }
+
+    /* --- Test methods: event ID matching --- */
 
     @Test
     void alertEventIdMatchesPayloadEventId() {
@@ -118,6 +130,8 @@ class SessionFinalizationOrchestratorTest {
         assertThat(orchestrator.getLlmEvidenceKeyPayloadMismatchTotal()).isZero();
     }
 
+    /* --- Test methods: mismatched event ID --- */
+
     @Test
     void alertEventIdDiffersFromPayloadEventId() {
         SessionInsight insight = SessionInsight.builder()
@@ -155,6 +169,8 @@ class SessionFinalizationOrchestratorTest {
 
         assertThat(orchestrator.getLlmEvidenceKeyPayloadMismatchTotal()).isOne();
     }
+
+    /* --- Test methods: explicit logout --- */
 
     @Test
     void explicitLogoutLastEventYEvidenceWrittenUnderYOnly() {
@@ -205,6 +221,8 @@ class SessionFinalizationOrchestratorTest {
 
         assertThat(orchestrator.getLlmEvidenceKeyPayloadMismatchTotal()).isOne();
     }
+
+    /* --- Helper methods --- */
 
     private SessionSummary summary() {
         return SessionSummary.builder()

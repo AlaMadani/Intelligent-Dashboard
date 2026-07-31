@@ -29,6 +29,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Predicts the next categorical field values (action, page, etc.) based on sequence
+ * model logits. Evaluates deviation of actual events against previous predictions.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -36,6 +40,7 @@ public class NextEventPredictionService {
 
     private static final String SCHEMA_VERSION = "v3.6.1";
 
+    /* Injected dependencies */
     private final NextEventPredictionProperties properties;
     private final RuntimeArtifactService artifactService;
     private final RedisCacheService redisCacheService;
@@ -43,6 +48,7 @@ public class NextEventPredictionService {
     private final NextEventPredictionRepository repository;
     private final ObjectMapper objectMapper;
 
+    /* Prediction and deviation metrics */
     private final AtomicLong generatedTotal = new AtomicLong();
     private final AtomicLong skippedInsufficientContextTotal = new AtomicLong();
     private final AtomicLong skippedOutputUnavailableTotal = new AtomicLong();
@@ -57,7 +63,10 @@ public class NextEventPredictionService {
     private volatile String lastDeviationError;
     private volatile String lastSkippedSameContextEventId;
 
+    /* Head-name to index mapping built from sequence metadata */
     private Map<String, Integer> headNameToIndex;
+
+    /* --- Initialization --- */
 
     @PostConstruct
     public void init() {
@@ -68,6 +77,8 @@ public class NextEventPredictionService {
             headNameToIndex.put(catCols.get(i), i);
         }
     }
+
+    /* --- Public API --- */
 
     public boolean isEnabled() {
         return properties.isEnabled();
@@ -94,6 +105,8 @@ public class NextEventPredictionService {
             log.warn("Next-event prediction failed for session {}: {}", sessionId, e.getMessage());
         }
     }
+
+    /* --- Internal prediction logic --- */
 
     private void doPredict(SequenceInferenceResult inference, String insuredId, String sessionId,
                            String contextEventId, int contextSize, AuditTrailEvent currentEvent) {
@@ -159,6 +172,7 @@ public class NextEventPredictionService {
         lastPredictionAt = now;
     }
 
+    /* Computes deviation between the previous prediction and the actual event */
     private Map<String, Object> computeDeviation(String sessionId, String contextEventId,
                                                   AuditTrailEvent currentEvent) {
         NextEventPredictionResult prediction = loadLatestPrediction(sessionId);
@@ -251,6 +265,7 @@ public class NextEventPredictionService {
         return deviation;
     }
 
+    /* Evaluates deviation for the current event against the latest prediction */
     public Map<String, Object> evaluateDeviation(AuditTrailEvent currentEvent, String sessionId) {
         if (!properties.isEnabled() || !properties.isEvaluateDeviation()) {
             return null;
@@ -258,6 +273,7 @@ public class NextEventPredictionService {
         return computeDeviation(sessionId, currentEvent.getId(), currentEvent);
     }
 
+    /* Extracts relevant field values from the event for deviation comparison */
     private Map<String, String> buildActualValues(AuditTrailEvent event) {
         Map<String, String> actual = new LinkedHashMap<>();
         putIfNotNull(actual, "frontend_action_name", event.getFrontendActionName());
@@ -270,12 +286,14 @@ public class NextEventPredictionService {
         return actual;
     }
 
+    /* Puts the value into the map only if non-null */
     private void putIfNotNull(Map<String, String> map, String key, String value) {
         if (value != null) {
             map.put(key, value);
         }
     }
 
+    /* Decodes the top-K predicted values from logits using the reverse vocabulary map */
     private List<NextEventPredictionHeadScore.PredictedValue> decodeTopK(float[] logits, Map<String, String> reverseMap, int topK) {
         int k = Math.min(topK, logits.length);
 
@@ -301,6 +319,7 @@ public class NextEventPredictionService {
         return result;
     }
 
+    /* Computes softmax probabilities from raw logits */
     private double[] softmax(float[] logits) {
         double max = Double.NEGATIVE_INFINITY;
         for (float v : logits) {
@@ -320,6 +339,7 @@ public class NextEventPredictionService {
         return probs;
     }
 
+    /* Persists prediction to Redis and/or SQL based on configuration */
     private void persist(NextEventPredictionResult result, Instant now) {
         try {
             String json = objectMapper.writeValueAsString(result);
@@ -351,6 +371,7 @@ public class NextEventPredictionService {
         }
     }
 
+    /* Loads prediction from Redis cache or SQL fallback */
     public NextEventPredictionResult loadPrediction(String sessionId, String contextEventId) {
         String redisKey = CacheKeys.nextEventPredictionSessionKey(sessionId);
         String cached = redisCacheService.getJson(redisKey, String.class);
@@ -373,6 +394,7 @@ public class NextEventPredictionService {
                 .orElse(null);
     }
 
+    /* Loads the latest prediction for a session from Redis only */
     private NextEventPredictionResult loadLatestPrediction(String sessionId) {
         String redisKey = CacheKeys.nextEventPredictionSessionKey(sessionId);
         String cached = redisCacheService.getJson(redisKey, String.class);
@@ -385,6 +407,8 @@ public class NextEventPredictionService {
         }
         return null;
     }
+
+    /* --- Diagnostics --- */
 
     public Map<String, Object> diagnosticsSnapshot() {
         Map<String, Object> d = new LinkedHashMap<>();

@@ -19,6 +19,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Maps raw AuditTrailEvent fields into structured SequenceEventValues by
+ * extracting categorical and continuous columns per the sequence metadata
+ * contract.
+ */
 @Service
 @RequiredArgsConstructor
 public class SequenceEventMapper {
@@ -26,9 +31,13 @@ public class SequenceEventMapper {
     private static final double TWO_PI = 2.0 * Math.PI;
     private static final long TIME_DELTA_WARNING_MS = 1_000L;
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiSequenceProperties sequenceProperties;
 
+    /* ========== Public API ========== */
+
+    /* Maps an event to structured values for sequence encoding. */
     public SequenceEventValues map(AuditTrailEvent event, Instant previousTimestamp) {
         List<String> warnings = new ArrayList<>();
         boolean schemaValid = true;
@@ -78,6 +87,9 @@ public class SequenceEventMapper {
                 .build();
     }
 
+    /* ========== Private field extractors ========== */
+
+    /* Extracts a categorical field directly from the event. */
     private String rawCategorical(AuditTrailEvent event, String field) {
         return switch (field) {
             case "page" -> event.getPage();
@@ -99,6 +111,7 @@ public class SequenceEventMapper {
         };
     }
 
+    /* Fallback extraction using legacy field mappings. */
     private String legacyCategorical(AuditTrailEvent event, String field) {
         return switch (field) {
             case "page" -> firstNonBlank(event.getRoute(), event.getPage());
@@ -112,6 +125,7 @@ public class SequenceEventMapper {
         };
     }
 
+    /* Extracts a continuous field value from the event. */
     private Double rawContinuous(AuditTrailEvent event, String field, Instant previousTimestamp, List<String> warnings) {
         return switch (field) {
             case "time_since_prev_action_ms" -> timeSincePrevious(event, previousTimestamp, warnings);
@@ -127,6 +141,7 @@ public class SequenceEventMapper {
         };
     }
 
+    /* Computes time since previous action, with fallback to raw field. */
     private Double timeSincePrevious(AuditTrailEvent event, Instant previousTimestamp, List<String> warnings) {
         Long provided = event.getTimeSincePrevActionMs();
         Instant current = event.getCreatedAt();
@@ -147,6 +162,7 @@ public class SequenceEventMapper {
         return null;
     }
 
+    /* Extracts request data size with legacy fallback. */
     private Double requestSize(AuditTrailEvent event) {
         if (event.getRequestDataSizeBytes() != null) {
             return event.getRequestDataSizeBytes().doubleValue();
@@ -157,6 +173,7 @@ public class SequenceEventMapper {
         return null;
     }
 
+    /* Extracts response data size with legacy fallback. */
     private Double responseSize(AuditTrailEvent event) {
         if (event.getResponseDataSizeBytes() != null) {
             return event.getResponseDataSizeBytes().doubleValue();
@@ -167,6 +184,7 @@ public class SequenceEventMapper {
         return null;
     }
 
+    /* Determines whether the event falls within business hours (8-19). */
     private Double businessHours(AuditTrailEvent event, List<String> warnings) {
         Integer computed = event.getCreatedAt() == null ? null : (hourFromTimestamp(event) >= 8 && hourFromTimestamp(event) < 19 ? 1 : 0);
         Integer provided = event.getIsBusinessHours();
@@ -179,6 +197,7 @@ public class SequenceEventMapper {
         return computed == null ? null : computed.doubleValue();
     }
 
+    /* Determines whether the event falls on a weekend. */
     private Double weekend(AuditTrailEvent event, List<String> warnings) {
         Integer computed = event.getCreatedAt() == null ? null : (isWeekend(event.getCreatedAt()) ? 1 : 0);
         Integer provided = event.getIsWeekend();
@@ -191,6 +210,7 @@ public class SequenceEventMapper {
         return computed == null ? null : computed.doubleValue();
     }
 
+    /* Extracts the hour of day from the event timestamp or raw field. */
     private int hour(AuditTrailEvent event, List<String> warnings) {
         Integer computed = event.getCreatedAt() == null ? null : hourFromTimestamp(event);
         Integer provided = event.getHour();
@@ -203,6 +223,7 @@ public class SequenceEventMapper {
         return provided == null ? 0 : provided;
     }
 
+    /* Extracts the day of week from the event timestamp or raw field. */
     private int dayOfWeek(AuditTrailEvent event, List<String> warnings) {
         Integer computed = event.getCreatedAt() == null ? null : dayOfWeekFromTimestamp(event.getCreatedAt());
         Integer provided = event.getRawDayOfWeek();
@@ -215,31 +236,38 @@ public class SequenceEventMapper {
         return provided == null ? 0 : provided;
     }
 
+    /* Extracts UTC hour from the event timestamp. */
     private int hourFromTimestamp(AuditTrailEvent event) {
         return event.getCreatedAt().atZone(ZoneOffset.UTC).getHour();
     }
 
+    /* Extracts the day-of-week index (0=Monday) from a timestamp. */
     private int dayOfWeekFromTimestamp(Instant timestamp) {
         return timestamp.atZone(ZoneOffset.UTC).getDayOfWeek().getValue() - 1;
     }
 
+    /* Checks if the timestamp falls on a Saturday or Sunday. */
     private boolean isWeekend(Instant timestamp) {
         DayOfWeek day = ZonedDateTime.ofInstant(timestamp, ZoneOffset.UTC).getDayOfWeek();
         return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
     }
 
+    /* Normalises a binary integer to 0 or 1. */
     private int normalizeBinary(Integer value) {
         return value != null && value != 0 ? 1 : 0;
     }
 
+    /* Returns the UTF-8 byte size of a JSON node's text representation. */
     private int utf8Size(JsonNode node) {
         return node == null ? 0 : node.toString().getBytes(StandardCharsets.UTF_8).length;
     }
 
+    /* Utility: returns first non-blank value. */
     private String firstNonBlank(String first, String second) {
         return isBlank(first) ? second : first;
     }
 
+    /* Utility: null/blank check. */
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }

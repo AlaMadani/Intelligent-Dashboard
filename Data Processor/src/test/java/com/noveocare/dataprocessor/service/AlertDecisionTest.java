@@ -29,8 +29,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+/**
+ * Tests for alert decision logic in SessionFinalizationOrchestrator:
+ * threshold-based alert eligibility, duplicate prevention, payload
+ * structure with risk levels, event metadata, sequence and tabular evidence.
+ */
 @ExtendWith(MockitoExtension.class)
 class AlertDecisionTest {
+
+    /* --- Mock fields --- */
 
     @Mock
     private AlertPublisher alertPublisher;
@@ -53,11 +60,15 @@ class AlertDecisionTest {
     @Mock
     private AlertCacheService alertCacheService;
 
+    /* --- Fields --- */
+
     private FeatureEngineeringProperties featureProperties;
     private RedisCacheProperties redisCacheProperties;
     private SessionFinalizationOrchestrator orchestrator;
 
     private final double SESSION_ALERT_RISK_THRESHOLD = 60.0;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -79,6 +90,8 @@ class AlertDecisionTest {
                 redisCacheProperties, featureProperties,
                 finalizationService, new PerformanceProperties(), alertCacheService);
     }
+
+    /* --- Test methods: alert thresholds --- */
 
     @Test
     void finalRiskBelow35NoRulesNoAlert() {
@@ -116,6 +129,8 @@ class AlertDecisionTest {
         assertThat(orchestrator.shouldAlert(insight)).isTrue();
     }
 
+    /* --- Test methods: alert trigger --- */
+
     @Test
     void alertReasonIsAnomalyThresholdWhenAnomalyTrueNoRules() {
         SessionInsight insight = insightWith(35.0, true, List.of());
@@ -130,6 +145,8 @@ class AlertDecisionTest {
         verify(alertPublisher, atLeastOnce()).publish(any(), anyString());
     }
 
+    /* --- Test methods: deduplication --- */
+
     @Test
     void duplicateAlertNotPublished() {
         SessionInsight insight = insightWith(80.0, true, List.of("RAPID_FIRE_EVENTS"));
@@ -141,6 +158,8 @@ class AlertDecisionTest {
 
         verify(alertPublisher, never()).publish(any(), anyString());
     }
+
+    /* --- Test methods: payload structure --- */
 
     @Test
     void alertPayloadHasRiskLevelRiskTierAndRiskScale() {
@@ -161,6 +180,8 @@ class AlertDecisionTest {
         assertThat(alert.getRiskTier()).isEqualTo("MEDIUM");
         assertThat(alert.getRiskScale()).isEqualTo("ZERO_TO_ONE_HUNDRED");
     }
+
+    /* --- Test methods: event metadata --- */
 
     @Test
     void alertPayloadContainsEventMetadata() {
@@ -194,6 +215,8 @@ class AlertDecisionTest {
         assertThat(alert.getEventMetadata().get("device")).isEqualTo("mobile");
         assertThat(alert.getEventMetadata().get("browser")).isEqualTo("Chrome");
     }
+
+    /* --- Test methods: sequence evidence --- */
 
     @Test
     void alertPayloadContainsSequenceEvidence() {
@@ -238,6 +261,8 @@ class AlertDecisionTest {
         assertThat(alert.getSequenceEvidence().get("available")).isEqualTo(true);
     }
 
+    /* --- Test methods: tabular evidence --- */
+
     @Test
     void alertPayloadContainsTabularEvidence() {
         SessionInsight insight = SessionInsight.builder()
@@ -273,6 +298,8 @@ class AlertDecisionTest {
         assertThat(alert.getTabularEvidence().get("unavailableModels")).isEqualTo(List.of("catboost", "oneclasssvm"));
         assertThat(alert.getTabularEvidence().get("available")).isEqualTo(true);
     }
+
+    /* --- Helper methods --- */
 
     private SessionInsight insightWith(double finalRiskScore, boolean anomaly, List<String> rules) {
         return SessionInsight.builder()

@@ -25,18 +25,29 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+/**
+ * Follow-up tests for various data processor configuration defaults and
+ * edge cases: sequence/tcn/transformer enabled flags, live fast mode,
+ * circuit breaker diagnostics, dashboard refresh tracking, and more.
+ */
 @ExtendWith(MockitoExtension.class)
 class DataprocessorFollowUpTest {
+
+    /* --- Mock fields --- */
 
     @Mock
     private ModelHealthService modelHealthService;
     @Mock
     private InferenceExecutorManager executorManager;
 
+    /* --- Fields --- */
+
     private InferenceConfig inferenceConfig;
     private AiSequenceProperties sequenceProperties;
     private DashboardSnapshotService dashboardSnapshotService;
     private DashboardRefreshScheduler dashboardRefreshScheduler;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -46,6 +57,8 @@ class DataprocessorFollowUpTest {
         dashboardSnapshotService = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         dashboardRefreshScheduler = new DashboardRefreshScheduler(dashboardSnapshotService, null);
     }
+
+    /* --- Test methods: sequence defaults --- */
 
     @Test
     void transformerEnabledDefaultsToFalse() {
@@ -74,6 +87,8 @@ class DataprocessorFollowUpTest {
         assertThat(inferenceConfig.isTcnEnabled()).isFalse();
     }
 
+    /* --- Test methods: config propagation --- */
+
     @Test
     void inferenceConfigReportsTransformerEnabled() {
         sequenceProperties.setEnabled(true);
@@ -88,6 +103,8 @@ class DataprocessorFollowUpTest {
         assertThat(inferenceConfig.isTcnEnabled()).isTrue();
     }
 
+    /* --- Test methods: live fast mode --- */
+
     @Test
     void liveFastModeSkipTransformerDefaultsToTrue() {
         InferenceConfigProperties props = new InferenceConfigProperties();
@@ -100,11 +117,15 @@ class DataprocessorFollowUpTest {
         assertThat(props.getLiveFastMode().isAllowTcn()).isTrue();
     }
 
+    /* --- Test methods: circuit breaker --- */
+
     @Test
     void circuitBreakerDisableModelForRunDefaultsToFalse() {
         InferenceConfigProperties props = new InferenceConfigProperties();
         assertThat(props.getCircuitBreaker().isDisableModelForRunAfterCircuitOpen()).isFalse();
     }
+
+    /* --- Test methods: dashboard --- */
 
     @Test
     void dashboardRateLimitNotIncrementedBeforeFirstRefresh() {
@@ -112,11 +133,15 @@ class DataprocessorFollowUpTest {
         assertThat(service.getDashboardRefreshSkippedDueToRateLimit()).isZero();
     }
 
+    /* --- Test methods: session finalization --- */
+
     @Test
     void sessionFinalizationGracePeriodDefaultsTo30000() {
         SessionFinalizationProperties props = new SessionFinalizationProperties();
         assertThat(props.getGracePeriodMs()).isEqualTo(30000L);
     }
+
+    /* --- Test methods: action resolution --- */
 
     @Test
     void lateEventLogResolvesActionFromActionValue() {
@@ -154,6 +179,8 @@ class DataprocessorFollowUpTest {
         assertThat(resolveAction(event)).isEqualTo("unknown");
     }
 
+    /* --- Test methods: diagnostics --- */
+
     @Test
     void inferenceDiagnosticsIncludeTransformerEnabledInSnapshot() {
         sequenceProperties.setTransformerEnabled(false);
@@ -162,6 +189,8 @@ class DataprocessorFollowUpTest {
                 : Map.of("transformerEnabled", false);
         assertThat(inferenceConfig.isTransformerEnabled()).isFalse();
     }
+
+    /* --- Test methods: executor manager --- */
 
     @Test
     void executorManagerSupportsPermanentDisable() {
@@ -184,6 +213,8 @@ class DataprocessorFollowUpTest {
         assertThat(tDiag).containsEntry("permanentlyDisabled", true);
     }
 
+    /* --- Test methods: circuit breaker diagnostics --- */
+
     @Test
     void circuitBreakerDiagnosticsIncludePermanentlyDisabled() {
         InferenceExecutorManager em = new InferenceExecutorManager();
@@ -198,12 +229,16 @@ class DataprocessorFollowUpTest {
         assertThat(tDiag).containsEntry("permanentlyDisabled", false);
     }
 
+    /* --- Test methods: scheduler --- */
+
     @Test
     void dashboardSchedulerTracksRunCount() {
         DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
         DashboardRefreshScheduler scheduler = new DashboardRefreshScheduler(dss, null);
         assertThat(scheduler.getRunCount()).isZero();
     }
+
+    /* --- Test methods: dashboard snapshot --- */
 
     @Test
     void dashboardSnapshotTracksRefreshSuccessCount() {
@@ -219,11 +254,15 @@ class DataprocessorFollowUpTest {
         assertThat(dss.getLastRefreshError()).isNull();
     }
 
+    /* --- Test methods: finalization diagnostics --- */
+
     @Test
     void sessionFinalizationDiagnosticsIncludeGracePeriod() {
         SessionFinalizationProperties props = new SessionFinalizationProperties();
         assertThat(props.getGracePeriodMs()).isPositive();
     }
+
+    /* --- Test methods: idempotency --- */
 
     @Test
     void idempotencyTracksLastDuplicateEvent() {
@@ -232,6 +271,8 @@ class DataprocessorFollowUpTest {
         assertThat(service.getLastDuplicateEventSessionId()).isNull();
         assertThat(service.getLastDuplicateEventAt()).isNull();
     }
+
+    /* --- Helper methods --- */
 
     private String resolveAction(AuditTrailEvent event) {
         if (event == null) return "unknown";
@@ -247,6 +288,8 @@ class DataprocessorFollowUpTest {
         return "unknown";
     }
 
+    /* --- Test methods: inference defaults --- */
+
     @Test
     void liveFastModeDisablesSequenceInferenceByDefault() {
         assertThat(sequenceProperties.isEnabled()).isFalse();
@@ -255,12 +298,16 @@ class DataprocessorFollowUpTest {
         assertThat(inferenceConfig.isTcnEnabled()).isFalse();
     }
 
+    /* --- Test methods: sequence inference --- */
+
     @Test
     void sequenceInferenceDisabledPreventsTransformerAndTcnCalls() {
         sequenceProperties.setEnabled(false);
         assertThat(inferenceConfig.isTransformerEnabled()).isFalse();
         assertThat(inferenceConfig.isTcnEnabled()).isFalse();
     }
+
+    /* --- Test methods: dashboard refresh --- */
 
     @Test
     void dashboardRefreshIsSingleFlight() {
@@ -273,6 +320,8 @@ class DataprocessorFollowUpTest {
         dss.finishRefresh();
     }
 
+    /* --- Test methods: dirty flags --- */
+
     @Test
     void dirtyFlagsClearAfterSuccessfulPerViewRefresh() throws Exception {
         DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
@@ -284,6 +333,8 @@ class DataprocessorFollowUpTest {
         assertThat(dss.isSecurityOverviewDirty()).isTrue();
     }
 
+    /* --- Test methods: performance --- */
+
     @Test
     void perViewMinIntervalAvailable() {
         PerformanceProperties.DashboardRefresh config = new PerformanceProperties.DashboardRefresh();
@@ -293,6 +344,8 @@ class DataprocessorFollowUpTest {
         assertThat(config.getMaxAlertItems()).isGreaterThan(0);
         assertThat(config.getMaxRiskySessionItems()).isGreaterThan(0);
     }
+
+    /* --- Test methods: snapshot structure --- */
 
     @Test
     void dashboardSnapshotIncludesGeneratedAtUpdatedAtSourceItemCount() {
@@ -308,6 +361,8 @@ class DataprocessorFollowUpTest {
         assertThat(snapshot.get("itemCount")).isEqualTo(42);
     }
 
+    /* --- Test methods: timings --- */
+
     @Test
     void runtimeHealthExposesDashboardPerViewTimings() {
         DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
@@ -320,6 +375,8 @@ class DataprocessorFollowUpTest {
         assertThat(dss.getRefreshFailureCount()).isZero();
     }
 
+    /* --- Test methods: skip counters --- */
+
     @Test
     void refreshSkipCountersNotIncrementedOnEverySchedulerTick() {
         DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
@@ -327,10 +384,14 @@ class DataprocessorFollowUpTest {
         assertThat(before).isZero();
     }
 
+    /* --- Test methods: benchmark --- */
+
     @Test
     void debugBenchmarkEnabledDefaultsToFalse() {
         assertThat(sequenceProperties.isDebugBenchmarkEnabled()).isFalse();
     }
+
+    /* --- Test methods: inference diagnostics --- */
 
     @Test
     void inferenceDiagnosticsIncludeSequenceBenchmark() {
@@ -346,6 +407,8 @@ class DataprocessorFollowUpTest {
         assertThat(extracted).containsKey("lastRunAt");
     }
 
+    /* --- Test methods: dashboard timing --- */
+
     @Test
     void dashboardTimingFieldsExposed() {
         DashboardSnapshotService dss = new DashboardSnapshotService(null, null, null, null, null, null, null, null, null, null, null, null, null);
@@ -353,6 +416,8 @@ class DataprocessorFollowUpTest {
         assertThat(dss.getLastRefreshCompletedAt()).isNull();
         assertThat(dss.getDashboardLastRefreshAt()).isNull();
     }
+
+    /* --- Test methods: sequence config --- */
 
     @Test
     void sequenceDisabledReasonExposed() {

@@ -13,7 +13,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for ForecastRuntimeService: feature vector construction and
+ * anomaly rate forecasting with naive lag-seven fallback.
+ */
 class ForecastRuntimeServiceTest {
+
+    /* --- Test methods --- */
 
     @Test
     void buildsTotalEventsFeatureVectorInConfigOrder() throws Exception {

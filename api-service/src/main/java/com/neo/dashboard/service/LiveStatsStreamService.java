@@ -18,17 +18,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Pushes live stats snapshots to connected dashboard clients over SSE on a
- * fixed schedule.
+ * fixed schedule. Also emits per-page refresh events so the frontend
+ * auto-updates without a Redis/Kafka trigger.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class LiveStatsStreamService {
 
-    /* Source of stats snapshots plus the current set of SSE subscribers. */
+    /** Provides the latest stats snapshot to be broadcast. */
     private final StatsService statsService;
+    /** Serialises stats payloads to safe JSON trees. */
     private final ObjectMapper objectMapper;
+    /** Thread-safe list of currently connected SSE emitters. */
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+    /** Dashboard views that receive an explicit refresh event on each tick. */
     private static final Set<String> V36_REFRESH_EVENTS = Set.of(
             "alerts",
             "security-overview",
@@ -37,12 +41,18 @@ public class LiveStatsStreamService {
             "forecast"
     );
 
-    /* Register a new subscriber and send the current snapshot immediately. */
+    /**
+     * Registers a new SSE subscriber, sends the current stats snapshot
+     * immediately, and sets up automatic cleanup on completion/timeout/error.
+     *
+     * @return the SseEmitter for the newly connected client
+     */
     public SseEmitter subscribe() {
-        SseEmitter emitter = new SseEmitter(60L * 60 * 1000); // 1 hour timeout
+        // Create an emitter with a 1-hour timeout
+        SseEmitter emitter = new SseEmitter(60L * 60 * 1000);
         this.emitters.add(emitter);
 
-        // Remove dead emitters regardless of how the connection ends.
+        // Register lifecycle callbacks to clean up after disconnection
         emitter.onCompletion(() -> this.emitters.remove(emitter));
         emitter.onTimeout(() -> {
             emitter.complete();
@@ -57,12 +67,13 @@ public class LiveStatsStreamService {
             this.emitters.remove(emitter);
         });
 
-        // Send an initial snapshot immediately so the UI does not wait for the next scheduler tick.
+        // Send an initial snapshot so the UI does not wait for the next scheduled tick
         try {
             emitter.send(SseEmitter.event()
                     .name("stats")
                     .data(toSafeStats(statsService.getLiveStats(LocalDate.now(ZoneOffset.UTC)))));
         } catch (IOException e) {
+            // If the initial send fails, clean up the emitter
             if (isClientDisconnect(e)) {
                 emitter.complete();
             } else {
@@ -74,18 +85,21 @@ public class LiveStatsStreamService {
         return emitter;
     }
 
-    /* Periodically push the latest live stats snapshot to all connected clients. */
+    /**
+     * Periodically (every 10 s) fetches live stats and pushes them to all
+     * connected SSE clients, plus emits a refresh event per dashboard page.
+     */
     @Scheduled(fixedRate = 10000)
     public void pushStats() {
+        // Skip entirely when there are no listeners
         if (emitters.isEmpty()) {
-            // Skip the Redis lookup when no clients are listening.
             return;
         }
 
+        // Broadcast the latest stats snapshot
         broadcastStats(statsService.getLiveStats(LocalDate.now(ZoneOffset.UTC)));
 
-        // Emit per-page refresh events so the frontend auto-updates even
-        // when no Redis/Kafka trigger is present.
+        // Emit per-page refresh events so the frontend auto-updates
         log.debug("pushStats: broadcasting {} refresh events", V36_REFRESH_EVENTS.size());
         for (String event : V36_REFRESH_EVENTS) {
             log.debug("pushStats: broadcasting refresh event '{}'", event);
@@ -93,6 +107,10 @@ public class LiveStatsStreamService {
         }
     }
 
+    /**
+     * Sends a stats snapshot to all connected clients under the {@code stats}
+     * event name.
+     */
     public void broadcastStats(StatsResponseDto stats) {
         if (stats == null) {
             return;
@@ -100,6 +118,11 @@ public class LiveStatsStreamService {
         broadcast("stats", toSafeStats(stats));
     }
 
+    /**
+     * Sends a named refresh event to all connected clients. If the event name
+     * is one of the known V3.6 views, also emits a dedicated event so the
+     * frontend can listen specifically.
+     */
     public void broadcastRefresh(String refresh) {
         if (refresh == null || refresh.isBlank()) {
             return;
@@ -110,6 +133,10 @@ public class LiveStatsStreamService {
         }
     }
 
+    /**
+     * Sends an SSE event with the given name and payload to every connected
+     * emitter. Dead emitters are collected and removed after the iteration.
+     */
     private void broadcast(String eventName, Object payload) {
         if (emitters.isEmpty()) {
             return;
@@ -122,12 +149,17 @@ public class LiveStatsStreamService {
                         .name(eventName)
                         .data(payload));
             } catch (Exception e) {
+                // Any send failure marks the emitter as stale
                 deadEmitters.add(emitter);
             }
         }
         emitters.removeAll(deadEmitters);
     }
 
+    /**
+     * Walks the exception cause chain to determine whether the error is a
+     * client-side disconnection rather than a server-side failure.
+     */
     private boolean isClientDisconnect(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {
@@ -148,7 +180,12 @@ public class LiveStatsStreamService {
         return false;
     }
 
-private StatsApiResponseDto toSafeStats(StatsResponseDto stats) {
+    /**
+     * Converts a stats response's payload (a {@link
+     * com.fasterxml.jackson.databind.JsonNode}) into a plain {@link Object},
+     * falling back to the raw node on failure.
+     */
+    private StatsApiResponseDto toSafeStats(StatsResponseDto stats) {
         Object payload = null;
         if (stats.getPayload() != null) {
             try {

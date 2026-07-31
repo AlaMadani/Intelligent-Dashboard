@@ -13,17 +13,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Runs lightweight availability benchmarks for each configured model on
+ * startup or on demand, recording per-model latency and any warnings.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class InferenceBenchmarkService {
 
+    /* ---- Dependencies ---- */
     private final TabularAnomalyInferenceService tabularAnomalyInferenceService;
     private final InferenceConfig inferenceConfig;
 
+    /* ---- Benchmark state ---- */
     private final AtomicReference<Instant> lastBenchmarkRunAt = new AtomicReference<>();
     private final Map<String, Long> benchmarkResults = new LinkedHashMap<>();
     private final List<String> benchmarkWarnings = new ArrayList<>();
+
+    /* ---- Lifecycle ---- */
 
     @PostConstruct
     public void init() {
@@ -33,6 +41,8 @@ public class InferenceBenchmarkService {
             runBenchmark();
         }
     }
+
+    /* ---- Benchmark orchestration ---- */
 
     public void runBenchmark() {
         benchmarkResults.clear();
@@ -59,6 +69,8 @@ public class InferenceBenchmarkService {
                 log.info("MODEL_BENCHMARK model={} elapsedMs={}", model, ms));
         log.info("=== Inference Benchmark Complete ===");
     }
+
+    /* ---- Internal benchmark runners ---- */
 
     private void benchmarkModel(String name, Runnable task) {
         try {
@@ -94,6 +106,8 @@ public class InferenceBenchmarkService {
             log.info("Benchmark: churn benchmark placeholder");
         }
     }
+
+    /* ---- Diagnostics snapshot ---- */
 
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();

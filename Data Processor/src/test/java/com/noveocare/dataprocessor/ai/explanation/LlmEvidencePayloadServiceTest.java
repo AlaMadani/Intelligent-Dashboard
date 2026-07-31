@@ -15,13 +15,21 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for LlmEvidencePayloadService: evidence payload building, hash stability,
+ * sequence tracking fields, and evidence summary generation.
+ */
 class LlmEvidencePayloadServiceTest {
+
+    /* --- Fields --- */
 
     private final ObjectMapper objectMapper = JsonMapper.builder()
             .addModule(new JavaTimeModule())
             .build();
     private final LlmEvidencePayloadService service = new LlmEvidencePayloadService(
             new AiLlmExplanationProperties(), objectMapper);
+
+    /* --- Test methods: evidence payload structure --- */
 
     @Test
     void buildsEvidencePayloadWithHashAndVersion() {
@@ -92,6 +100,8 @@ class LlmEvidencePayloadServiceTest {
         assertThat(hashLow).isNotEqualTo(hashHigh);
     }
 
+    /* --- Test methods: sequence evidence --- */
+
     @Test
     void includesSequenceTrackingFields() {
         SessionInsight insight = SessionInsight.builder()
@@ -152,6 +162,8 @@ class LlmEvidencePayloadServiceTest {
         assertThat(seq).containsEntry("tcnSurpriseScoreRaw", null);
         assertThat(seq).containsEntry("tcnRiskScore100", null);
     }
+
+    /* --- Test methods: evidence summary --- */
 
     @Test
     void includesEvidenceSummaryInPayload() {

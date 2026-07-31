@@ -24,6 +24,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * ONNX runtime wrapper for sequence models (Transformer and TCN). Creates
+ * ONNX sessions, manages tensor lifecycle, and parses output heads.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -31,14 +35,19 @@ public class SequenceOnnxInferenceService {
 
     private static final long MAX_SEQUENCE_INFERENCE_MS = 5000;
 
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiSequenceProperties sequenceProperties;
     private final InferenceExecutorManager executorManager;
 
+    /* ---- Loaded sessions ---- */
     private OrtEnvironment environment;
     private LoadedSequenceSession transformer;
     private LoadedSequenceSession tcn;
 
+    /* ========== Initialisation ========== */
+
+    /* Loads Transformer and TCN ONNX sessions; warns but does not fail on error. */
     @PostConstruct
     public void init() {
         environment = OrtEnvironment.getEnvironment();
@@ -46,22 +55,28 @@ public class SequenceOnnxInferenceService {
         tcn = loadIfAvailable(SequenceModelKind.TCN, RuntimeArtifactService.TCN_MODEL);
     }
 
+    /* ========== Public inference API ========== */
+
     public boolean transformerLoaded() {
         return transformer != null && transformer.available();
     }
 
+    /* Returns true if the TCN ONNX session is loaded. */
     public boolean tcnLoaded() {
         return tcn != null && tcn.available();
     }
 
+    /* Runs inference using the Transformer model. */
     public SequenceInferenceResult inferTransformer(SequenceWindow window) {
         return infer(SequenceModelKind.TRANSFORMER, window);
     }
 
+    /* Runs inference using the TCN model. */
     public SequenceInferenceResult inferTcn(SequenceWindow window) {
         return infer(SequenceModelKind.TCN, window);
     }
 
+    /* Runs inference with the given model kind. */
     public SequenceInferenceResult infer(SequenceModelKind modelKind, SequenceWindow window) {
         LoadedSequenceSession loaded = modelKind == SequenceModelKind.TCN ? tcn : transformer;
         if (loaded == null || !loaded.available()) {
@@ -74,10 +89,14 @@ public class SequenceOnnxInferenceService {
         }
     }
 
+    /* Direct alias for infer() -- bypasses any precondition checks. */
     public SequenceInferenceResult inferDirect(SequenceModelKind modelKind, SequenceWindow window) {
         return infer(modelKind, window);
     }
 
+    /* ========== Private implementation ========== */
+
+    /* Creates tensors, runs the ONNX session, and extracts outputs. */
     private SequenceInferenceResult runInference(LoadedSequenceSession loaded, SequenceWindow window) throws OrtException {
         long started = System.nanoTime();
         OnnxTensor xCat = null;
@@ -122,6 +141,7 @@ public class SequenceOnnxInferenceService {
         }
     }
 
+    /* Loads an ONNX model into a session, validating inputs and logging contract. */
     private LoadedSequenceSession load(SequenceModelKind kind, String artifactName) throws IOException, OrtException {
         Path modelPath = artifactService.materializeModelForRuntime(artifactName);
         OrtSession session = environment.createSession(modelPath.toString(), new OrtSession.SessionOptions());
@@ -130,6 +150,7 @@ public class SequenceOnnxInferenceService {
         return new LoadedSequenceSession(kind, artifactName, session, true);
     }
 
+    /* Attempts to load, returning an unavailable session on failure. */
     private LoadedSequenceSession loadIfAvailable(SequenceModelKind kind, String artifactName) {
         try {
             LoadedSequenceSession loaded = load(kind, artifactName);
@@ -141,6 +162,7 @@ public class SequenceOnnxInferenceService {
         }
     }
 
+    /* Validates that the ONNX session exposes the required input/output tensors. */
     private void validateInputs(OrtSession session, String artifactName) throws OrtException {
         if (!session.getInputNames().containsAll(List.of("x_cat", "x_cont", "mask"))) {
             throw new IllegalStateException(artifactName + " must expose x_cat, x_cont and mask inputs");
@@ -151,11 +173,13 @@ public class SequenceOnnxInferenceService {
         }
     }
 
+    /* Logs the input/output tensor shapes of a loaded session. */
     private void logContract(SequenceModelKind kind, String artifactName, OrtSession session) throws OrtException {
         log.info("{} inputs for {}: {}", kind, artifactName, describe(session.getInputInfo()));
         log.info("{} outputs for {}: {}", kind, artifactName, describe(session.getOutputInfo()));
     }
 
+    /* Describes session node info for logging. */
     private Map<String, Object> describe(Map<String, NodeInfo> info) {
         Map<String, Object> description = new LinkedHashMap<>();
         for (Map.Entry<String, NodeInfo> entry : info.entrySet()) {
@@ -171,6 +195,7 @@ public class SequenceOnnxInferenceService {
         return description;
     }
 
+    /* Parses ONNX output tensors into categorical logits and continuous predictions. */
     private ParsedOutputs parseOutputs(OrtSession.Result result) throws OrtException {
         List<Integer> vocabSizes = artifactService.getSequenceMetadata().getVocabSizes();
         int contCount = artifactService.getSequenceMetadata().getContCols().size();
@@ -200,6 +225,7 @@ public class SequenceOnnxInferenceService {
         return new ParsedOutputs(List.copyOf(categoricalLogits), continuousPrediction, metadata);
     }
 
+    /* Flattens an ONNX tensor value (1D/2D/3D) into a 1D float array. */
     private float[] flattenFloat(Object value) {
         if (value instanceof float[] vector) {
             return vector;
@@ -227,6 +253,9 @@ public class SequenceOnnxInferenceService {
         return new float[0];
     }
 
+    /* ========== Lifecycle ========== */
+
+    /* Closes all ONNX sessions and the environment. */
     @PreDestroy
     public void close() throws OrtException {
         if (transformer != null && transformer.session() != null) {
@@ -240,9 +269,11 @@ public class SequenceOnnxInferenceService {
         }
     }
 
+    /* Holds a loaded ONNX session along with its kind and metadata. */
     record LoadedSequenceSession(SequenceModelKind kind, String artifactName, OrtSession session, boolean available) {
     }
 
+    /* Holds parsed categorical logits and continuous prediction vector. */
     private record ParsedOutputs(List<float[]> categoricalLogits,
                                  float[] continuousPrediction,
                                  Map<String, Object> outputMetadata) {

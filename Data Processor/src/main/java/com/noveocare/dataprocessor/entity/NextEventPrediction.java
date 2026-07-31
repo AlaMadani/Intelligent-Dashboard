@@ -11,6 +11,9 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/**
+ * Persisted next-event prediction for a given session context.
+ */
 @Entity
 @Table(name = "next_event_predictions", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"session_id", "context_event_id"})
@@ -21,6 +24,7 @@ public class NextEventPrediction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /* Identifiers linking to the insured user and session. */
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
@@ -33,6 +37,7 @@ public class NextEventPrediction {
     @Column(name = "context_size")
     private int contextSize;
 
+    /* Model identifier and serialised prediction output. */
     @Column(name = "model_name")
     private String modelName;
 

@@ -1,0 +1,105 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BorderColor #1565C0
+    BackgroundColor #F8FAFC
+    FontSize 12
+    AttributeFontSize 11
+}
+skinparam package {
+    BackgroundColor #FAFAFA
+    BorderColor #1565C0
+}
+
+title Diagramme de Classes Métier — Modèle de Domaine (Data Processor)
+
+package "1. Données & Contexte" {
+    class "Profil Utilisateur" as UserProfile {
+        + insuredId : String
+        + riskTier : String
+        + anomalyRate30d : Double
+    }
+    
+    class "Session Utilisateur" as Session {
+        + sessionId : String
+        + durationSeconds : Long
+        + totalEvents : Integer
+    }
+    
+    class "Événement d'Audit" as AuditEvent {
+        + eventId : String
+        + action : String
+        + ipAddress : String
+        + device : String
+    }
+    
+    class "Vecteur de Caractéristiques\n(FeatureVector)" as FeatureVector {
+        + actionSequence : List<String>
+        + geoJumpDetected : Boolean
+        + knockoutStreak : Integer
+    }
+}
+
+package "2. Moteur d'Inférence (ML & Règles)" {
+    class "Modèles Tabulaires" as TabularScore {
+        + xgboostScore : Double
+        + lightgbmScore : Double
+    }
+    
+    class "Modèles Séquentiels" as SequenceScore {
+        + anomalyScore : Double
+        + topContributingFields : List<String>
+    }
+    
+    class "Règles Métier" as RuleScore {
+        + ruleRiskScore : Double
+        + triggeredRules : List<String>
+    }
+    
+    class "Moteur de Fusion\n(FusedRiskScore)" as FusedRiskScore {
+        + finalRiskScore : Double
+        + riskLevel : String
+        + aggregationBoost : Double
+    }
+}
+
+package "3. Décision & Explicabilité" {
+    class "Insight Session" as Insight {
+        + churnProbability : Double
+        + personaLabel : String
+        + nextPredictedActions : List<String>
+    }
+
+    class "Alerte de Sécurité" as Alert {
+        + alertId : String
+        + anomalyType : String
+        + detectedAt : Instant
+    }
+    
+    class "Preuve (Evidence)" as Evidence {
+        + modelContributions : Map
+        + sequenceEvidence : Map
+        + investigationPayload : JSON
+    }
+}
+
+' ========== RELATIONS (Lecture de gauche à droite / haut en bas) =========='
+
+UserProfile "1" *-- "0..*" Session : Possède >
+Session "1" *-- "1..*" AuditEvent : Contient >
+Session "1" --> "1" FeatureVector : Est transformée en >
+
+FeatureVector "1" --> "1" TabularScore : Alimente >
+FeatureVector "1" --> "1" SequenceScore : Alimente >
+FeatureVector "1" --> "1" RuleScore : Alimente >
+
+TabularScore "1" --> "1" FusedRiskScore : Agrège >
+SequenceScore "1" --> "1" FusedRiskScore : Agrège >
+RuleScore "1" --> "1" FusedRiskScore : Agrège >
+
+FusedRiskScore "1" --> "1" Insight : Construit >
+FusedRiskScore "1" --> "0..1" Alert : Déclenche (si seuil dépassé) >
+
+Alert "1" *-- "1" Evidence : Embarque >
+@enduml

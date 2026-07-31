@@ -21,11 +21,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for SequenceWindowService: window padding, mask construction,
+ * and append-and-save behavior keeping the last N events.
+ */
 class SequenceWindowServiceTest {
+
+    /* --- Fields --- */
 
     private RuntimeArtifactService artifactService;
     private RedisCacheService redisCacheService;
     private SequenceWindowService windowService;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() throws Exception {
@@ -35,6 +43,8 @@ class SequenceWindowServiceTest {
         cacheProperties.setSessionBuffer(Duration.ofHours(2));
         windowService = new SequenceWindowService(artifactService, redisCacheService, cacheProperties);
     }
+
+    /* --- Test methods: window operations --- */
 
     @Test
     void padsPreviousWindowOnTheLeftAndBuildsMask() {
@@ -54,6 +64,8 @@ class SequenceWindowServiceTest {
         assertThat(window.getXCat()[0][9][0]).isEqualTo(2L);
     }
 
+    /* --- Test methods: persistence --- */
+
     @Test
     void appendAndSaveKeepsLastWindowSizeEvents() {
         List<EncodedSequenceEvent> existing = new ArrayList<>();
@@ -71,6 +83,8 @@ class SequenceWindowServiceTest {
         assertThat(stateCaptor.getValue().getEvents().get(0).getCategoricalIds()[0]).isEqualTo(1L);
         assertThat(stateCaptor.getValue().getEvents().get(9).getCategoricalIds()[0]).isEqualTo(10L);
     }
+
+    /* --- Helper methods --- */
 
     private EncodedSequenceEvent event(long firstCategoricalId, Instant timestamp) {
         long[] cat = new long[artifactService.getSequenceMetadata().getCatCols().size()];

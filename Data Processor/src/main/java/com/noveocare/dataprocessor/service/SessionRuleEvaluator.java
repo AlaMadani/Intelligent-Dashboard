@@ -14,14 +14,20 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Evaluates a set of heuristic rules against a session's event sequence.
+ * Returns the list of triggered rule codes (e.g. unusual_hour, skip_login, rapid_fire).
+ */
 @Service
 @RequiredArgsConstructor
 public class SessionRuleEvaluator {
 
+    /* Injected dependencies */
     private final RuleProperties ruleProperties;
     private final VelocityDetector velocityDetector;
     private final GeoJumpDetector geoJumpDetector;
 
+    /* Evaluates all configured rules and returns the list of triggered rule codes */
     public List<String> evaluateSessionRules(List<AuditTrailEvent> sessionEvents) {
         List<AuditTrailEvent> ordered = new ArrayList<>(sessionEvents);
         ordered.sort(Comparator
@@ -58,6 +64,8 @@ public class SessionRuleEvaluator {
         }
         return rules;
     }
+
+    /* --- Rule implementations --- */
 
     private boolean isUnusualHour(AuditTrailEvent event) {
         if (event.getCreatedAt() == null) {
@@ -100,6 +108,7 @@ public class SessionRuleEvaluator {
                 .anyMatch(allowed -> allowed.equalsIgnoreCase(type));
     }
 
+    /* Returns 0 for null Integer values */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }

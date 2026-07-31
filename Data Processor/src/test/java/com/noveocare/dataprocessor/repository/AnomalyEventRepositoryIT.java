@@ -17,7 +17,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Integration test validating repository queries against a real SQL Server container.
+ * Integration test for AnomalyEventRepository queries against a real SQL Server container
+ * using Testcontainers, validating correct ordering and filtering of anomaly events.
  */
 @DataJpaTest(properties = {
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -27,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class AnomalyEventRepositoryIT {
+
+    /* --- Testcontainers setup --- */
 
     @Container
     static final MSSQLServerContainer<?> SQL_SERVER = new MSSQLServerContainer<>("mcr.microsoft.com/mssql/server:2022-latest")
@@ -40,8 +43,12 @@ class AnomalyEventRepositoryIT {
         registry.add("spring.datasource.driver-class-name", () -> "com.microsoft.sqlserver.jdbc.SQLServerDriver");
     }
 
+    /* --- Fields --- */
+
     @Autowired
     private AnomalyEventRepository anomalyEventRepository;
+
+    /* --- Test methods --- */
 
     @Test
     void returnsLatestAnomaliesForInsured() {
@@ -56,6 +63,8 @@ class AnomalyEventRepositoryIT {
         assertEquals(newer.getDetectedAt(), results.get(0).getDetectedAt());
         assertEquals(older.getDetectedAt(), results.get(1).getDetectedAt());
     }
+
+    /* --- Helper methods --- */
 
     private AnomalyEvent anomaly(String insuredId, Instant detectedAt) {
         AnomalyEvent event = new AnomalyEvent();

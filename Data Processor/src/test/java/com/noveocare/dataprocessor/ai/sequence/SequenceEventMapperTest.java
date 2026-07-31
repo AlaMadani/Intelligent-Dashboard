@@ -11,14 +11,25 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for SequenceEventMapper: mapping of raw audit trail events
+ * to sequence model feature columns, strict schema validation,
+ * and legacy fallback behavior.
+ */
 class SequenceEventMapperTest {
 
+    /* --- Fields --- */
+
     private RuntimeArtifactService artifactService;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() throws Exception {
         artifactService = V34TestArtifacts.loadedArtifactService();
     }
+
+    /* --- Test methods: field mapping --- */
 
     @Test
     void mapsRawAuditDatasetFieldsInExactTrainedOrder() {
@@ -40,6 +51,8 @@ class SequenceEventMapperTest {
         assertThat(values.getContinuousValuesRaw()).containsEntry("is_business_hours", 1.0);
         assertThat(values.getContinuousValuesRaw()).containsEntry("is_weekend", 0.0);
     }
+
+    /* --- Test methods: schema validation --- */
 
     @Test
     void strictSchemaRejectsMissingRawModelFieldWhenLegacyFallbackDisabled() {
@@ -68,6 +81,8 @@ class SequenceEventMapperTest {
         assertThat(values.getCategoricalValues()).containsEntry("api_template", "/legacy/route");
         assertThat(values.getWarnings()).contains("legacy_fallback_api_template");
     }
+
+    /* --- Helper methods --- */
 
     static AuditTrailEvent completeEvent(Instant timestamp) {
         AuditTrailEvent event = new AuditTrailEvent();

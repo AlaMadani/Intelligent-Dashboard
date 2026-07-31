@@ -19,11 +19,16 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Scheduled task that refreshes the forecast snapshot and evaluates system-level
+ * traffic anomalies by comparing actual traffic against forecast upper bounds.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class TrendPredictionScheduler {
 
+    /* Injected dependencies */
     private final ForecastRuntimeService forecastRuntimeService;
     private final RedisCacheService redisCacheService;
     private final RedisCacheProperties cacheProperties;
@@ -31,6 +36,8 @@ public class TrendPredictionScheduler {
     private final StatisticsService statisticsService;
     private final AlertPublisher alertPublisher;
     private final DashboardSnapshotService dashboardSnapshotService;
+
+    /* --- Scheduled task --- */
 
     @Scheduled(cron = "${app.scheduling.trend-cron}")
     public void refreshForecastSnapshot() {
@@ -45,6 +52,7 @@ public class TrendPredictionScheduler {
         log.debug("Forecast snapshot refreshed");
     }
 
+    /* Compares projected daily traffic against the forecast upper bound and publishes alert if exceeded */
     private void evaluateSystemTrafficAnomaly(LocalDate referenceDate) {
         ForecastPrediction forecast = forecastRuntimeService.forecast(referenceDate);
         if (forecast.getTotalEventsForecast() == null || forecast.getTotalEventsForecast() <= 0.0) {

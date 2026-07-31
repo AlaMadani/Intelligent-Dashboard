@@ -1,10 +1,15 @@
 package com.noveocare.dataprocessor.ai.sequence;
 
+/**
+ * Identifies which sequence model is used: TRANSFORMER, TCN, or RULES_ONLY
+ * fallback.
+ */
 public enum SequenceModelKind {
     TRANSFORMER,
     TCN,
     RULES_ONLY;
 
+    /* Parses a string (case-insensitive) to a SequenceModelKind. */
     public static SequenceModelKind from(String value, SequenceModelKind fallback) {
         if (value == null || value.isBlank()) {
             return fallback;

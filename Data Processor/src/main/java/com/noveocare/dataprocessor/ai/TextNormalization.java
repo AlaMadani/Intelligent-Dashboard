@@ -11,6 +11,7 @@ import java.util.Locale;
  */
 public final class TextNormalization {
 
+    /* ---- Known corruption markers ---- */
     private static final List<String> SUSPICIOUS_TOKENS = List.of(
             "\u00C3", // Ã
             "\u00C2", // Â
@@ -20,6 +21,9 @@ public final class TextNormalization {
     private TextNormalization() {
     }
 
+    /* ========== Public API ========== */
+
+    /* Repairs mojibake via ISO-8859-1 -> UTF-8 round-trip (max 3 attempts). */
     public static String normalizeLabel(String value) {
         if (value == null) {
             return null;
@@ -38,6 +42,7 @@ public final class TextNormalization {
         return normalized;
     }
 
+    /* Produces an ASCII-folded, lower-case key for stable comparisons. */
     public static String comparisonKey(String value) {
         String normalized = normalizeLabel(value);
         if (normalized == null || normalized.isBlank()) {
@@ -49,10 +54,12 @@ public final class TextNormalization {
         return asciiFolded.toLowerCase(Locale.ROOT).trim();
     }
 
+    /* Checks equality using the comparison key of both strings. */
     public static boolean equalsNormalized(String left, String right) {
         return comparisonKey(left).equals(comparisonKey(right));
     }
 
+    /* Detects corruption markers that indicate mojibake. */
     private static boolean looksCorrupted(String value) {
         if (value == null || value.isBlank()) {
             return false;

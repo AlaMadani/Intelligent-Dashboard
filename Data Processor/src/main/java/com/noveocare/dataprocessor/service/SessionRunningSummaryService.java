@@ -21,17 +21,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Maintains a running summary of each active session in Redis, tracking first/last
+ * event details, action counts, risk scores, and session-level aggregates.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class SessionRunningSummaryService {
 
+    /* Injected dependencies */
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RedisCacheProperties cacheProperties;
 
+    /* Constants for login/logout action matching */
     private static final Set<String> LOGIN_ACTIONS = Set.of("Connexion", "Connexion SSO", "Connexion en tant que");
     private static final Set<String> LOGOUT_ACTIONS = Set.of("Deconnexion", "SSO Disconnect");
+
+    /* --- CRUD --- */
 
     public SessionRunningSummary loadOrCreate(String sessionId, String insuredId) {
         String key = key(sessionId);
@@ -60,6 +68,7 @@ public class SessionRunningSummaryService {
         redisTemplate.delete(key(sessionId));
     }
 
+    /* Creates a new empty running summary with default values */
     public SessionRunningSummary createEmpty(String sessionId, String insuredId) {
         return SessionRunningSummary.builder()
                 .sessionId(sessionId)
@@ -67,6 +76,8 @@ public class SessionRunningSummaryService {
                 .minInterActionMs(Long.MAX_VALUE)
                 .build();
     }
+
+    /* --- Update logic --- */
 
     public SessionRunningSummary updateWithEvent(SessionRunningSummary summary, AuditTrailEvent event) {
         if (summary.getFirstTimestamp() == null
@@ -173,6 +184,7 @@ public class SessionRunningSummaryService {
         return summary;
     }
 
+    /* Converts the running summary + recent events into a full SessionSummary DTO */
     public SessionSummary toLiveSessionSummary(SessionRunningSummary running, List<AuditTrailEvent> recentEvents) {
         if (running == null || running.getFirstTimestamp() == null) {
             return SessionSummary.builder()
@@ -270,6 +282,7 @@ public class SessionRunningSummaryService {
                 .build();
     }
 
+    /* Builds a summary from the running data alone when no recent events are available */
     private SessionSummary buildSummaryFromRunningOnly(SessionRunningSummary running) {
         long durationSeconds = running.getFirstTimestamp() != null && running.getLastTimestamp() != null
                 ? Math.max(0, Duration.between(running.getFirstTimestamp(), running.getLastTimestamp()).getSeconds())
@@ -325,6 +338,8 @@ public class SessionRunningSummaryService {
                 .build();
     }
 
+    /* --- Comparison helpers --- */
+
     private boolean isEarlier(AuditTrailEvent event, Instant currentFirst, Integer currentSeq) {
         if (event.getCreatedAt() == null) return false;
         if (currentFirst == null) return true;
@@ -351,18 +366,22 @@ public class SessionRunningSummaryService {
         return notBlank(first) ? first : second;
     }
 
+    /* Returns empty string for null values */
     private String safe(String value) {
         return value == null ? "" : value;
     }
 
+    /* Returns true if the string is non-null and non-blank */
     private boolean notBlank(String value) {
         return value != null && !value.isBlank();
     }
 
+    /* Returns 0 for null Integer values */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
 
+    /* Returns the first non-blank value extracted from events */
     private <T> String firstMatching(List<AuditTrailEvent> events, java.util.function.Function<AuditTrailEvent, String> extractor) {
         for (AuditTrailEvent e : events) {
             String val = extractor.apply(e);
@@ -371,6 +390,7 @@ public class SessionRunningSummaryService {
         return null;
     }
 
+    /* Returns the last non-blank value extracted from events */
     private <T> String lastMatching(List<AuditTrailEvent> events, java.util.function.Function<AuditTrailEvent, String> extractor) {
         String last = null;
         for (AuditTrailEvent e : events) {
@@ -380,6 +400,7 @@ public class SessionRunningSummaryService {
         return last;
     }
 
+    /* Builds the Redis key for a session's running summary */
     private String key(String sessionId) {
         return CacheKeys.sessionRunningSummaryKey(sessionId);
     }

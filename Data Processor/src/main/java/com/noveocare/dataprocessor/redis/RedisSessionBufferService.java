@@ -20,26 +20,36 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Manages the Redis-backed in-memory event buffers for live sessions,
+ * providing deduplication, append, retrieval, and expiry operations.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class RedisSessionBufferService {
 
+    /* -- Dependencies -- */
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RedisCacheProperties cacheProperties;
     private final AiLiveSessionProperties liveSessionProperties;
 
+    /* Tracks how many duplicate event appends were skipped. */
     private final AtomicLong duplicateSequenceAppendsSkipped = new AtomicLong();
 
     private static final Logger perfLog = LoggerFactory.getLogger("com.noveocare.dataprocessor.redis.RedisSessionBufferService");
 
+    /* -- Public API -- */
+
+    /* Append an event to the session buffers after deduplication. */
     public void appendEvent(AuditTrailEvent event) {
         String key = CacheKeys.sessionKey(event.getInsuredId(), event.getSessionId());
         String fullKey = CacheKeys.sessionFullKey(event.getInsuredId(), event.getSessionId());
         String eventIdsKey = CacheKeys.sessionSequenceEventIdsKey(event.getSessionId());
         String eventId = event.getId() != null ? event.getId() : "";
         try {
+            /* -- Deduplication via a SET of seen event IDs -- */
             long dedupeStart = System.currentTimeMillis();
             Long added = redisTemplate.opsForSet().add(eventIdsKey, eventId);
             redisTemplate.expire(eventIdsKey, cacheProperties.getSessionBuffer());
@@ -56,6 +66,7 @@ public class RedisSessionBufferService {
             String payload = objectMapper.writeValueAsString(event);
             Duration ttl = cacheProperties.getSessionBuffer();
 
+            /* -- Push to the bounded live list and the unbounded full list -- */
             long pushStart = System.currentTimeMillis();
 
             redisTemplate.opsForList().rightPush(key, payload);
@@ -76,6 +87,7 @@ public class RedisSessionBufferService {
         }
     }
 
+    /* Fetch the most recent N events from the bounded live list. */
     public List<AuditTrailEvent> getRecentSessionEvents(String insuredId, String sessionId, int limit) {
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         List<String> raw = redisTemplate.opsForList().range(key, -limit, -1);
@@ -93,6 +105,7 @@ public class RedisSessionBufferService {
         return events;
     }
 
+    /* Persist or update the first-event metadata for a session. */
     public void persistFirstEvent(String insuredId, String sessionId, AuditTrailEvent event) {
         String key = CacheKeys.sessionFirstEventKey(sessionId);
         String existingJson = redisTemplate.opsForValue().get(key);
@@ -135,6 +148,7 @@ public class RedisSessionBufferService {
         }
     }
 
+    /* Retrieve the cached first-event metadata for a session. */
     public SessionFirstEvent getFirstEvent(String sessionId) {
         String key = CacheKeys.sessionFirstEventKey(sessionId);
         String json = redisTemplate.opsForValue().get(key);
@@ -149,6 +163,7 @@ public class RedisSessionBufferService {
         }
     }
 
+    /* Atomically replace the entire session buffer contents. */
     public void replaceSession(String insuredId, String sessionId, List<AuditTrailEvent> events) {
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         String fullKey = CacheKeys.sessionFullKey(insuredId, sessionId);
@@ -163,6 +178,7 @@ public class RedisSessionBufferService {
         }
     }
 
+    /* Fetch all events from the full-history list, falling back to the bounded list. */
     public List<AuditTrailEvent> getSessionEvents(String insuredId, String sessionId) {
         String fullKey = CacheKeys.sessionFullKey(insuredId, sessionId);
         List<String> raw = redisTemplate.opsForList().range(fullKey, 0, -1);
@@ -180,6 +196,7 @@ public class RedisSessionBufferService {
         return events;
     }
 
+    /* Fallback: read events from the bounded live list when the full list is empty. */
     private List<AuditTrailEvent> getSessionEventsFallback(String insuredId, String sessionId) {
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         List<String> raw = redisTemplate.opsForList().range(key, 0, -1);
@@ -197,11 +214,13 @@ public class RedisSessionBufferService {
         return events;
     }
 
+    /* Update the TTL on the bounded session event list. */
     public void expireSession(String insuredId, String sessionId, Duration ttl) {
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         redisTemplate.expire(key, ttl);
     }
 
+    /* Delete all session buffer keys from Redis. */
     public void deleteSession(String insuredId, String sessionId) {
         String key = CacheKeys.sessionKey(insuredId, sessionId);
         String fullKey = CacheKeys.sessionFullKey(insuredId, sessionId);
@@ -212,6 +231,8 @@ public class RedisSessionBufferService {
         redisTemplate.delete(eventIdsKey);
         redisTemplate.delete(summaryKey);
     }
+
+    /* -- Metrics -- */
 
     public long getDuplicateSequenceAppendsSkipped() {
         return duplicateSequenceAppendsSkipped.get();

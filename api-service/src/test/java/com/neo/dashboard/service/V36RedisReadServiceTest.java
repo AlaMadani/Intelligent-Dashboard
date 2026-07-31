@@ -37,6 +37,9 @@ class V36RedisReadServiceTest {
         service = new V36RedisReadService(redisTemplate, objectMapper);
     }
 
+    /**
+     * Read Json Returns Payload When Redis Value Contains Json
+     */
     @Test
     void readJsonReturnsPayloadWhenRedisValueContainsJson() {
         when(valueOperations.get("ai:runtime:health:v3_6")).thenReturn("{\"schemaVersion\":\"v3.6.1\",\"status\":\"HEALTHY\"}");
@@ -47,6 +50,9 @@ class V36RedisReadServiceTest {
         assertThat(result.orElseThrow().path("status").asText()).isEqualTo("HEALTHY");
     }
 
+    /**
+     * Read Json Returns Empty For Malformed Json
+     */
     @Test
     void readJsonReturnsEmptyForMalformedJson() {
         when(valueOperations.get("bad")).thenReturn("{not-json");
@@ -56,6 +62,9 @@ class V36RedisReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Read Items Handles Duplicate List Entries
+     */
     @Test
     void readItemsHandlesDuplicateListEntries() {
         when(listOperations.range("alerts:live:v3_6", 0, 4)).thenReturn(List.of(
@@ -73,6 +82,9 @@ class V36RedisReadServiceTest {
                 .containsExactly("evt-1", "evt-2", "evt-3");
     }
 
+    /**
+     * Read Items Supports Redis List Payloads
+     */
     @Test
     void readItemsSupportsRedisListPayloads() {
         when(listOperations.range("alerts:live:v3_6", 0, 1)).thenReturn(List.of(
@@ -86,6 +98,9 @@ class V36RedisReadServiceTest {
         assertThat(result.getFirst().getEventId()).isEqualTo("evt-1");
     }
 
+    /**
+     * Read Z Set Alert Items Returns Deserialized Payloads
+     */
     @Test
     void readZSetAlertItemsReturnsDeserializedPayloads() {
         Set<String> zsetMembers = new LinkedHashSet<>();
@@ -106,6 +121,9 @@ class V36RedisReadServiceTest {
         assertThat(result.get(1).getEventId()).isEqualTo("evt-2");
     }
 
+    /**
+     * Read Z Set Alert Items Handles Wron Type Gracefully
+     */
     @Test
     void readZSetAlertItemsHandlesWronTypeGracefully() {
         when(zSetOperations.reverseRange("alerts:live:zset:v3_6", 0, 4))
@@ -117,6 +135,9 @@ class V36RedisReadServiceTest {
         assertThat(result).isEmpty();
     }
 
+    /**
+     * Read Z Set Alert Items Skips Members With Missing Payloads
+     */
     @Test
     void readZSetAlertItemsSkipsMembersWithMissingPayloads() {
         Set<String> zsetMembers = new LinkedHashSet<>();

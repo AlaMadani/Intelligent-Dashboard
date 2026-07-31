@@ -10,16 +10,24 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Periodically refreshes dirty dashboard views (alerts, risky sessions, security overview).
+ * Rate-limited per view and enforces a total timeout across all views per tick.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class DashboardRefreshScheduler {
 
+    /* Injected dependencies */
     private final DashboardSnapshotService dashboardSnapshotService;
     private final PerformanceProperties performanceProperties;
 
+    /* Runtime state counters */
     private final AtomicLong runCount = new AtomicLong();
     private final AtomicReference<Instant> lastRunAt = new AtomicReference<>();
+
+    /* --- Scheduled task --- */
 
     @Scheduled(fixedRateString = "${app.performance.dashboard-refresh.dashboard-refresh-interval-ms:15000}")
     public void refreshDirtyDashboards() {
@@ -71,9 +79,12 @@ public class DashboardRefreshScheduler {
         }
     }
 
+    /* Checks whether the elapsed time since startMs has reached the threshold */
     private boolean elapsedExceeds(long startMs, long thresholdMs) {
         return System.currentTimeMillis() - startMs >= thresholdMs;
     }
+
+    /* --- Diagnostics --- */
 
     public Instant getLastRunAt() {
         return lastRunAt.get();

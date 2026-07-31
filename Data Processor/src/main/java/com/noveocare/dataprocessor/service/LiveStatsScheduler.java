@@ -13,8 +13,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LiveStatsScheduler {
 
+    /* Injected dependencies */
     private final StatisticsService statisticsService;
     private final DashboardSnapshotService dashboardSnapshotService;
+
+    /* --- Scheduled task --- */
 
     @Scheduled(fixedRateString = "${app.scheduling.live-stats-fixed-rate-ms:5000}")
     public void refresh() {

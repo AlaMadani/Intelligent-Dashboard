@@ -14,14 +14,27 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * REST controller for the Dashboard Assistant feature, exposed under
+ * {@code /api/v1/dashboard-assistant}. Provides endpoints for sending user
+ * messages, retrieving capabilities, running A/B benchmarks across models,
+ * and probing NVIDIA NIM endpoints.
+ */
 @RestController
 @RequestMapping("/api/v1/dashboard-assistant")
 @RequiredArgsConstructor
 public class DashboardAssistantController {
 
+    /** Core service that processes user messages and returns assistant responses. */
     private final DashboardAssistantService assistantService;
+    /** Registry holding the loaded capability manifest for validation and lookups. */
     private final DashboardAssistantCapabilityRegistry registry;
 
+    /**
+     * Accepts a user message along with current route context and visible
+     * elements, processes it through the assistant pipeline, and returns a
+     * structured response with optional commands.
+     */
     @PostMapping("/message")
     public ResponseEntity<ApiResponse<DashboardAssistantResponse>> handleMessage(
             @RequestBody DashboardAssistantRequest request) {
@@ -29,9 +42,15 @@ public class DashboardAssistantController {
         return ResponseEntity.ok(ApiResponse.of(response));
     }
 
+    /**
+     * Returns the full capability manifest (routes, elements, tasks, panels,
+     * filters, refresh/search targets) with computed item counts, for the
+     * frontend to render and for debugging.
+     */
     @GetMapping("/capabilities")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getCapabilities() {
         Map<String, Object> manifest = registry.buildCapabilitiesManifest();
+        // Append a counts map so the frontend can show capability sizes at a glance
         Map<String, Integer> counts = new LinkedHashMap<>();
         counts.put("routes", manifest.get("routes") instanceof List ? ((List<?>) manifest.get("routes")).size() : 0);
         counts.put("elements", manifest.get("elements") instanceof List ? ((List<?>) manifest.get("elements")).size() : 0);
@@ -42,10 +61,15 @@ public class DashboardAssistantController {
         return ResponseEntity.ok(ApiResponse.of(manifest));
     }
 
+    /**
+     * Runs an A/B benchmark across one or more candidate models using the
+     * given prompt (or the first prompt from the "prompts" array). Returns
+     * per-model latency, parse success, and a summary with recommendations.
+     */
     @PostMapping("/benchmark")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> runBenchmark(
             @RequestBody Map<String, Object> request) {
-        // Extract prompt (string) or prompts (array)
+        // Extract the prompt from the request body (supports both "prompt" and "prompts" array)
         String prompt = "List what you can do.";
         if (request.containsKey("prompt") && request.get("prompt") instanceof String) {
             prompt = (String) request.get("prompt");
@@ -55,7 +79,7 @@ public class DashboardAssistantController {
                 prompt = (String) prompts.get(0);
             }
         }
-        // Extract models list if provided
+        // Extract an explicit list of models, or default to the candidate list
         List<String> models = null;
         if (request.containsKey("models") && request.get("models") instanceof List) {
             List<?> rawModels = (List<?>) request.get("models");
@@ -68,6 +92,11 @@ public class DashboardAssistantController {
         return ResponseEntity.ok(ApiResponse.of(results));
     }
 
+    /**
+     * Probes one or more NVIDIA NIM models with a given message to test
+     * connectivity, latency, guided JSON support, and parseability. Supports
+     * both a single "model" field (backward compat) and a "models" array.
+     */
     @PostMapping("/nim-probe")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> nimProbe(
             @RequestBody Map<String, Object> request) {
@@ -87,7 +116,7 @@ public class DashboardAssistantController {
             return ResponseEntity.ok(ApiResponse.of(List.of(result)));
         }
 
-        // Multi-model array
+        // Multi-model array — probe each candidate model in sequence
         @SuppressWarnings("unchecked")
         List<String> models = request.containsKey("models")
                 ? ((List<Object>) request.get("models")).stream()

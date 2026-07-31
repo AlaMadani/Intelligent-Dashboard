@@ -5,7 +5,13 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for PersonaRuntimeService: persona assignment behavior
+ * when embedding is missing or supplied (V3.6 refactor disabled state).
+ */
 class PersonaRuntimeServiceTest {
+
+    /* --- Test methods --- */
 
     @Test
     void missingEmbeddingReturnsDisabledPersona() {

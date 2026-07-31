@@ -12,15 +12,23 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * XGBoost tabular anomaly detection runtime. Parses a JSON-serialised
+ * XGBoost model and scores feature vectors.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class XGBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime {
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiTabularAnomalyProperties properties;
     private XGBoostJsonPredictor predictor;
     private final List<String> loadWarnings = new ArrayList<>();
 
+    /* ========== Initialisation ========== */
+
+    /* Loads the XGBoost JSON model; gracefully handles absence. */
     @PostConstruct
     public void init() {
         if (!properties.isEnabled() || !properties.isXgboostEnabled()) {
@@ -39,6 +47,8 @@ public class XGBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime 
             log.warn("XGBoost anomaly ranking runtime unavailable", ex);
         }
     }
+
+    /* ========== TabularAnomalyModelRuntime implementation ========== */
 
     @Override
     public TabularModelScore score(TabularAnomalyFeatureVector vector) {
@@ -63,6 +73,7 @@ public class XGBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime 
         }
     }
 
+    /* Returns true if the XGBoost predictor was successfully initialised. */
     @Override
     public boolean isAvailable() {
         return predictor != null;
@@ -78,14 +89,19 @@ public class XGBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime 
         return "anomaly_xgboost.json";
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Returns the first load warning or a default fallback. */
     private String firstWarning(String fallback) {
         return loadWarnings.isEmpty() ? fallback : loadWarnings.get(0);
     }
 
+    /* Computes elapsed milliseconds since a nanoTime reference. */
     private long elapsedMillis(long started) {
         return (System.nanoTime() - started) / 1_000_000L;
     }
 
+    /* Clamps a value to the [0, 1] range. */
     private double clamp01(double value) {
         return Math.max(0.0, Math.min(1.0, value));
     }

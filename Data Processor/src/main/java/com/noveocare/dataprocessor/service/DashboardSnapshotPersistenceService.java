@@ -19,18 +19,26 @@ import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Persists dashboard snapshots to PostgreSQL with SHA-256 deduplication.
+ * Skips writes when the payload hash matches the latest stored snapshot.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class DashboardSnapshotPersistenceService {
 
+    /* Injected dependencies */
     private final DashboardSnapshotRepository repository;
     private final ObjectMapper objectMapper;
 
+    /* SQL write metrics */
     private final AtomicLong sqlWriteSuccessTotal = new AtomicLong();
     private final AtomicLong sqlWriteFailureTotal = new AtomicLong();
     private final AtomicReference<Instant> sqlLastWriteAt = new AtomicReference<>();
     private final AtomicReference<Instant> sqlLastFailureAt = new AtomicReference<>();
+
+    /* --- Persistence logic --- */
 
     @Transactional
     public void persistSnapshot(String viewName, String snapshotKey, Object payload, String source) {
@@ -87,6 +95,7 @@ public class DashboardSnapshotPersistenceService {
         }
     }
 
+    /* Records a write failure and updates metrics */
     private void recordFailure(String viewName, String snapshotKey, Exception e) {
         sqlWriteFailureTotal.incrementAndGet();
         sqlLastFailureAt.set(Instant.now());
@@ -94,6 +103,7 @@ public class DashboardSnapshotPersistenceService {
                 viewName, snapshotKey, e.getClass().getSimpleName(), e.getMessage());
     }
 
+    /* Computes SHA-256 hex digest of the input string */
     private String sha256Hex(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -103,6 +113,8 @@ public class DashboardSnapshotPersistenceService {
             return Integer.toHexString(input.hashCode());
         }
     }
+
+    /* --- Diagnostics --- */
 
     public long getSqlWriteSuccessTotal() {
         return sqlWriteSuccessTotal.get();

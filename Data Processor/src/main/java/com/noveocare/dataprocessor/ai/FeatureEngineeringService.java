@@ -23,18 +23,26 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Enriches audit trail events with session-level features (risk scoring, action sequences,
+ * download detection, IP/device changes) used downstream by ML models.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class FeatureEngineeringService {
 
+    /* ---- Constants for action classification ---- */
     private static final Set<String> LOGIN_ACTIONS = Set.of("Connexion", "Connexion SSO", "Connexion en tant que");
     private static final Set<String> LOGOUT_ACTIONS = Set.of("Deconnexion", "SSO Disconnect");
     private static final String[] DOWNLOAD_WORDS = {
             "telecharg", "document", "certificat", "decompte", "wallet", "carte tp"
     };
 
+    /* ---- Dependencies ---- */
     private final FeatureEngineeringProperties properties;
+
+    /* ========== Public API ========== */
 
     public List<AuditTrailEvent> enrichSessionEvents(List<AuditTrailEvent> events) {
         if (events == null || events.isEmpty()) {
@@ -132,6 +140,8 @@ public class FeatureEngineeringService {
 
         return ordered;
     }
+
+    /* ========== Private helpers ========== */
 
     public SessionSummary buildSessionSummary(List<AuditTrailEvent> sessionEvents) {
         if (sessionEvents == null || sessionEvents.isEmpty()) {
@@ -286,6 +296,7 @@ public class FeatureEngineeringService {
                 .build();
     }
 
+    /* Computes a composite risk score (0-100) for a single event. */
     private int computeRiskScore(AuditTrailEvent event, long timeDelta, int hasLoggedIn) {
         int score = 0;
         if (defaultInt(event.getIsIpChanged()) == 1) {
@@ -323,6 +334,7 @@ public class FeatureEngineeringService {
         return Math.min(100, score);
     }
 
+    /* Checks whether the action name matches known download-related keywords. */
     private boolean isDownloadAction(String action) {
         if (!notBlank(action)) {
             return false;
@@ -336,6 +348,7 @@ public class FeatureEngineeringService {
         return false;
     }
 
+    /* Provides the sort order: sequence-in-session, then timestamp, then ID. */
     private Comparator<AuditTrailEvent> eventComparator() {
         return Comparator
                 .comparing(AuditTrailEvent::getSequenceInSession, Comparator.nullsLast(Integer::compareTo))
@@ -343,6 +356,7 @@ public class FeatureEngineeringService {
                 .thenComparing(AuditTrailEvent::getId, Comparator.nullsLast(String::compareTo));
     }
 
+    /* Returns 1 if the current value differs from the first-seen value. */
     private int isChanged(String current, String first) {
         if (!notBlank(current) || !notBlank(first)) {
             return 0;
@@ -350,6 +364,7 @@ public class FeatureEngineeringService {
         return current.equals(first) ? 0 : 1;
     }
 
+    /* Returns 1 if any event action matches one of the given normalized actions. */
     private int hasAnyAction(List<AuditTrailEvent> events, Set<String> actions) {
         return events.stream()
                 .map(AuditTrailEvent::getAction)
@@ -358,10 +373,12 @@ public class FeatureEngineeringService {
                 : 0;
     }
 
+    /* Utility: average of a long list, defaulting to 0. */
     private double average(List<Long> values) {
         return values.isEmpty() ? 0.0 : values.stream().mapToLong(Long::longValue).average().orElse(0.0);
     }
 
+    /* Utility: converts an Object to a float with a fallback. */
     private float numericValue(Object value, double fallback) {
         if (value == null) {
             return (float) fallback;
@@ -376,22 +393,27 @@ public class FeatureEngineeringService {
         }
     }
 
+    /* Utility: string non-blank check. */
     private boolean notBlank(String value) {
         return value != null && !value.isBlank();
     }
 
+    /* Utility: returns a normalized label or empty string. */
     private String safeString(String value) {
         return value == null ? "" : TextNormalization.normalizeLabel(value);
     }
 
+    /* Utility: normalized equality check. */
     private boolean same(String left, String right) {
         return TextNormalization.equalsNormalized(left, right);
     }
 
+    /* Utility: null-safe integer default. */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
 
+    /* Normalises raw event fields and applies TextNormalization to all labels. */
     private void normalizeEventFields(AuditTrailEvent event) {
         if (event == null) {
             return;
@@ -428,6 +450,7 @@ public class FeatureEngineeringService {
         event.setCampaignId(TextNormalization.normalizeLabel(event.getCampaignId()));
     }
 
+    /* Returns the first non-blank value, falling back to second. */
     private String firstNonBlank(String first, String second) {
         return notBlank(first) ? first : second;
     }

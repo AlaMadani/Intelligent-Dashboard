@@ -15,7 +15,7 @@ import java.time.Instant;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AuditTrailEvent {
 
-    // Core identifiers used to group events into user sessions.
+    /* Core identifiers used to group events into user sessions. */
     @JsonAlias("record_id")
     private String id;
 
@@ -45,7 +45,7 @@ public class AuditTrailEvent {
 
     private String os;
 
-    // Request and response fragments retained for investigation and replay use cases.
+    /* Request and response fragments retained for investigation and replay use cases. */
     private JsonNode requestData;
 
     private JsonNode requestReturn;
@@ -68,6 +68,7 @@ public class AuditTrailEvent {
     @JsonProperty("http_method")
     private String httpMethod;
 
+    /* Action metadata used to classify the API interaction. */
     @JsonProperty("action_api")
     private String actionApi;
 
@@ -91,7 +92,7 @@ public class AuditTrailEvent {
     @JsonProperty("action_subtype")
     private String actionSubtype;
 
-    // Functional taxonomy and device dimensions consumed by feature engineering.
+    /* Functional taxonomy and device dimensions consumed by feature engineering. */
     private String type;
 
     @JsonAlias("environment_id")
@@ -100,7 +101,7 @@ public class AuditTrailEvent {
     private String device;
     private String persona;
 
-    // Optional business identifiers copied through without further transformation.
+    /* Optional business identifiers copied through without further transformation. */
     private JsonNode companyIdList;
     private JsonNode companyGroupIdList;
     private JsonNode insurerIdList;
@@ -111,6 +112,7 @@ public class AuditTrailEvent {
 
     private String subType;
 
+    /* Geographical metadata derived from the request IP. */
     @JsonAlias("country_code")
     private String countryCode;
 
@@ -126,7 +128,7 @@ public class AuditTrailEvent {
 
     private Integer sessionNumber;
 
-    // Session-ordering metadata used to rebuild the event sequence.
+    /* Session-ordering metadata used to rebuild the event sequence. */
     @JsonAlias("sequence_in_session")
     private Integer sequenceInSession;
 
@@ -135,7 +137,7 @@ public class AuditTrailEvent {
 
     private Integer sessionLength;
 
-    // Navigation context used by simulators and potential downstream analytics.
+    /* Navigation context used by simulators and potential downstream analytics. */
     private String prevAction;
 
     private String route;
@@ -152,12 +154,14 @@ public class AuditTrailEvent {
     @JsonProperty("session_duration_so_far_ms")
     private Long sessionDurationSoFarMs;
 
+    /* Payload size metrics useful for volumetric anomaly detection. */
     @JsonProperty("request_data_size_bytes")
     private Long requestDataSizeBytes;
 
     @JsonProperty("response_data_size_bytes")
     private Long responseDataSizeBytes;
 
+    /* Temporal and behavioral features extracted during enrichment. */
     private Integer hourOfDay;
 
     private Integer dayOfWeek;
@@ -187,6 +191,7 @@ public class AuditTrailEvent {
 
     private Integer pingPongCount;
 
+    /* Risk assessment fields set by downstream processing. */
     private Double sessionRiskScore;
 
     @JsonProperty("is_anomaly")

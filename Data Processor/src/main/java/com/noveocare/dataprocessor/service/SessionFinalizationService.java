@@ -23,17 +23,23 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Manages session lifecycle state in Redis: tracking open sessions, detecting
+ * explicit session ends, finalizing sessions, and handling late events.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class SessionFinalizationService {
 
+    /* Injected dependencies */
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RuleProperties ruleProperties;
     private final SessionFinalizationProperties finalizationProperties;
     private final RedisCacheProperties cacheProperties;
 
+    /* Finalization and late-event counters */
     private final AtomicLong sessionsFinalizedByExplicitEnd = new AtomicLong();
     private final AtomicLong sessionsFinalizedByInactivityTimeout = new AtomicLong();
     private final AtomicLong sessionsFinalizedByMaxDuration = new AtomicLong();
@@ -43,6 +49,8 @@ public class SessionFinalizationService {
     private final AtomicReference<Instant> lastLateEventAt = new AtomicReference<>();
     private volatile Instant expiredSessionFlushLastRunAt;
     private volatile int expiredSessionFlushLastFinalizedCount;
+
+    /* --- Session state management --- */
 
     public void handleIncomingEvent(AuditTrailEvent event) {
         String key = stateKey(event.getInsuredId(), event.getSessionId());
@@ -81,6 +89,7 @@ public class SessionFinalizationService {
         addToIndex(key);
     }
 
+    /* Checks whether the given event signals an explicit session end */
     public boolean isExplicitSessionEnd(AuditTrailEvent event) {
         String value = findEndActionField(event);
         if (value == null || value.isBlank()) {
@@ -90,6 +99,7 @@ public class SessionFinalizationService {
                 .anyMatch(action -> TextNormalization.equalsNormalized(action, value));
     }
 
+    /* Resolves the end reason (SSO disconnect vs logout) from the event */
     public String resolveEndReason(AuditTrailEvent event) {
         String value = findEndActionField(event);
         if (value == null || value.isBlank()) {
@@ -103,6 +113,7 @@ public class SessionFinalizationService {
         return finalizationProperties.getExplicitLogoutEndReason();
     }
 
+    /* Marks a session as finalized, updates the index, and sets TTL for late-event grace */
     public SessionState finalizeSession(String insuredId, String sessionId, String endReason, boolean endedExplicitly) {
         String key = stateKey(insuredId, sessionId);
         SessionState state = readState(key);
@@ -123,11 +134,13 @@ public class SessionFinalizationService {
         return state;
     }
 
+    /* Returns whether the session is already finalized */
     public boolean isSessionFinalized(String insuredId, String sessionId) {
         SessionState state = readState(stateKey(insuredId, sessionId));
         return state != null && state.isFinalized();
     }
 
+    /* Returns all open (non-finalized) session states from the index */
     public List<SessionState> getOpenSessionStates() {
         Set<String> keys = redisTemplate.opsForSet().members(CacheKeys.sessionStateIndexKey());
         if (keys == null || keys.isEmpty()) {
@@ -153,10 +166,12 @@ public class SessionFinalizationService {
         return states;
     }
 
+    /* Reads a single session state from Redis */
     public SessionState getSessionState(String insuredId, String sessionId) {
         return readState(stateKey(insuredId, sessionId));
     }
 
+    /* Returns the count of currently open sessions */
     public int openSessionCount() {
         Set<String> keys = redisTemplate.opsForSet().members(CacheKeys.sessionStateIndexKey());
         if (keys == null || keys.isEmpty()) return 0;
@@ -175,12 +190,13 @@ public class SessionFinalizationService {
         return count;
     }
 
+    /* Records the last flush run timestamp and finalization count */
     public void markFlushRun(int finalizedCount) {
         this.expiredSessionFlushLastRunAt = Instant.now();
         this.expiredSessionFlushLastFinalizedCount = finalizedCount;
     }
 
-    // --- Diagnostics snapshots ---
+    /* --- Diagnostics snapshots --- */
 
     public Map<String, Object> diagnosticsSnapshot() {
         Map<String, Object> diag = new LinkedHashMap<>();
@@ -198,6 +214,8 @@ public class SessionFinalizationService {
         return diag;
     }
 
+    /* --- Private helpers --- */
+
     private String resolveEventAction(AuditTrailEvent event) {
         if (event == null) return "unknown";
         if (event.getActionValue() != null && !event.getActionValue().isBlank()) {
@@ -212,12 +230,12 @@ public class SessionFinalizationService {
         return "unknown";
     }
 
-    // --- Private helpers ---
-
+    /* Redis key helpers */
     private String stateKey(String insuredId, String sessionId) {
         return CacheKeys.sessionStateKey(insuredId, sessionId);
     }
 
+    /* Reads and deserializes a SessionState from Redis */
     private SessionState readState(String key) {
         try {
             String json = redisTemplate.opsForValue().get(key);
@@ -229,6 +247,7 @@ public class SessionFinalizationService {
         }
     }
 
+    /* Serializes and writes a SessionState to Redis */
     private void saveState(String key, SessionState state) {
         try {
             String json = objectMapper.writeValueAsString(state);
@@ -238,14 +257,17 @@ public class SessionFinalizationService {
         }
     }
 
+    /* Adds a session key to the global state index set */
     private void addToIndex(String key) {
         redisTemplate.opsForSet().add(CacheKeys.sessionStateIndexKey(), key);
     }
 
+    /* Removes a session key from the global state index set */
     private void removeFromIndex(String key) {
         redisTemplate.opsForSet().remove(CacheKeys.sessionStateIndexKey(), key);
     }
 
+    /* Finds the first non-blank end-action field according to the configured preference order */
     private String findEndActionField(AuditTrailEvent event) {
         for (String field : finalizationProperties.getEndActionFieldPreference()) {
             String value = switch (field) {
@@ -261,6 +283,7 @@ public class SessionFinalizationService {
         return null;
     }
 
+    /* Increments the appropriate counter based on end reason */
     private void updateFinalizationCounter(String endReason) {
         if (endReason == null) return;
         switch (endReason) {

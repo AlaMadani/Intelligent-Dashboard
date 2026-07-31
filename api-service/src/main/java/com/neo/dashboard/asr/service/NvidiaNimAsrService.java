@@ -26,16 +26,28 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * ASR service implementation that talks to an OpenAI-compatible audio
+ * transcription REST API (e.g. NVIDIA NIM). Activated when the configuration
+ * property {@code app.asr.provider} is set to {@code "openai-compatible-audio"}.
+ * Sends the audio file as multipart/form-data to the provider's
+ * {@code /audio/transcriptions} endpoint and parses the JSON response.
+ */
 @Slf4j
 @Service
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(value = "app.asr.provider", havingValue = "openai-compatible-audio", matchIfMissing = false)
 public class NvidiaNimAsrService implements AsrService {
 
+    /** Maximum allowed audio file size (10 MB). */
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+    /** ASR configuration properties. */
     private final AsrProperties properties;
+    /** Utility to convert audio files to WAV format via ffmpeg. */
     private final AudioConverter audioConverter;
+    /** Jackson JSON mapper for parsing provider responses. */
     private final ObjectMapper objectMapper;
+    /** Reactive HTTP client used to call the provider endpoint. */
     private WebClient webClient;
 
     public NvidiaNimAsrService(AsrProperties properties, AudioConverter audioConverter, ObjectMapper objectMapper) {
@@ -44,9 +56,15 @@ public class NvidiaNimAsrService implements AsrService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Initializes the {@link WebClient} with a custom {@link HttpClient} that
+     * has read/write timeouts derived from the configured ASR timeout. Also
+     * logs the selected provider configuration and API key status.
+     */
     @PostConstruct
     public void init() {
         long effectiveTimeout = Math.max(properties.getTimeoutMs() + 2000, 10000);
+        // Build a Netty HttpClient with explicit read/write timeout handlers
         HttpClient httpClient = HttpClient.create()
                 .responseTimeout(Duration.ofMillis(effectiveTimeout))
                 .doOnConnected(conn -> conn
@@ -56,6 +74,7 @@ public class NvidiaNimAsrService implements AsrService {
                 .clientConnector(new org.springframework.http.client.reactive.ReactorClientHttpConnector(httpClient))
                 .build();
 
+        // Validate and log API key status
         String apiKey = properties.getApiKey();
         boolean hasKey = apiKey != null && !apiKey.isBlank();
         boolean looksValid = hasKey && apiKey.length() > 40;
@@ -72,6 +91,7 @@ public class NvidiaNimAsrService implements AsrService {
         }
     }
 
+    /** Returns true if the configured API key is present, non-blank, and longer than 40 characters. */
     private boolean isApiKeyLooksValid() {
         String key = properties.getApiKey();
         return key != null && !key.isBlank() && key.length() > 40;
@@ -98,8 +118,10 @@ public class NvidiaNimAsrService implements AsrService {
 
     @Override
     public AsrTranscriptionResult transcribe(MultipartFile file, String languageCode) {
+        // Generate a short correlation ID for request tracing
         String requestId = UUID.randomUUID().toString().substring(0, 8);
         Instant start = Instant.now();
+        // Use the provided language code or fall back to the configured default
         String langCode = (languageCode != null && !languageCode.isBlank())
                 ? languageCode : properties.getLanguageCode();
 
@@ -110,12 +132,14 @@ public class NvidiaNimAsrService implements AsrService {
         log.info("ASR_REQUEST_STARTED requestId={} contentType={} originalFilename={} sizeBytes={} languageCode={}",
                 requestId, contentType, originalFilename, fileSize, langCode);
 
+        // Reject files that exceed the maximum allowed size
         if (fileSize > MAX_FILE_SIZE) {
             log.warn("ASR_AUDIO_TOO_LARGE requestId={} sizeBytes={} maxBytes={}",
                     requestId, fileSize, MAX_FILE_SIZE);
             throw new AsrException("ASR_AUDIO_TOO_LARGE", "Audio file too large. Maximum size is " + (MAX_FILE_SIZE / 1024 / 1024) + "MB.");
         }
 
+        // Read the file bytes from the multipart stream
         byte[] audioBytes;
         try {
             audioBytes = file.getBytes();
@@ -123,6 +147,7 @@ public class NvidiaNimAsrService implements AsrService {
             throw new AsrException("ASR_INVALID_AUDIO", "Could not read audio file.");
         }
 
+        // Convert unsupported audio formats (e.g. webm, mp4) to WAV via ffmpeg
         boolean needsConversion = originalFilename != null && !audioConverter.isSupportedFormat(originalFilename);
         if (needsConversion && properties.getAudio().isConvertToWav()) {
             byte[] converted = audioConverter.convertToWav(audioBytes, originalFilename, requestId);
@@ -132,6 +157,7 @@ public class NvidiaNimAsrService implements AsrService {
             audioBytes = converted;
         }
 
+        // Ensure the API key passes the basic length heuristic
         if (!isApiKeyLooksValid()) {
             String key = properties.getApiKey();
             boolean hasKey = key != null && !key.isBlank();
@@ -143,13 +169,16 @@ public class NvidiaNimAsrService implements AsrService {
                     + ", expected > 40 chars). Configure app.asr.api-key.");
         }
 
+        // Build the full provider endpoint URL
         String endpoint = properties.getServer() + "/audio/transcriptions";
         log.info("ASR_PROVIDER_REQUEST requestId={} provider={} endpoint={} languageCode={} timeoutMs={}",
                 requestId, properties.getProvider(), endpoint, langCode, properties.getTimeoutMs());
 
+        // Execute the REST call with multipart upload
         String responseBody;
         try {
             MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+            // Wrap audio bytes as a ByteArrayResource with a fixed filename
             bodyBuilder.part("file", new ByteArrayResource(audioBytes) {
                 @Override
                 public String getFilename() {
@@ -167,6 +196,7 @@ public class NvidiaNimAsrService implements AsrService {
                     .timeout(Duration.ofMillis(properties.getTimeoutMs()))
                     .block();
         } catch (WebClientResponseException e) {
+            // Provider returned a non-2xx status; log and map to appropriate error
             String errorBody = e.getResponseBodyAsString();
             log.warn("ASR_PROVIDER_ERROR requestId={} status={} body={}", requestId, e.getStatusCode(), errorBody);
             if (e.getStatusCode().is5xxServerError()) {
@@ -174,6 +204,7 @@ public class NvidiaNimAsrService implements AsrService {
             }
             throw new AsrException("ASR_FAILED", "ASR provider returned " + e.getStatusCode() + ": " + truncate(errorBody, 200));
         } catch (Exception e) {
+            // Detect timeout exceptions from the WebClient/Netty layer
             String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
             if (msg.contains("timeout") || msg.contains("timed out")) {
                 throw new AsrException("ASR_PROVIDER_TIMEOUT", "ASR provider timed out.");
@@ -181,8 +212,10 @@ public class NvidiaNimAsrService implements AsrService {
             throw new AsrException("ASR_FAILED", "Could not transcribe audio: " + e.getMessage());
         }
 
+        // Calculate end-to-end latency
         long latencyMs = Duration.between(start, Instant.now()).toMillis();
 
+        // Extract the transcript from the JSON response (field "text")
         String transcript = "";
         try {
             JsonNode json = objectMapper.readTree(responseBody);
@@ -196,6 +229,7 @@ public class NvidiaNimAsrService implements AsrService {
         log.info("ASR_PROVIDER_RESPONSE requestId={} latencyMs={} transcriptChars={} transcript=\"{}\"",
                 requestId, latencyMs, transcript.length(), truncate(transcript, 80));
 
+        // Build and return the result DTO
         AsrTranscriptionResult result = new AsrTranscriptionResult(
                 transcript,
                 properties.getProvider(),
@@ -213,6 +247,7 @@ public class NvidiaNimAsrService implements AsrService {
         return result;
     }
 
+    /** Truncates a string to {@code max} characters, appending "..." if it was longer. */
     private String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() <= max ? s : s.substring(0, max) + "...";

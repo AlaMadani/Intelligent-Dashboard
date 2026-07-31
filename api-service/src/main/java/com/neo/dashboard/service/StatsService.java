@@ -26,20 +26,26 @@ import java.util.Objects;
 @Slf4j
 public class StatsService {
 
-    /* Redis may use either ISO dates or compact yyyyMMdd dates in cache keys. */
+    /** Formatter for compact date keys ({@code yyyyMMdd}), used alongside ISO date keys for Redis cache lookups. */
     private static final DateTimeFormatter COMPACT_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
-    /* Cache access and JSON conversion. */
+    /** Redis template for reading/writing cached statistics payloads. */
     private final StringRedisTemplate redisTemplate;
+    /** Jackson mapper for deserialising cached JSON strings into structured objects. */
     private final ObjectMapper objectMapper;
 
-    /*
-     * Read the latest live snapshot from Redis and return an empty payload if
-     * nothing is cached.
+    /**
+     * Retrieves the latest live-statistics snapshot from Redis.  Tries both ISO
+     * and compact date key formats.  Returns an empty payload when nothing is
+     * cached.
+     *
+     * @param date the target date; defaults to today when {@code null}
+     * @return a {@link StatsResponseDto} containing the cached payload or a missing marker
      */
     @Transactional(readOnly = true)
     public StatsResponseDto getLiveStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
+        /* Try each key format (ISO date + compact date) until one hits. */
         for (String key : dateKeys("stats:live:", resolvedDate)) {
             String cached = redisTemplate.opsForValue().get(key);
             if (cached != null && !cached.isBlank()) {
@@ -55,18 +61,23 @@ public class StatsService {
         return buildMissing(resolvedDate);
     }
 
-    /*
-     * Read trend stats from Redis and return an empty payload when nothing is
-     * cached.  The action_stats_daily table no longer exists, so there is no
-     * SQL fallback.
+    /**
+     * Retrieves trend statistics from Redis.  Checks for a V3.6.1 forecast
+     * snapshot first; if absent falls back to the generic trend key.  Returns
+     * an empty payload when nothing is cached.
+     *
+     * @param date the target date; defaults to today when {@code null}
+     * @return a {@link StatsResponseDto} with the trend payload or a missing marker
      */
     @Transactional(readOnly = true)
     public StatsResponseDto getTrendStats(LocalDate date) {
         LocalDate resolvedDate = date == null ? LocalDate.now() : date;
+        /* Try the dedicated forecast snapshot first (V3.6.1 schema). */
         StatsResponseDto forecastSnapshot = getForecastSnapshot(resolvedDate);
         if (forecastSnapshot != null) {
             return forecastSnapshot;
         }
+        /* Fall back to the generic trend-stats cache keys. */
         for (String key : dateKeys("stats:trend:", resolvedDate)) {
             String cached = redisTemplate.opsForValue().get(key);
             if (cached != null && !cached.isBlank()) {
@@ -82,7 +93,16 @@ public class StatsService {
         return buildMissing(resolvedDate);
     }
 
+    /**
+     * Attempts to load a forecast snapshot, preferring the dedicated V3.6.1
+     * Redis key and falling back to the generic forecast-series / forecasts
+     * dashboard keys.
+     *
+     * @param date the target date to attach to the response
+     * @return a {@link StatsResponseDto} if any key holds forecast content, or {@code null}
+     */
     private StatsResponseDto getForecastSnapshot(LocalDate date) {
+        /* Try the dedicated V3.6.1 forecast cache key first. */
         String v36Forecast = redisTemplate.opsForValue().get(com.neo.dashboard.redis.CacheKeys.DASHBOARD_FORECAST_V36);
         if (v36Forecast != null && !v36Forecast.isBlank()) {
             try {
@@ -91,6 +111,7 @@ public class StatsService {
                 log.warn("Failed to parse V3.6.1 forecast snapshot", e);
             }
         }
+        /* Fall back to the legacy forecast dashboard keys. */
         for (String view : Arrays.asList("forecast-series", "forecasts")) {
             String cached = redisTemplate.opsForValue().get(com.neo.dashboard.redis.CacheKeys.dashboardKey(view));
             if (cached == null || cached.isBlank()) {
@@ -108,29 +129,53 @@ public class StatsService {
         return null;
     }
 
-    /* Return a consistent empty payload instead of null when cached data is absent. */
+    /**
+     * Builds a consistent "empty" response so callers never receive {@code null}
+     * when no cached data is available.
+     *
+     * @param date the target date
+     * @return a {@link StatsResponseDto} with source set to {@code "missing"}
+     */
     private StatsResponseDto buildMissing(LocalDate date) {
         JsonNode payload = objectMapper.createObjectNode();
         return new StatsResponseDto(date, "missing", payload);
     }
 
+    /**
+     * Checks whether a parsed JSON payload contains actual forecast content
+     * (non-empty items, total_events points, or wrapped points).
+     *
+     * @param payload the parsed JSON node
+     * @return {@code true} if the payload holds meaningful forecast data
+     */
     private boolean hasForecastContent(JsonNode payload) {
         if (payload == null || payload.isMissingNode() || payload.isNull()) {
             return false;
         }
+        /* Check for structured items object. */
         JsonNode items = payload.path("items");
         if (items.isObject() && items.size() > 0) {
             return true;
         }
+        /* Check for flat total_events.points array. */
         JsonNode direct = payload.path("total_events").path("points");
         if (direct.isArray() && !direct.isEmpty()) {
             return true;
         }
+        /* Check for wrapped items.total_events.points array. */
         JsonNode wrapped = payload.path("items").path("total_events").path("points");
         return wrapped.isArray() && !wrapped.isEmpty();
     }
 
-    /* Support both supported key formats while avoiding duplicates. */
+    /**
+     * Generates the list of Redis cache keys to try for a given date, covering
+     * both the ISO date format and the compact {@code yyyyMMdd} format, with
+     * duplicates removed.
+     *
+     * @param prefix the Redis key prefix (e.g. {@code "stats:live:"})
+     * @param date   the target date
+     * @return a deduplicated list of candidate keys
+     */
     private List<String> dateKeys(String prefix, LocalDate date) {
         List<String> keys = new ArrayList<>(2);
         keys.add(prefix + date);

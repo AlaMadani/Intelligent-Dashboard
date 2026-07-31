@@ -11,11 +11,16 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Periodically logs a performance summary containing metrics from the consumer,
+ * idempotency service, dashboard refresh, and snapshot persistence.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class PerformanceSummaryScheduler {
 
+    /* Injected dependencies */
     private final AuditTrailConsumer auditTrailConsumer;
     private final DashboardSnapshotService dashboardSnapshotService;
     private final DashboardSnapshotPersistenceService dashboardSnapshotPersistenceService;
@@ -23,7 +28,10 @@ public class PerformanceSummaryScheduler {
     private final EventIdempotencyService eventIdempotencyService;
     private final RedisSessionBufferService redisSessionBufferService;
 
+    /* State tracking */
     private final AtomicReference<Instant> lastSummaryAt = new AtomicReference<>();
+
+    /* --- Scheduled task --- */
 
     @Scheduled(fixedDelayString = "${app.performance.summary-interval-ms:30000}")
     public void logPerformanceSummary() {

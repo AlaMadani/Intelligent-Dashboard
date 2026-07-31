@@ -8,15 +8,23 @@ import com.noveocare.dataprocessor.config.InferenceConfigProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+/**
+ * Central configuration gateway for the inference pipeline. Wraps the raw
+ * property beans and exposes boolean gates, timeouts, and circuit-breaker /
+ * live-fast-mode settings in a single place.
+ */
 @Service
 @RequiredArgsConstructor
 public class InferenceConfig {
 
+    /* ---- Configuration property beans ---- */
     private final InferenceConfigProperties props;
     private final AiTabularAnomalyProperties tabularProps;
     private final AiSequenceProperties sequenceProps;
     private final AiChurnProperties churnProps;
     private final AiForecastProperties forecastProps;
+
+    /* ---- Feature gates ---- */
 
     public boolean isInferenceEnabled() {
         return props.isInferenceEnabled();
@@ -37,6 +45,8 @@ public class InferenceConfig {
     public boolean isForecastEnabled() {
         return props.isInferenceEnabled() && forecastProps.isEnabled();
     }
+
+    /* ---- Per-model sub-gates ---- */
 
     public boolean isXgboostEnabled() {
         return isTabularEnabled() && tabularProps.isXgboostEnabled();
@@ -62,6 +72,8 @@ public class InferenceConfig {
         return isSequenceEnabled() && sequenceProps.isTcnEnabled();
     }
 
+    /* ---- Timeout configuration ---- */
+
     public long getTimeoutMs(String modelName) {
         InferenceConfigProperties.InferenceTimeouts t = props.getInferenceTimeouts();
         return switch (modelName) {
@@ -76,6 +88,8 @@ public class InferenceConfig {
         };
     }
 
+    /* ---- Circuit-breaker settings ---- */
+
     public boolean isCircuitBreakerEnabled() {
         return props.getCircuitBreaker().isEnabled();
     }
@@ -87,6 +101,8 @@ public class InferenceConfig {
     public long getCircuitBreakerCooldownMs() {
         return props.getCircuitBreaker().getCooldownMs();
     }
+
+    /* ---- Live-fast-mode settings ---- */
 
     public boolean isLiveFastModeEnabled() {
         return props.getLiveFastMode().isEnabled();
@@ -103,6 +119,8 @@ public class InferenceConfig {
     public boolean isLiveFastModeSkipSequenceUnderLoad() {
         return props.getLiveFastMode().isSkipSequenceUnderLoad();
     }
+
+    /* ---- Benchmark and debug ---- */
 
     public boolean isBenchmarkOnStartup() {
         return props.isBenchmarkOnStartup();
@@ -127,6 +145,8 @@ public class InferenceConfig {
     public boolean isDebugBenchmarkEnabled() {
         return sequenceProps.isDebugBenchmarkEnabled();
     }
+
+    /* ---- Raw access ---- */
 
     public InferenceConfigProperties getInferenceConfigProperties() {
         return props;

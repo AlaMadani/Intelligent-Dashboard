@@ -14,15 +14,23 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * CatBoost tabular anomaly detection runtime. Loads a .cbm model and scores
+ * feature vectors.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class CatBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime {
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiTabularAnomalyProperties properties;
     private CatBoostModel model;
     private final List<String> loadWarnings = new ArrayList<>();
 
+    /* ========== Initialisation ========== */
+
+    /* Loads the CatBoost model file; gracefully handles absence. */
     @PostConstruct
     public void init() {
         if (!properties.isEnabled() || !properties.isCatboostEnabled()) {
@@ -42,6 +50,8 @@ public class CatBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime
             log.warn("CatBoost anomaly runtime unavailable", ex);
         }
     }
+
+    /* ========== TabularAnomalyModelRuntime implementation ========== */
 
     @Override
     public TabularModelScore score(TabularAnomalyFeatureVector vector) {
@@ -72,6 +82,7 @@ public class CatBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime
         }
     }
 
+    /* Returns true if the native model handle is non-null. */
     @Override
     public boolean isAvailable() {
         return model != null;
@@ -87,6 +98,8 @@ public class CatBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime
         return "anomaly_catboost.cbm";
     }
 
+    /* ========== Lifecycle ========== */
+
     @PreDestroy
     public void close() {
         if (model != null) {
@@ -98,14 +111,19 @@ public class CatBoostTabularAnomalyRuntime implements TabularAnomalyModelRuntime
         }
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Returns the first load warning or a default fallback. */
     private String firstWarning(String fallback) {
         return loadWarnings.isEmpty() ? fallback : loadWarnings.get(0);
     }
 
+    /* Computes elapsed milliseconds since a nanoTime reference. */
     private long elapsedMillis(long started) {
         return (System.nanoTime() - started) / 1_000_000L;
     }
 
+    /* Sigmoid function with numeric stability for positive/negative inputs. */
     private double sigmoid(double value) {
         return 1.0 / (1.0 + Math.exp(-value));
     }

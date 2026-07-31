@@ -24,8 +24,15 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for SessionRunningSummaryService: empty summary creation, event-based
+ * updates (first event, multiple events, out-of-order events), summary
+ * conversion, failure tracking, and consecutive failure handling.
+ */
 @ExtendWith(MockitoExtension.class)
 class SessionRunningSummaryServiceTest {
+
+    /* --- Fields --- */
 
     private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
 
@@ -36,6 +43,8 @@ class SessionRunningSummaryServiceTest {
 
     private RedisCacheProperties cacheProperties;
     private SessionRunningSummaryService service;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -48,6 +57,8 @@ class SessionRunningSummaryServiceTest {
         service = new SessionRunningSummaryService(redisTemplate, objectMapper, cacheProperties);
     }
 
+    /* --- Test methods: create --- */
+
     @Test
     void testCreateEmpty() {
         SessionRunningSummary s = service.createEmpty("s1", "i1");
@@ -56,6 +67,8 @@ class SessionRunningSummaryServiceTest {
         assertThat(s.getEventCount()).isZero();
         assertThat(s.getMinInterActionMs()).isEqualTo(Long.MAX_VALUE);
     }
+
+    /* --- Test methods: first event --- */
 
     @Test
     void testUpdateWithEventFirstEvent() {
@@ -88,6 +101,8 @@ class SessionRunningSummaryServiceTest {
         assertThat(s.getRiskScoreCount()).isEqualTo(1);
         assertThat(s.getRiskScoreMax()).isEqualTo(10.0);
     }
+
+    /* --- Test methods: multiple events --- */
 
     @Test
     void testUpdateWithEventMultipleEvents() {
@@ -164,6 +179,8 @@ class SessionRunningSummaryServiceTest {
         assertThat(s.getRiskScoreMax()).isEqualTo(45.0);
     }
 
+    /* --- Test methods: out-of-order events --- */
+
     @Test
     void testUpdateWithEventOutOfOrder() {
         AuditTrailEvent lateEvent = new AuditTrailEvent();
@@ -206,6 +223,8 @@ class SessionRunningSummaryServiceTest {
         assertThat(s.getLastTimestamp()).isEqualTo(mainEvent.getCreatedAt());
         assertThat(s.getLastAction()).isEqualTo("Connexion");
     }
+
+    /* --- Test methods: summary conversion --- */
 
     @Test
     void testToLiveSessionSummary() {
@@ -298,6 +317,8 @@ class SessionRunningSummaryServiceTest {
         assertThat(summary.getUniqueActions()).isEqualTo(2);
     }
 
+    /* --- Test methods: event count --- */
+
     @Test
     void testEventCountMatches() {
         SessionRunningSummary s = service.createEmpty("s1", "i1");
@@ -324,6 +345,8 @@ class SessionRunningSummaryServiceTest {
         assertThat(s.getFirstSequenceInSession()).isEqualTo(1);
         assertThat(s.getLastSequenceInSession()).isEqualTo(100);
     }
+
+    /* --- Test methods: consecutive failures --- */
 
     @Test
     void testConsecutiveFailures() {

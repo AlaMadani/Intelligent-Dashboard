@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/**
+ * Persisted analysis snapshot for a finalized session.
+ */
 @Entity
 @Table(name = "session_analysis")
 @Data
@@ -13,6 +16,7 @@ public class SessionAnalysis {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /* Core identifiers. */
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
@@ -22,6 +26,7 @@ public class SessionAnalysis {
     @Column(name = "country_code")
     private String countryCode;
 
+    /* Session temporal boundaries. */
     @Column(name = "start_time")
     private Instant startTime;
 
@@ -37,6 +42,7 @@ public class SessionAnalysis {
     @Column(name = "unique_action_count")
     private Integer uniqueActions;
 
+    /* Sequence and action-count JSON payloads. */
     @Column(name = "action_sequence_json", columnDefinition = "NVARCHAR(MAX)")
     private String actionSequenceJson;
 
@@ -46,6 +52,7 @@ public class SessionAnalysis {
     @Column(name = "action_counts_json", columnDefinition = "NVARCHAR(MAX)")
     private String actionCountsJson;
 
+    /* Churn and persona predictions. */
     @Column(name = "churn_probability")
     private Double churnProbability;
 
@@ -55,6 +62,7 @@ public class SessionAnalysis {
     @Column(name = "v36_runtime_version", columnDefinition = "NVARCHAR(32)")
     private String v36RuntimeVersion;
 
+    /* Tabular model scores (XGBoost, LightGBM, CatBoost, OneClassSVM). */
     @Column(name = "xgboost_anomaly_score")
     private Double xgboostAnomalyScore;
 
@@ -79,6 +87,7 @@ public class SessionAnalysis {
     @Column(name = "oneclasssvm_novelty_score_100")
     private Double oneClassSvmNoveltyScore100;
 
+    /* Sequence model metadata and scores. */
     @Column(name = "sequence_model_artifact")
     private String sequenceModelArtifact;
 
@@ -97,6 +106,7 @@ public class SessionAnalysis {
     @Column(name = "sequence_ctx_score")
     private Double sequenceCtxScore;
 
+    /* Aggregated AI, rule, and final risk scores. */
     @Column(name = "ai_risk_score")
     private Double aiRiskScore;
 
@@ -106,6 +116,7 @@ public class SessionAnalysis {
     @Column(name = "final_risk_score")
     private Double finalRiskScore;
 
+    /* Transformer-specific scores and artifact. */
     @Column(name = "transformer_surprise_score")
     private Double transformerSurpriseScore;
 
@@ -118,6 +129,7 @@ public class SessionAnalysis {
     @Column(name = "fallback_mode", columnDefinition = "NVARCHAR(32)")
     private String fallbackMode;
 
+    /* TCN-specific scores and artifact. */
     @Column(name = "tcn_surprise_score")
     private Double tcnSurpriseScore;
 
@@ -127,6 +139,7 @@ public class SessionAnalysis {
     @Column(name = "tcn_artifact", columnDefinition = "NVARCHAR(128)")
     private String tcnArtifact;
 
+    /* JSON payloads for explainability, rules, and model contributions. */
     @Column(name = "top_sequence_surprise_fields_json", columnDefinition = "NVARCHAR(MAX)")
     private String topSequenceSurpriseFieldsJson;
 
@@ -145,6 +158,7 @@ public class SessionAnalysis {
     @Column(name = "risk_level", columnDefinition = "NVARCHAR(32)")
     private String riskLevel;
 
+    /* Anomaly type classification details. */
     @Column(name = "anomaly_type_source", columnDefinition = "NVARCHAR(64)")
     private String anomalyTypeSource;
 
@@ -154,6 +168,7 @@ public class SessionAnalysis {
     @Column(name = "anomaly_type_evidence_json", columnDefinition = "NVARCHAR(MAX)")
     private String anomalyTypeEvidenceJson;
 
+    /* Persona classification. */
     @Column(name = "persona_label")
     private String personaLabel;
 
@@ -163,6 +178,7 @@ public class SessionAnalysis {
     @Column(name = "persona_confidence")
     private Double personaConfidence;
 
+    /* Churn model details. */
     @Column(name = "churn_risk_level")
     private String churnRiskLevel;
 
@@ -175,6 +191,7 @@ public class SessionAnalysis {
     @Column(name = "churn_feature_warnings_json", columnDefinition = "NVARCHAR(MAX)")
     private String churnFeatureWarningsJson;
 
+    /* Forecast models and context. */
     @Column(name = "forecast_total_events_model", columnDefinition = "NVARCHAR(64)")
     private String forecastTotalEventsModel;
 
@@ -184,6 +201,7 @@ public class SessionAnalysis {
     @Column(name = "forecast_context_json", columnDefinition = "NVARCHAR(MAX)")
     private String forecastContextJson;
 
+    /* Additional JSON metadata payloads. */
     @Column(name = "llm_explanation_evidence_payload_json", columnDefinition = "NVARCHAR(MAX)")
     private String llmExplanationEvidencePayloadJson;
 

@@ -6,6 +6,10 @@ import lombok.Data;
 
 import java.util.Map;
 
+/**
+ * Holds 1-based vocabulary maps and reverse maps for categorical columns,
+ * loaded from categorical_vocabularies.json.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class CategoricalVocabularies {

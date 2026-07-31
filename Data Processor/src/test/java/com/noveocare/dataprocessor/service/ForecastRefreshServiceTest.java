@@ -26,7 +26,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for ForecastRefreshService: dirty flag management, forecast execution
+ * gating, Redis/SQL persistence, security overview update, and error recording.
+ */
 class ForecastRefreshServiceTest {
+
+    /* --- Fields --- */
 
     private final AiForecastProperties forecastProperties = new AiForecastProperties();
     private final RedisCacheProperties cacheProperties = new RedisCacheProperties();
@@ -40,6 +46,8 @@ class ForecastRefreshServiceTest {
         cacheProperties.setForecast(Duration.ofHours(24));
     }
 
+    /* --- Test methods: dirty flag --- */
+
     @Test
     void markDirtySetsDirtyFlag() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -51,6 +59,8 @@ class ForecastRefreshServiceTest {
         service.markDirty();
         assertThat(service.isDirty()).isTrue();
     }
+
+    /* --- Test methods: skip conditions --- */
 
     @Test
     void skipWhenNotDirty() {
@@ -107,6 +117,8 @@ class ForecastRefreshServiceTest {
         assertThat(ran).isFalse();
     }
 
+    /* --- Test methods: execution --- */
+
     @Test
     void runsForecastAndPersists() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -139,6 +151,8 @@ class ForecastRefreshServiceTest {
         verify(health).recordRuntimeSuccess("forecast_ridge");
         verify(health).recordRuntimeSuccess("forecast_xgboost");
     }
+
+    /* --- Test methods: security overview --- */
 
     @Test
     void forecastRefreshUpdatesSecurityOverviewForecast() {
@@ -185,6 +199,8 @@ class ForecastRefreshServiceTest {
         assertThat(securityPayload).doesNotContainKey("forecastWarnings");
     }
 
+    /* --- Test methods: null handling --- */
+
     @Test
     void forecastRefreshWithNullPredictionDoesNotWriteZero() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -223,6 +239,8 @@ class ForecastRefreshServiceTest {
         List<String> warnings = (List<String>) securityPayload.get("forecastWarnings");
         assertThat(warnings).contains("forecast_insufficient_history");
     }
+
+    /* --- Test methods: historical data --- */
 
     @Test
     void forecastRefreshIncludesNonEmptyHistoricalTotalEvents() {
@@ -354,6 +372,8 @@ class ForecastRefreshServiceTest {
         assertThat(warnings).contains("forecast_history_unavailable");
     }
 
+    /* --- Test methods: rate format --- */
+
     @Test
     void historicalAnomalyRateUsesDecimalNotPercent() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -400,6 +420,8 @@ class ForecastRefreshServiceTest {
         }
     }
 
+    /* --- Test methods: error handling --- */
+
     @Test
     void recordsErrorOnForecastFailure() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -419,6 +441,8 @@ class ForecastRefreshServiceTest {
         verify(health).recordRuntimeError(eq("forecast_ridge"), any());
         verify(health).recordRuntimeError(eq("forecast_xgboost"), any());
     }
+
+    /* --- Test methods: payload structure --- */
 
     @Test
     void snapshotPayloadContainsExpectedKeys() {
@@ -459,6 +483,8 @@ class ForecastRefreshServiceTest {
                 .containsKey("source");
     }
 
+    /* --- Test methods: warnings --- */
+
     @Test
     void insufficientHistoryWarning() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -495,6 +521,8 @@ class ForecastRefreshServiceTest {
         assertThat(warnings).contains("forecast_insufficient_history");
     }
 
+    /* --- Test methods: diagnostics --- */
+
     @Test
     void diagnosticsExposesState() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -513,6 +541,8 @@ class ForecastRefreshServiceTest {
                 .containsEntry("xgboostLoaded", true);
     }
 
+    /* --- Test methods: async behavior --- */
+
     @Test
     void listenerDoesNotRunForecastWhenAsyncEnabled() {
         ForecastRuntimeService runtimeService = mock(ForecastRuntimeService.class);
@@ -523,6 +553,8 @@ class ForecastRefreshServiceTest {
         service.markDirty();
         verify(runtimeService, never()).forecast(any());
     }
+
+    /* --- Helper classes --- */
 
     private static class AiForecastProps extends AiForecastProperties {
     }

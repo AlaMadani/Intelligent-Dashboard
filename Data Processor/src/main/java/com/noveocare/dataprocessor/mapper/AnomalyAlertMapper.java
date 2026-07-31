@@ -16,6 +16,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * MapStruct mapper converting between AnomalyAlert DTOs and AnomalyEvent entities,
+ * flattening nested map structures into dedicated entity columns.
+ */
 @Mapper(
         componentModel = MappingConstants.ComponentModel.SPRING,
         unmappedTargetPolicy = ReportingPolicy.IGNORE
@@ -25,9 +29,11 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
     @Autowired
     protected ObjectMapper objectMapper;
 
+    /* -- Mapping: DTO -> Entity (without raw event JSON) -- */
+
     @Override
-@Mapping(target = "id", ignore = true)
-@Mapping(target = "eventJson", ignore = true)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "eventJson", ignore = true)
     @Mapping(target = "modelScoresJson", source = "modelScores", qualifiedByName = "stringifyObject")
     @Mapping(target = "anomalyTypeEvidenceJson", source = "anomalyTypeEvidence", qualifiedByName = "stringifyObject")
     @Mapping(target = "modelContributionsJson", source = "modelContributions", qualifiedByName = "stringifyObject")
@@ -39,6 +45,7 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
     @Mapping(target = "detectedAt", source = "detectedAt", qualifiedByName = "detectedAtOrNow")
     public abstract AnomalyEvent toEntity(AnomalyAlert dto);
 
+    /* Unpack nested modelScores and churn maps into dedicated columns. */
     @AfterMapping
     protected void afterToEntity(AnomalyAlert dto, @MappingTarget AnomalyEvent entity) {
         entity.setV36RuntimeVersion(dto.getSchemaVersion());
@@ -60,8 +67,10 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
     @Override
     public abstract void updateEntity(AnomalyAlert dto, @MappingTarget AnomalyEvent entity);
 
+    /* -- Mapping: DTO + raw event JSON -> Entity -- */
+
     @Mapping(target = "id", ignore = true)
-@Mapping(target = "eventJson", source = "rawEventJson")
+    @Mapping(target = "eventJson", source = "rawEventJson")
     @Mapping(target = "modelScoresJson", source = "alert.modelScores", qualifiedByName = "stringifyObject")
     @Mapping(target = "modelContributionsJson", source = "alert.modelContributions", qualifiedByName = "stringifyObject")
     @Mapping(target = "triggeredRulesJson", source = "alert.triggeredRules", qualifiedByName = "stringifyObject")
@@ -72,6 +81,7 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
     @Mapping(target = "detectedAt", source = "alert.detectedAt", qualifiedByName = "detectedAtOrNow")
     public abstract AnomalyEvent toEntity(AnomalyAlert alert, String rawEventJson);
 
+    /* Unpack nested modelScores and churn maps (variant that also sets eventJson). */
     @AfterMapping
     protected void afterToEntityWithEventJson(AnomalyAlert alert, @MappingTarget AnomalyEvent entity) {
         entity.setV36RuntimeVersion(alert.getSchemaVersion());
@@ -90,11 +100,15 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
         }
     }
 
+    /* -- Mapping helpers -- */
+
+    /* Fall back to Instant.now() when detectedAt is null. */
     @Named("detectedAtOrNow")
     protected Instant detectedAtOrNow(Instant detectedAt) {
         return detectedAt != null ? detectedAt : Instant.now();
     }
 
+    /* Serialise a list to a JSON string, falling back to toString(). */
     @Named("stringifyList")
     protected String stringifyList(List<?> values) {
         if (values == null) return null;
@@ -105,6 +119,7 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
         }
     }
 
+    /* Serialise an arbitrary object to a JSON string. */
     @Named("stringifyObject")
     protected String stringifyObject(Object value) {
         if (value == null) return null;
@@ -115,6 +130,7 @@ public abstract class AnomalyAlertMapper implements GenericMapper<AnomalyAlert, 
         }
     }
 
+    /* Safely convert an Object to Double. */
     private Double toDouble(Object value) {
         if (value == null) return null;
         if (value instanceof Number n) return n.doubleValue();

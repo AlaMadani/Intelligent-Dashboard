@@ -7,6 +7,10 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Deserialised scaler parameters (center, scale, clip bounds) loaded from
+ * scaler_params.json.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScalerParams {
@@ -22,6 +26,7 @@ public class ScalerParams {
     @JsonProperty("formula_notes")
     private Map<String, String> formulaNotes = Map.of();
 
+    /* Bounds for clipping transformed values. */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ClipBounds {

@@ -8,6 +8,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Complete prediction output from the next-event model for a given context.
+ */
 @Value
 @JsonDeserialize(builder = NextEventPredictionResult.ResultBuilder.class)
 public class NextEventPredictionResult {
@@ -18,14 +21,18 @@ public class NextEventPredictionResult {
     int contextSize;
     String model;
     String modelArtifact;
+    /* Predictions grouped by head name (flat map form). */
     Map<String, List<NextEventPredictionHeadScore.PredictedValue>> heads;
+    /* Structured per-head top-K results. */
     List<NextEventPredictionHeadScore> headScores;
     Instant createdAt;
 
+    /* Deviation information when the actual event is compared against the prediction. */
     Map<String, Object> deviation;
 
     @JsonPOJOBuilder(withPrefix = "")
     public static class ResultBuilder {
+        /* -- all fields match the parent class -- */
         private String schemaVersion;
         private String insuredId;
         private String sessionId;

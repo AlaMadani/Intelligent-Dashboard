@@ -26,11 +26,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Service responsible for the full alert lifecycle: persistence, caching,
+ * Kafka publishing, stats recording, and Redis pub-sub notifications.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class AlertPublisher {
 
+    /* -- Dependencies -- */
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final KafkaTopicProperties topicProperties;
     private final ObjectMapper objectMapper;
@@ -44,8 +49,15 @@ public class AlertPublisher {
     private final RiskProperties riskProperties;
     private final PerformanceProperties performanceProperties;
 
+    /* Tracks how many duplicate writes have been skipped since start-up. */
     private final AtomicLong duplicateSqlWritesSkipped = new AtomicLong();
 
+    /* -- Public API -- */
+
+    /**
+     * Persist the alert, update the cache, push to Kafka, record statistics,
+     * refresh the dashboard, and optionally publish to a Redis pub-sub channel.
+     */
     public void publish(AnomalyAlert alert, String alertContextJson) {
         long tStart = System.nanoTime();
         persist(alert, alertContextJson);
@@ -77,6 +89,10 @@ public class AlertPublisher {
                 totalMs);
     }
 
+    /**
+     * Persist the alert to the database without publishing to Kafka or
+     * running the full post-processing pipeline.
+     */
     public void persistOnly(AnomalyAlert alert, String alertContextJson) {
         persist(alert, alertContextJson);
         log.warn("Alert persisted without publish insuredId={} sessionId={} tier={} rule={}",
@@ -86,6 +102,9 @@ public class AlertPublisher {
                 alert.getRuleType());
     }
 
+    /* -- Internal helpers -- */
+
+    /* Persist the alert to the anomaly_events table, skipping duplicates. */
     private void persist(AnomalyAlert alert, String alertContextJson) {
         String eventId = alert.getEventId();
         String schemaVersion = alert.getSchemaVersion();
@@ -111,11 +130,13 @@ public class AlertPublisher {
         }
     }
 
+    /* Write the alert into the Redis active-anomaly cache. */
     private void cache(AnomalyAlert alert) {
         redisCacheService.setJson(CacheKeys.activeAnomalyKey(alert.getInsuredId()), alert,
                 cacheProperties.getActiveAnomaly());
     }
 
+    /* Serialise and send the alert to the anomaly-alerts Kafka topic. */
     private void send(AnomalyAlert alert) {
         try {
             String payload = objectMapper.writeValueAsString(alert);
@@ -141,6 +162,7 @@ public class AlertPublisher {
         }
     }
 
+    /* Determine which Redis pub-sub channel (if any) should receive this alert. */
     private String resolvePubSubChannel(AnomalyAlert alert) {
         if (alert == null) {
             return null;
@@ -153,6 +175,8 @@ public class AlertPublisher {
         }
         return null;
     }
+
+    /* -- Metrics -- */
 
     public long getDuplicateSqlWritesSkipped() {
         return duplicateSqlWritesSkipped.get();

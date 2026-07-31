@@ -54,6 +54,9 @@ class V36DashboardServiceTest {
         );
     }
 
+    /**
+     * Runtime Health Reads V36Redis Snapshot
+     */
     @Test
     void runtimeHealthReadsV36RedisSnapshot() {
         V36RuntimeHealthResponse response = new V36RuntimeHealthResponse();
@@ -81,6 +84,9 @@ class V36DashboardServiceTest {
         assertThat(result.getSessionFinalization()).containsEntry("sessionsFinalizedByExplicitEnd", 10);
     }
 
+    /**
+     * Runtime Health Reads V36Redis Snapshot Without Session Finalization
+     */
     @Test
     void runtimeHealthReadsV36RedisSnapshotWithoutSessionFinalization() {
         V36RuntimeHealthResponse response = new V36RuntimeHealthResponse();
@@ -99,6 +105,9 @@ class V36DashboardServiceTest {
         assertThat(result.getSessionFinalization()).isNull();
     }
 
+    /**
+     * Runtime Health Falls Back To Unknown When Redis Missing
+     */
     @Test
     void runtimeHealthFallsBackToUnknownWhenRedisMissing() {
         when(snapshotFallbackService.readWithFallback(
@@ -115,6 +124,9 @@ class V36DashboardServiceTest {
         assertThat(result.getSource()).isEqualTo("generated_fallback");
     }
 
+    /**
+     * Diagnostics Includes Session Finalization When Available
+     */
     @Test
     void diagnosticsIncludesSessionFinalizationWhenAvailable() {
         V36RuntimeHealthResponse runtimeHealth = new V36RuntimeHealthResponse();
@@ -152,6 +164,9 @@ class V36DashboardServiceTest {
                 .containsEntry("sessionsFinalizedByExplicitEnd", 128);
     }
 
+    /**
+     * Diagnostics Works When Session Finalization Missing
+     */
     @Test
     void diagnosticsWorksWhenSessionFinalizationMissing() {
         V36RuntimeHealthResponse runtimeHealth = new V36RuntimeHealthResponse();
@@ -178,6 +193,9 @@ class V36DashboardServiceTest {
         assertThat(diagnostics.getRuntimeHealth().getSessionFinalization()).isNull();
     }
 
+    /**
+     * Runtime Health Includes New Kafka Section
+     */
     @Test
     void runtimeHealthIncludesNewKafkaSection() {
         Map<String, Object> kafka = new LinkedHashMap<>();
@@ -205,6 +223,9 @@ class V36DashboardServiceTest {
         assertThat(result.getKafka()).containsEntry("recordsProcessedTotal", 1542000);
     }
 
+    /**
+     * Runtime Health Includes New Idempotency Section
+     */
     @Test
     void runtimeHealthIncludesNewIdempotencySection() {
         Map<String, Object> idempotency = new LinkedHashMap<>();
@@ -228,6 +249,9 @@ class V36DashboardServiceTest {
         assertThat(result.getIdempotency()).containsEntry("duplicateEventsSkipped", 34);
     }
 
+    /**
+     * Runtime Health Includes New Performance Section
+     */
     @Test
     void runtimeHealthIncludesNewPerformanceSection() {
         Map<String, Object> performance = new LinkedHashMap<>();
@@ -252,6 +276,9 @@ class V36DashboardServiceTest {
         assertThat(result.getPerformance()).containsEntry("loadSheddingMode", "disabled");
     }
 
+    /**
+     * Runtime Health Remains Compatible When New Sections Absent
+     */
     @Test
     void runtimeHealthRemainsCompatibleWhenNewSectionsAbsent() {
         V36RuntimeHealthResponse response = new V36RuntimeHealthResponse();
@@ -272,6 +299,9 @@ class V36DashboardServiceTest {
         assertThat(result.getNextActionPrediction()).isNull();
     }
 
+    /**
+     * Diagnostics Preserves New Runtime Sections
+     */
     @Test
     void diagnosticsPreservesNewRuntimeSections() {
         Map<String, Object> kafka = Map.of("consumerGroupId", "dp-group", "topic", "audit-events");
@@ -323,6 +353,9 @@ class V36DashboardServiceTest {
         assertThat(diagnostics.getSessionFinalization()).containsEntry("openSessionCount", 5);
     }
 
+    /**
+     * Security Overview Redis Hit Returns Redis Source
+     */
     @Test
     void securityOverviewRedisHitReturnsRedisSource() {
         V36SecurityOverviewResponse security = new V36SecurityOverviewResponse();
@@ -341,6 +374,9 @@ class V36DashboardServiceTest {
         assertThat(result.getSource()).isEqualTo("redis");
     }
 
+    /**
+     * Security Overview Both Miss Returns Generated Fallback
+     */
     @Test
     void securityOverviewBothMissReturnsGeneratedFallback() {
         when(snapshotFallbackService.readWithFallback(
@@ -356,6 +392,9 @@ class V36DashboardServiceTest {
         assertThat(result.getSource()).isEqualTo("generated_fallback");
     }
 
+    /**
+     * Security Overview Populates Top Anomaly Types From Sql When Alerts Exist
+     */
     @Test
     void securityOverviewPopulatesTopAnomalyTypesFromSqlWhenAlertsExist() {
         V36SecurityOverviewResponse overview = new V36SecurityOverviewResponse();
@@ -384,6 +423,9 @@ class V36DashboardServiceTest {
                 .containsEntry("behavioral_sequence_anomaly", 1L);
     }
 
+    /**
+     * Security Overview Ignores Null Anomaly Types
+     */
     @Test
     void securityOverviewIgnoresNullAnomalyTypes() {
         V36SecurityOverviewResponse overview = new V36SecurityOverviewResponse();
@@ -408,6 +450,9 @@ class V36DashboardServiceTest {
         assertThat(result.getTopAnomalyTypes()).containsExactly(Map.entry("api_scraping", 3L));
     }
 
+    /**
+     * Security Overview Counts Unknown Suspicious Behavior
+     */
     @Test
     void securityOverviewCountsUnknownSuspiciousBehavior() {
         V36SecurityOverviewResponse overview = new V36SecurityOverviewResponse();
@@ -429,6 +474,9 @@ class V36DashboardServiceTest {
         assertThat(result.getTopAnomalyTypes()).containsEntry("unknown_suspicious_behavior", 1L);
     }
 
+    /**
+     * Security Overview Top Anomaly Types Sorted By Count Desc
+     */
     @Test
     void securityOverviewTopAnomalyTypesSortedByCountDesc() {
         V36SecurityOverviewResponse overview = new V36SecurityOverviewResponse();
@@ -458,6 +506,9 @@ class V36DashboardServiceTest {
         );
     }
 
+    /**
+     * Security Overview Top Anomaly Types Empty When No Alerts
+     */
     @Test
     void securityOverviewTopAnomalyTypesEmptyWhenNoAlerts() {
         V36SecurityOverviewResponse overview = new V36SecurityOverviewResponse();
@@ -481,6 +532,9 @@ class V36DashboardServiceTest {
     /*  Churn Dashboard fallback enrichment tests                          */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Churn Fallback Deduplicates Top Users
+     */
     @Test
     void churnFallbackDeduplicatesTopUsers() {
         Instant now = Instant.now();
@@ -503,6 +557,9 @@ class V36DashboardServiceTest {
         assertThat(insuredIds).containsExactly("insured-A", "insured-B");
     }
 
+    /**
+     * Churn Fallback Top Users Include Risk Fields
+     */
     @Test
     void churnFallbackTopUsersIncludeRiskFields() {
         Instant now = Instant.now();
@@ -530,6 +587,9 @@ class V36DashboardServiceTest {
         assertThat(user).containsEntry("latestRiskLevel", "HIGH");
     }
 
+    /**
+     * Churn Fallback Top Users Sorted By Probability Desc
+     */
     @Test
     void churnFallbackTopUsersSortedByProbabilityDesc() {
         Instant now = Instant.now();
@@ -550,6 +610,9 @@ class V36DashboardServiceTest {
         assertThat(result.getTopChurnRiskUsers().get(2).get("insuredId")).isEqualTo("insured-C");
     }
 
+    /**
+     * Churn Fallback Limits Top Users To10
+     */
     @Test
     void churnFallbackLimitsTopUsersTo10() {
         Instant now = Instant.now();

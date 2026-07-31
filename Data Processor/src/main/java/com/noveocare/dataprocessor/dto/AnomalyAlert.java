@@ -16,14 +16,16 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AnomalyAlert {
+    /* Schema version to track payload evolution over deployments. */
     private String schemaVersion;
-    // Event and session identifiers that let consumers correlate the alert back to source data.
+
+    /* Event and session identifiers that let consumers correlate the alert back to source data. */
     private String recordId;
     private String insuredId;
     private String sessionId;
     private String eventId;
 
-    // Detection outputs coming from rules and ML models.
+    /* Detection outputs coming from rules and ML models. */
     private String anomalyTier;
     private String anomalyType;
     private Double anomalyScore;
@@ -75,7 +77,7 @@ public class AnomalyAlert {
 
     private java.util.Map<String, Object> investigationPayload;
 
-    // Timestamps for the triggering event and the actual detection moment.
+    /* Timestamps for the triggering event and the actual detection moment. */
     private Instant eventTime;
     private Instant detectedAt;
 }

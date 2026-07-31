@@ -15,18 +15,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Builds system, user, and retry prompts for the V3.6 LLM explanation
+ * pipeline. The evidence JSON is compacted into a smaller map with only
+ * fields relevant to the LLM, and the final serialised evidence is capped
+ * to a configurable size limit.
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class LlmPromptBuilderV36 {
 
+    /** Threshold below which anomaly-type confidence is considered "moderate". */
     private static final double MODERATE_CONFIDENCE_UPPER = 0.75;
 
+    /** Serialises derived-facts maps to compact JSON. */
     private final ObjectMapper objectMapper;
 
+    /** Maximum size (in KB) of the serialised evidence sent to the LLM. */
     @Value("${app.v36.explanations.max-evidence-size-kb:128}")
     private int maxEvidenceSizeKb;
 
+    /**
+     * Builds the system prompt instructing the LLM how to behave and what
+     * rules to follow.
+     *
+     * @param style               the narrative style (unused in the current prompt template)
+     * @param language            the language code (unused in the current prompt template)
+     * @param includeRecommendedActions whether to ask for recommended actions
+     * @return the system prompt string
+     */
     public String buildSystemPrompt(String style, String language, boolean includeRecommendedActions) {
         return """
                 You are a senior cybersecurity analyst assistant.
@@ -53,9 +71,21 @@ public class LlmPromptBuilderV36 {
                 """;
     }
 
+    /**
+     * Builds the main user prompt containing the output schema and compacted
+     * evidence.
+     *
+     * @param evidence                the full evidence JSON
+     * @param style                   the narrative style
+     * @param language                the language code
+     * @param includeRecommendedActions whether to include recommended actions in the schema
+     * @return the user prompt string
+     */
     public String buildPrompt(JsonNode evidence, String style, String language, boolean includeRecommendedActions) {
+        // Compact the evidence into a minimal map
         String compactEvidence = buildCompactEvidence(evidence);
 
+        // Define the expected output schema for the LLM
         String outputSchema = """
                 {
                   "summary": "4-6 sentence analyst explanation",
@@ -105,6 +135,10 @@ public class LlmPromptBuilderV36 {
         return userPrompt;
     }
 
+    /**
+     * Builds a more compact user prompt for the retry attempt (after
+     * truncation). The schema has fewer fields and a tighter word limit.
+     */
     public String buildRetryPrompt(JsonNode evidence, String style, String language, boolean includeRecommendedActions) {
         String compactEvidence = buildCompactEvidence(evidence);
 
@@ -135,24 +169,33 @@ public class LlmPromptBuilderV36 {
         return retryPrompt;
     }
 
+    /**
+     * Builds a markdown-style prompt (currently delegates to the standard
+     * prompt builder).
+     */
     public String buildMarkdownPrompt(JsonNode evidence, String style, String language, boolean includeRecommendedActions) {
         return buildPrompt(evidence, style, language, includeRecommendedActions);
     }
 
+    /**
+     * Compacts the raw evidence JSON into a smaller, structured map of
+     * only the fields the LLM needs: identity, risk, event, session, fusion,
+     * rules, sequence, tabular, attribution, churn, and derived facts.
+     */
     String buildCompactEvidence(JsonNode evidence) {
         Map<String, Object> compact = new LinkedHashMap<>();
 
-        // Identity
+        // Identity – basic event/session identifiers
         compact.put("identity", Map.of(
                 "eventId", textOrDefault(evidence, "eventId", "?"),
                 "insuredId", textOrDefault(evidence, "insuredId", "?"),
                 "sessionId", textOrDefault(evidence, "sessionId", "?")
         ));
 
-        // Risk
+        // Risk – overall risk assessment fields
         copySectionCompact(compact, evidence, "risk", "riskLevel", "finalRiskScore", "fallbackMode");
 
-        // Event
+        // Event – metadata about the API event that triggered the alert
         Map<String, Object> event = new LinkedHashMap<>();
         JsonNode em = evidence.path("eventMetadata");
         copyField(event, em, "eventAction");
@@ -169,7 +212,7 @@ public class LlmPromptBuilderV36 {
         copyField(event, em, "responseDataSizeBytes");
         if (!event.isEmpty()) compact.put("event", event);
 
-        // Session
+        // Session – aggregated session-level stats
         Map<String, Object> session = new LinkedHashMap<>();
         JsonNode sm = evidence.path("sessionMetadata");
         copyField(session, sm, "totalEvents");
@@ -184,15 +227,15 @@ public class LlmPromptBuilderV36 {
         if (routeSeq != null) session.put("routeSequenceSignature", truncateString(routeSeq, 200));
         if (!session.isEmpty()) compact.put("session", session);
 
-        // Fusion
+        // Fusion – model scores, contributions, and context-only indicators
         Map<String, Object> fusion = buildFusionSection(evidence);
         if (!fusion.isEmpty()) compact.put("fusion", fusion);
 
-        // Rules
+        // Rules – triggered deterministic rules
         List<Map<String, Object>> rulesList = buildRulesList(evidence);
         if (!rulesList.isEmpty()) compact.put("rules", rulesList);
 
-        // Sequence
+        // Sequence – transformer/TCN sequence model evidence
         Map<String, Object> seq = new LinkedHashMap<>();
         JsonNode se = evidence.path("sequenceEvidence");
         copyField(seq, se, "selectedSequenceModel");
@@ -214,24 +257,24 @@ public class LlmPromptBuilderV36 {
         }
         if (!seq.isEmpty()) compact.put("sequence", seq);
 
-        // Tabular
+        // Tabular – which models were available/unavailable
         Map<String, Object> tabular = new LinkedHashMap<>();
         JsonNode te = evidence.path("tabularEvidence");
         copyField(tabular, te, "availableModels");
         copyField(tabular, te, "unavailableModels");
         if (!tabular.isEmpty()) compact.put("tabular", tabular);
 
-        // Attribution
+        // Attribution – anomaly type attribution
         copySectionCompact(compact, evidence, "anomalyTypeAttribution", "anomalyType", "confidence", "source");
 
-        // Churn context
+        // Churn context – churn-specific risk info
         Map<String, Object> churn = new LinkedHashMap<>();
         JsonNode cc = evidence.path("churnContext");
         copyField(churn, cc, "churnProbability");
         copyField(churn, cc, "churnRiskLevel");
         if (!churn.isEmpty()) compact.put("churnContext", churn);
 
-        // Derived facts (pre-digested for the model)
+        // Derived facts – pre-digested high-level facts for the LLM
         Map<String, Object> derivedFacts = buildDerivedFactsMap(evidence);
         if (!derivedFacts.isEmpty()) {
             compact.put("derivedFacts", derivedFacts);
@@ -240,6 +283,12 @@ public class LlmPromptBuilderV36 {
         return serializeCompact(compact);
     }
 
+    /**
+     * Builds the "derived facts" section of the compacted evidence. These
+     * are pre-digested observations (top contributors, TCN status,
+     * confidence labels, etc.) that save the LLM from having to compute
+     * them.
+     */
     Map<String, Object> buildDerivedFactsMap(JsonNode evidence) {
         Map<String, Object> facts = new LinkedHashMap<>();
 
@@ -260,7 +309,7 @@ public class LlmPromptBuilderV36 {
         }
         facts.put("topContributors", topContribs);
 
-        // TCN status
+        // TCN status – did it run, and was it used in fusion?
         JsonNode ms = evidence.path("modelScores");
         JsonNode tcnScore = ms.path("tcnRiskScore100");
         JsonNode tcnFusion = ms.path("tcnUsedInFusion");
@@ -274,25 +323,25 @@ public class LlmPromptBuilderV36 {
             facts.put("tcnStatus", "ran_and_used");
         }
 
-        // Large response
+        // Large response flag
         JsonNode respBytes = evidence.path("eventMetadata").path("responseDataSizeBytes");
         if (respBytes.isNumber() && respBytes.asLong() > 1_000_000) {
             facts.put("largeResponseBytes", respBytes.asLong());
         }
 
-        // Device/IP changes
+        // Device/IP change flags
         JsonNode sm = evidence.path("sessionMetadata");
         facts.put("hasDeviceChange", sm.path("deviceChanged").asInt(0) > 0);
         facts.put("hasIpChange", sm.path("ipChanged").asInt(0) > 0);
 
-        // Failures
+        // Whether the session has any KO (kill/outage) events
         facts.put("hasFailures", sm.path("totalKOs").asInt(0) > 0);
 
-        // Rules count
+        // Number of triggered deterministic rules
         int rulesCount = countTriggeredRules(evidence);
         facts.put("rulesTriggeredCount", rulesCount);
 
-        // Confidence label
+        // Human-readable anomaly-attribution confidence label
         JsonNode confidence = evidence.path("anomalyTypeAttribution").path("confidence");
         if (confidence.isNumber()) {
             double conf = confidence.asDouble();
@@ -303,7 +352,7 @@ public class LlmPromptBuilderV36 {
             facts.put("anomalyAttributionConfidenceLabel", label);
         }
 
-        // Context-only models
+        // Models that may be context-only (high score but not in fusion)
         List<String> contextOnly = new ArrayList<>();
         if (isModelHighButMaybeContextOnly(evidence, "catboostAnomalyScore100")) {
             contextOnly.add("catboost");
@@ -315,7 +364,7 @@ public class LlmPromptBuilderV36 {
             facts.put("contextOnlyModels", contextOnly);
         }
 
-        // Dominant behavior description
+        // A single-line description of the dominant session behavior
         String dominantBehavior = buildDominantBehavior(evidence);
         if (dominantBehavior != null) {
             facts.put("dominantBehavior", dominantBehavior);
@@ -324,6 +373,10 @@ public class LlmPromptBuilderV36 {
         return facts;
     }
 
+    /**
+     * Builds a short, human-readable string describing the dominant user
+     * behavior, e.g. "PageView / api/v1/data (42 events, 5 downloads)".
+     */
     private String buildDominantBehavior(JsonNode evidence) {
         String eventAction = textAt(evidence, "eventMetadata/eventAction");
         String apiTemplate = textAt(evidence, "eventMetadata/apiTemplate");
@@ -351,6 +404,10 @@ public class LlmPromptBuilderV36 {
         return sb.toString();
     }
 
+    /**
+     * Returns the derived-facts map serialised as a pretty-printed JSON
+     * string. Falls back to {@code {}} on serialisation failure.
+     */
     String buildDerivedFacts(JsonNode evidence) {
         try {
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(buildDerivedFactsMap(evidence));
@@ -359,10 +416,15 @@ public class LlmPromptBuilderV36 {
         }
     }
 
+    /**
+     * Builds the "fusion" subsection of the compacted evidence, containing
+     * model scores, model contributions, fusion flags, and context-only
+     * model indicators.
+     */
     private Map<String, Object> buildFusionSection(JsonNode evidence) {
         Map<String, Object> fusion = new LinkedHashMap<>();
 
-        // Scores
+        // Individual model anomaly scores (0-100)
         Map<String, Object> scores = new LinkedHashMap<>();
         JsonNode ms = evidence.path("modelScores");
         copyField(scores, ms, "xgboostAnomalyScore100");
@@ -375,7 +437,7 @@ public class LlmPromptBuilderV36 {
         copyField(scores, ms, "aggregationBoost");
         if (!scores.isEmpty()) fusion.put("scores", scores);
 
-        // Contributions
+        // Model contributions to the final fused risk score
         Map<String, Object> contribs = new LinkedHashMap<>();
         JsonNode mc = evidence.path("modelContributions");
         copyField(contribs, mc, "xgboost");
@@ -387,7 +449,7 @@ public class LlmPromptBuilderV36 {
         copyField(contribs, mc, "aggregationBoost");
         if (!contribs.isEmpty()) fusion.put("contributions", contribs);
 
-        // Used in fusion
+        // Boolean flags indicating which models were actually used in fusion
         Map<String, Object> usedInFusion = new LinkedHashMap<>();
         usedInFusion.put("xgboost", true);
         usedInFusion.put("lightgbm", true);
@@ -396,7 +458,7 @@ public class LlmPromptBuilderV36 {
         usedInFusion.put("rules", true);
         fusion.put("usedInFusion", usedInFusion);
 
-        // Context-only models
+        // Models that were run but are only for context, not fusion
         List<String> contextOnly = new ArrayList<>();
         JsonNode te = evidence.path("tabularEvidence");
         if (te.isObject()) {
@@ -421,8 +483,14 @@ public class LlmPromptBuilderV36 {
         return fusion;
     }
 
+    /**
+     * Builds the list of triggered rules for the compacted evidence.
+     * Handles both the top-level {@code triggeredRules} array (objects) and
+     * the legacy {@code ruleEvidence.triggeredRules} (strings). Limits to
+     * 10 rules and appends a count if more exist.
+     */
     private List<Map<String, Object>> buildRulesList(JsonNode evidence) {
-        // Check top-level triggeredRules first (array of objects), then ruleEvidence.triggeredRules
+        // Prefer top-level triggeredRules (array of objects)
         JsonNode topRules = evidence.path("triggeredRules");
         if (topRules.isArray() && !topRules.isEmpty()) {
             List<Map<String, Object>> result = new ArrayList<>();
@@ -446,7 +514,7 @@ public class LlmPromptBuilderV36 {
             return result;
         }
 
-        // Fallback: ruleEvidence.triggeredRules as strings
+        // Fallback: ruleEvidence.triggeredRules as plain strings
         JsonNode ruleEv = evidence.path("ruleEvidence");
         JsonNode triggered = ruleEv.path("triggeredRules");
         if (triggered.isArray() && !triggered.isEmpty()) {
@@ -462,15 +530,20 @@ public class LlmPromptBuilderV36 {
         return List.of();
     }
 
+    /**
+     * Heuristic: if a model has a score above 70 but may only be a
+     * context-only model (not used in fusion). Currently always returns
+     * true for scores > 70.
+     */
     private boolean isModelHighButMaybeContextOnly(JsonNode evidence, String field) {
         JsonNode val = evidence.path("modelScores").path(field);
         if (val.isNumber() && val.asDouble() > 70) {
-            // Check if available in tabular evidence but not necessarily in fusion
             return true;
         }
         return false;
     }
 
+    /** Counts the number of triggered rules in either format. */
     private int countTriggeredRules(JsonNode evidence) {
         JsonNode topRules = evidence.path("triggeredRules");
         if (topRules.isArray()) return topRules.size();
@@ -479,11 +552,16 @@ public class LlmPromptBuilderV36 {
         return 0;
     }
 
+    /**
+     * Serialises the compact evidence map to a pretty-printed JSON string,
+     * truncating it if it exceeds the configured size limit.
+     */
     private String serializeCompact(Map<String, Object> compact) {
         try {
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(compact);
             int maxChars = Math.max(maxEvidenceSizeKb, 1) * 1024;
             if (json.length() <= maxChars) return json;
+            // Truncate and append a warning marker
             return json.substring(0, maxChars) + "\n...<evidence truncated by api-service limit>";
         } catch (Exception e) {
             log.warn("LLM_PROMPT_EVIDENCE_SERIALIZE_ERROR message=\"{}\"", e.getMessage());
@@ -491,6 +569,7 @@ public class LlmPromptBuilderV36 {
         }
     }
 
+    /** Copies selected fields from a JSON section into the target map. */
     private void copySectionCompact(Map<String, Object> target, JsonNode source, String sectionName, String... fieldNames) {
         JsonNode section = source.path(sectionName);
         if (!section.isObject()) return;
@@ -503,6 +582,10 @@ public class LlmPromptBuilderV36 {
         }
     }
 
+    /**
+     * Copies a single field from a JSON node into a string-object map,
+     * preserving number, boolean, text, and array types.
+     */
     private void copyField(Map<String, Object> target, JsonNode source, String fieldName) {
         if (source == null) return;
         JsonNode value = source.path(fieldName);
@@ -526,22 +609,26 @@ public class LlmPromptBuilderV36 {
         }
     }
 
+    /** Safely extracts a text value from a JSON node by field name. */
     private String textAt(JsonNode node, String fieldName) {
         if (node == null) return null;
         JsonNode value = node.path(fieldName);
         return value.isMissingNode() || value.isNull() || !value.isTextual() ? null : value.asText();
     }
 
+    /** Truncates a string to the given maximum length, appending "..." if cut. */
     private String truncateString(String s, int max) {
         if (s == null) return null;
         return s.length() <= max ? s : s.substring(0, max) + "...";
     }
 
+    /** Reads a text field from evidence or returns the fallback value. */
     private String textOrDefault(JsonNode evidence, String field, String fallback) {
         JsonNode value = evidence.path(field);
         return value.isMissingNode() || !value.isTextual() ? fallback : value.asText();
     }
 
+    /** Extracts the event ID from the evidence, defaulting to "?". */
     private String extractEventId(JsonNode evidence) {
         return textOrDefault(evidence, "eventId", "?");
     }

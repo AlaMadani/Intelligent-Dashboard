@@ -17,23 +17,31 @@ import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Provides idempotent event processing by tracking processed events in Redis.
+ * Uses a processing marker with short TTL followed by a permanent processed marker.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class EventIdempotencyService {
 
+    /* Redis key constants */
     private static final String PROCESSING_PREFIX = "processed:event:v3_6:";
+    private static final Duration PROCESSING_TTL = Duration.ofMinutes(5);
     private static final Logger perfLog = LoggerFactory.getLogger("com.noveocare.dataprocessor.service.EventIdempotencyService");
 
+    /* Injected dependencies */
     private final StringRedisTemplate redisTemplate;
     private final RedisCacheProperties cacheProperties;
 
+    /* Idempotency metrics */
     private final AtomicLong duplicateEventsSkipped = new AtomicLong();
     private final AtomicReference<String> lastDuplicateEventId = new AtomicReference<>();
     private final AtomicReference<String> lastDuplicateEventSessionId = new AtomicReference<>();
     private final AtomicReference<Instant> lastDuplicateEventAt = new AtomicReference<>();
 
-    private static final Duration PROCESSING_TTL = Duration.ofMinutes(5);
+    /* --- Idempotency check and marking --- */
 
     public boolean isDuplicate(AuditTrailEvent event) {
         String idempotencyKey = resolveIdempotencyKey(event);
@@ -62,6 +70,7 @@ public class EventIdempotencyService {
         return false;
     }
 
+    /* Sets the permanent processed marker after successful handling */
     public void markProcessed(AuditTrailEvent event) {
         String idempotencyKey = resolveIdempotencyKey(event);
         String key = PROCESSING_PREFIX + idempotencyKey;
@@ -74,10 +83,13 @@ public class EventIdempotencyService {
         }
     }
 
+    /* Removes the transient processing marker on failure */
     public void removeProcessingMarker(AuditTrailEvent event) {
         String idempotencyKey = resolveIdempotencyKey(event);
         redisTemplate.delete(PROCESSING_PREFIX + idempotencyKey);
     }
+
+    /* --- Diagnostics --- */
 
     public long getDuplicateEventsSkipped() {
         return duplicateEventsSkipped.get();
@@ -95,6 +107,8 @@ public class EventIdempotencyService {
         return lastDuplicateEventAt.get();
     }
 
+    /* --- Internal helpers --- */
+
     private String resolveIdempotencyKey(AuditTrailEvent event) {
         if (event.getId() != null && !event.getId().isBlank()) {
             return event.getId();
@@ -110,6 +124,7 @@ public class EventIdempotencyService {
         return sha256(raw);
     }
 
+    /* Computes SHA-256 hex digest of the input */
     private String sha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

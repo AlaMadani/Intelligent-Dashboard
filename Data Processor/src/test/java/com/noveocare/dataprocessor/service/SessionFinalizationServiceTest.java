@@ -25,8 +25,16 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for SessionFinalizationService: explicit logout detection (including
+ * mojibake variants), frontend action fallback, inactivity timeout,
+ * max-open-duration finalization, double-finalization prevention,
+ * and late event handling.
+ */
 @ExtendWith(MockitoExtension.class)
 class SessionFinalizationServiceTest {
+
+    /* --- Fields --- */
 
     private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
 
@@ -41,6 +49,8 @@ class SessionFinalizationServiceTest {
     private SessionFinalizationProperties finalizationProperties;
     private com.noveocare.dataprocessor.config.RedisCacheProperties cacheProperties;
     private SessionFinalizationService service;
+
+    /* --- Setup --- */
 
     @BeforeEach
     void setUp() {
@@ -63,6 +73,8 @@ class SessionFinalizationServiceTest {
                 redisTemplate, objectMapper, ruleProperties, finalizationProperties, cacheProperties);
     }
 
+    /* --- Test methods: explicit logout --- */
+
     @Test
     void actionValueDeconnexionFinalizesExplicitly() {
         AuditTrailEvent event = new AuditTrailEvent();
@@ -83,6 +95,8 @@ class SessionFinalizationServiceTest {
         assertThat(reason).isEqualTo("explicit_logout");
     }
 
+    /* --- Test methods: accent variants --- */
+
     @Test
     void actionValueDeconnexionWithoutAccentFinalizesExplicitly() {
         AuditTrailEvent event = new AuditTrailEvent();
@@ -100,6 +114,8 @@ class SessionFinalizationServiceTest {
         assertThat(isEnd).isTrue();
     }
 
+    /* --- Test methods: mojibake variants --- */
+
     @Test
     void actionValueMojibakeDeconnexionFinalizesExplicitly() {
         AuditTrailEvent event = new AuditTrailEvent();
@@ -116,6 +132,8 @@ class SessionFinalizationServiceTest {
         boolean isEnd = service.isExplicitSessionEnd(event);
         assertThat(isEnd).isTrue();
     }
+
+    /* --- Test methods: SSO disconnect --- */
 
     @Test
     void actionValueSsoDisconnectFinalizesExplicitly() {
@@ -137,6 +155,8 @@ class SessionFinalizationServiceTest {
         assertThat(reason).isEqualTo("explicit_sso_disconnect");
     }
 
+    /* --- Test methods: fallback --- */
+
     @Test
     void frontendActionNameFallbackWorksWhenActionValueMissing() {
         AuditTrailEvent event = new AuditTrailEvent();
@@ -155,6 +175,8 @@ class SessionFinalizationServiceTest {
         boolean isEnd = service.isExplicitSessionEnd(event);
         assertThat(isEnd).isTrue();
     }
+
+    /* --- Test methods: inactivity timeout --- */
 
 @Test
     void sessionWithoutLogoutFinalizesAfterInactivityTimeout() {
@@ -194,6 +216,8 @@ class SessionFinalizationServiceTest {
         }
     }
 
+    /* --- Test methods: scheduler finalization --- */
+
     @Test
     void schedulerFinalizesExpiredSessionWithoutNewEvent() {
         String insuredId = "ins1";
@@ -228,6 +252,8 @@ class SessionFinalizationServiceTest {
         }
     }
 
+    /* --- Test methods: pre-timeout --- */
+
     @Test
     void sessionIsNotFinalizedBeforeTimeout() {
         String insuredId = "ins1";
@@ -249,6 +275,8 @@ class SessionFinalizationServiceTest {
 
         assertThat(endReason).isNull();
     }
+
+    /* --- Test methods: max open duration --- */
 
     @Test
     void maxOpenDurationFinalizationWorks() {
@@ -281,6 +309,8 @@ class SessionFinalizationServiceTest {
             throw new RuntimeException(e);
         }
     }
+
+    /* --- Test methods: double finalization --- */
 
     @Test
     void doubleFinalizationPrevented() {
@@ -324,6 +354,8 @@ class SessionFinalizationServiceTest {
             throw new RuntimeException(e);
         }
     }
+
+    /* --- Test methods: late events --- */
 
     @Test
     void lateEventForFinalizedSessionIncrementsCounter() {

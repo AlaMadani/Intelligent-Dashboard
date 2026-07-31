@@ -30,16 +30,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Records per-minute and per-day counters for events, alerts, downloads, actions,
+ * and countries in Redis. Also computes user risk profiles and live stats snapshots.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class StatisticsService {
 
+    /* Time formatting and download detection constants */
     private static final DateTimeFormatter MINUTE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
     private static final String[] DOWNLOAD_HINTS = {
             "download", "telecharg", "wallet", "certificate", "refund", "tp-card", "tp card", "document"
     };
 
+    /* Injected dependencies */
     private final RedisCacheService redisCacheService;
     private final StringRedisTemplate redisTemplate;
     private final RedisCacheProperties cacheProperties;
@@ -49,6 +55,8 @@ public class StatisticsService {
     private final UserRiskProfileRepository userRiskProfileRepository;
     private final ObjectMapper objectMapper;
     private final com.noveocare.dataprocessor.config.RedisPubSubProperties pubSubProperties;
+
+    /* --- Event recording --- */
 
     public void recordEvent(AuditTrailEvent event) {
         Instant eventTime = event.getCreatedAt() != null ? event.getCreatedAt() : Instant.now();
@@ -84,6 +92,7 @@ public class StatisticsService {
         }
     }
 
+    /* Increments alert counters for the minute and day of detection */
     public void recordAnomalyAlert(Instant detectedAt) {
         LocalDateTime time = LocalDateTime.ofInstant(
                 detectedAt == null ? Instant.now() : detectedAt,
@@ -97,6 +106,8 @@ public class StatisticsService {
                 1,
                 cacheProperties.getLiveStats());
     }
+
+    /* --- User risk profile --- */
 
     public void updateUserRiskProfile(String insuredId) {
         long startMs = System.currentTimeMillis();
@@ -221,6 +232,8 @@ public class StatisticsService {
         }
     }
 
+    /* --- Live stats snapshot --- */
+
     public void refreshLiveStatsSnapshot() {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         List<String> eventKeys = lastMinuteKeys(now, Math.max(1, (int) Math.ceil(liveStatsProperties.getEventsWindowSeconds() / 60.0)));
@@ -262,6 +275,8 @@ public class StatisticsService {
         redisCacheService.publishJson(pubSubProperties.getLiveStatsChannel(), Map.of("refresh", "stats"));
     }
 
+    /* --- Aggregation queries --- */
+
     public long countEventsLastMinutes(int minutes) {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         return sumCounters(lastMinuteKeys(now, Math.max(1, minutes)), CacheKeys::eventsMinuteKey);
@@ -284,6 +299,8 @@ public class StatisticsService {
         Long cached = readCounter(CacheKeys.downloadsDayKey(resolvedDate.toString()));
         return cached != null ? cached : sumCounters(fullDayMinuteKeys(resolvedDate), CacheKeys::downloadsMinuteKey);
     }
+
+    /* --- Internal helpers --- */
 
     private long countActiveSessions() {
         Set<String> keys = redisCacheService.getSetMembers(CacheKeys.activeSessionInsightsIndexKey());
@@ -319,6 +336,7 @@ public class StatisticsService {
         return scannedKeys;
     }
 
+    /* Generates minute-key suffixes for the last N minutes */
     private List<String> lastMinuteKeys(LocalDateTime now, int minutes) {
         List<String> keys = new ArrayList<>();
         for (int index = 0; index < minutes; index++) {
@@ -327,6 +345,7 @@ public class StatisticsService {
         return keys;
     }
 
+    /* Generates all minute-key suffixes for a full day (24*60 keys) */
     private List<String> fullDayMinuteKeys(LocalDate date) {
         List<String> keys = new ArrayList<>(24 * 60);
         LocalDateTime start = resolveDate(date).atStartOfDay();
@@ -336,6 +355,7 @@ public class StatisticsService {
         return keys;
     }
 
+    /* Sums Redis string counters across a list of minute keys */
     private long sumCounters(List<String> minuteKeys, java.util.function.Function<String, String> keyFn) {
         List<String> fullKeys = minuteKeys.stream().map(keyFn).toList();
         List<String> values = redisTemplate.opsForValue().multiGet(fullKeys);
@@ -351,6 +371,7 @@ public class StatisticsService {
         return sum;
     }
 
+    /* Aggregates Redis hash counters across a list of minute keys */
     private Map<String, Long> sumHashes(List<String> minuteKeys, java.util.function.Function<String, String> keyFn) {
         Map<String, Long> aggregated = new HashMap<>();
         HashOperations<String, String, String> hashOps = redisTemplate.opsForHash();
@@ -367,6 +388,7 @@ public class StatisticsService {
         return aggregated;
     }
 
+    /* Returns the top-N entries from a map sorted by value descending */
     private Map<String, Long> topN(Map<String, Long> counts, int limit) {
         Map<String, Long> ordered = new java.util.LinkedHashMap<>();
         counts.entrySet().stream()
@@ -376,6 +398,7 @@ public class StatisticsService {
         return ordered;
     }
 
+    /* Resolves risk tier (HIGH / MEDIUM / LOW) from profile metrics */
     private String resolveRiskTier(double anomalyRate, double averageRisk, double maxRisk, boolean highRiskTypeSeen) {
         if (highRiskTypeSeen || maxRisk >= 80.0) {
             return "HIGH";
@@ -389,6 +412,7 @@ public class StatisticsService {
         return "LOW";
     }
 
+    /* Checks whether the anomaly type is in the high-risk list */
     private boolean isHighRiskType(String type) {
         for (String highRisk : riskProperties.getHighRiskTypes()) {
             if (highRisk.equalsIgnoreCase(type)) {
@@ -398,6 +422,7 @@ public class StatisticsService {
         return false;
     }
 
+    /* Resolves the global risk level from live snapshot metrics */
     private String resolveGlobalRiskLevel(double anomalyRate, double koRate, long alertsLastWindow) {
         if (alertsLastWindow >= 3 || anomalyRate >= riskProperties.getHighThreshold() || koRate >= 0.20) {
             return "HIGH";
@@ -408,10 +433,12 @@ public class StatisticsService {
         return "LOW";
     }
 
+    /* Returns the given date or today if null */
     private LocalDate resolveDate(LocalDate date) {
         return date == null ? LocalDate.now(ZoneOffset.UTC) : date;
     }
 
+    /* Reads a counter from Redis, returning null if missing */
     private Long readCounter(String key) {
         String value = redisTemplate.opsForValue().get(key);
         if (value == null || value.isBlank()) {
@@ -424,6 +451,7 @@ public class StatisticsService {
         }
     }
 
+    /* Removes a stale key from the insight index sets */
     private void removeStaleInsightIndexEntry(String key) {
         if (key == null || key.isBlank()) {
             return;
@@ -435,6 +463,7 @@ public class StatisticsService {
         }
     }
 
+    /* Extracts insuredId from a session insight Redis key */
     private String insuredIdFromInsightKey(String key) {
         String prefix = "session:insight:";
         if (!key.startsWith(prefix)) {
@@ -448,6 +477,7 @@ public class StatisticsService {
         return remainder.substring(0, separator);
     }
 
+    /* Determines whether the event is a download based on flag or action name hints */
     private boolean isDownloadEvent(AuditTrailEvent event) {
         if (event == null) {
             return false;

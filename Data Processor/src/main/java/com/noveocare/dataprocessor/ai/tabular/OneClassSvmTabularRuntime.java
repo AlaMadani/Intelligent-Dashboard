@@ -11,18 +11,28 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * One-Class SVM anomaly detection runtime. Parses a JSON-serialised SVM model
+ * and computes the decision function as an anomaly score.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiTabularAnomalyProperties properties;
+
+    /* ---- Model parameters (populated by init()) ---- */
     private double gamma;
     private double intercept;
     private double[] dualCoef;
     private double[][] supportVectors;
     private final List<String> loadWarnings = new ArrayList<>();
 
+    /* ========== Initialisation ========== */
+
+    /* Parses the One-Class SVM JSON model; gracefully handles absence. */
     @PostConstruct
     public void init() {
         if (!properties.isEnabled() || !properties.isOneclasssvmEnabled()) {
@@ -50,6 +60,8 @@ public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
             log.warn("OneClassSVM runtime unavailable", ex);
         }
     }
+
+    /* ========== TabularAnomalyModelRuntime implementation ========== */
 
     @Override
     public TabularModelScore score(TabularAnomalyFeatureVector vector) {
@@ -80,6 +92,7 @@ public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
         }
     }
 
+    /* Returns true if dual coefficients and support vectors are loaded. */
     @Override
     public boolean isAvailable() {
         return dualCoef != null && supportVectors != null;
@@ -95,6 +108,9 @@ public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
         return "anomaly_oneclasssvm.json";
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Computes the squared Euclidean distance between two vectors. */
     private double squaredDistance(double[] left, double[] right) {
         int limit = Math.min(left == null ? 0 : left.length, right == null ? 0 : right.length);
         double total = 0.0;
@@ -105,6 +121,7 @@ public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
         return total;
     }
 
+    /* Numerically stable sigmoid. */
     private double sigmoid(double value) {
         if (value >= 0.0) {
             double z = Math.exp(-value);
@@ -114,6 +131,7 @@ public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
         return z / (1.0 + z);
     }
 
+    /* JSON array -> double[]. */
     private double[] doubleVector(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new double[0];
@@ -125,6 +143,7 @@ public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
         return values;
     }
 
+    /* JSON 2D array -> double[][]. */
     private double[][] doubleMatrix(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new double[0][0];
@@ -136,6 +155,7 @@ public class OneClassSvmTabularRuntime implements TabularAnomalyModelRuntime {
         return values;
     }
 
+    /* Returns the first load warning or a default fallback. */
     private String firstWarning(String fallback) {
         return loadWarnings.isEmpty() ? fallback : loadWarnings.get(0);
     }

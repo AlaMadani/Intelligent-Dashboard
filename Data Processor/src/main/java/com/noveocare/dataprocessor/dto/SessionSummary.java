@@ -9,6 +9,9 @@ import java.util.Map;
 
 @Data
 @Builder(toBuilder = true)
+/**
+ * Read-only summary of a finalized session built from the running aggregates.
+ */
 public class SessionSummary {
     private String sessionId;
     private String insuredId;
@@ -17,25 +20,30 @@ public class SessionSummary {
     private String city;
     private String month;
     private Integer sessionNumber;
+    /* Temporal boundaries. */
     private Instant sessionStart;
     private Instant sessionEnd;
     private Integer startHour;
     private Integer endHour;
     private Integer dayOfWeek;
     private Integer isWeekend;
+    /* First and last action/route. */
     private String firstAction;
     private String lastAction;
     private String firstRoute;
     private String lastRoute;
+    /* Counters and durations. */
     private Integer totalEvents;
     private Long totalDurationSeconds;
     private Double avgInterActionSeconds;
     private Double minInterActionSeconds;
     private Double maxInterActionSeconds;
+    /* Uniqueness aggregates. */
     private Integer uniqueActions;
     private Integer uniqueRoutes;
     private Integer uniqueIpsUsed;
     private Integer uniqueDevicesUsed;
+    /* KO (failure) and login metrics. */
     private Integer totalKOs;
     private Integer totalOKs;
     private Integer longestKoStreak;
@@ -43,9 +51,11 @@ public class SessionSummary {
     private Integer hasLogout;
     private Integer ipChanged;
     private Integer deviceChanged;
+    /* Download and ping-pong counters. */
     private Integer totalDownloadActions;
     private Integer maxDownloadsIn2Minutes;
     private Integer pingPongCount;
+    /* Risk and anomaly summaries. */
     private Double riskScoreMax;
     private Double riskScoreAvg;
     private Integer endedAbruptly;
@@ -53,6 +63,7 @@ public class SessionSummary {
     private String primaryAnomalyType;
     private List<String> anomalyTypes;
     private List<String> campaignIds;
+    /* Sequences and signatures. */
     private List<String> actionSequence;
     private List<String> routeSequence;
     private String actionSequenceSignature;

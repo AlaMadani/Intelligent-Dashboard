@@ -22,11 +22,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Computes and caches anomaly-rate and total-events forecasts, updates the security
+ * overview dashboard with forecast fields, and records runtime model health.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ForecastRefreshService {
 
+    /* Injected dependencies */
     private final ForecastRuntimeService forecastRuntimeService;
     private final AiForecastProperties forecastProperties;
     private final ModelHealthService modelHealthService;
@@ -35,10 +40,13 @@ public class ForecastRefreshService {
     private final DashboardSnapshotPersistenceService snapshotPersistenceService;
     private final StatisticsService statisticsService;
 
+    /* Forecast state and metrics */
     private final AtomicBoolean forecastDirty = new AtomicBoolean(false);
     private final AtomicReference<Instant> lastForecastRunAt = new AtomicReference<>();
     private final AtomicLong forecastRefreshRunCount = new AtomicLong();
     private final AtomicLong forecastMsTotal = new AtomicLong();
+
+    /* --- Dirty-flag management --- */
 
     public void markDirty() {
         forecastDirty.set(true);
@@ -47,6 +55,8 @@ public class ForecastRefreshService {
     public boolean isDirty() {
         return forecastDirty.get();
     }
+
+    /* --- Forecast execution --- */
 
     public boolean runForecastIfNeeded() {
         if (!forecastProperties.isEnabled()) {
@@ -105,6 +115,8 @@ public class ForecastRefreshService {
         }
     }
 
+    /* --- Payload builders --- */
+
     private Map<String, Object> buildSnapshotPayload(LocalDate referenceDate, ForecastPrediction prediction) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", "v3.6.1");
@@ -135,6 +147,7 @@ public class ForecastRefreshService {
         return payload;
     }
 
+    /* Builds 7-day historical series for total events and anomaly rate */
     private List<String> buildHistoricalSeries(LocalDate referenceDate,
                                                 List<Map<String, Object>> totalEventsOut,
                                                 List<Map<String, Object>> anomalyRateOut) {
@@ -165,6 +178,8 @@ public class ForecastRefreshService {
         return warnings;
     }
 
+    /* --- Side-effect updates --- */
+
     private void updateRuntimeHealth(ForecastPrediction prediction) {
         boolean ridgeOk = forecastRuntimeService.ridgeLoaded()
                 && prediction != null
@@ -187,6 +202,7 @@ public class ForecastRefreshService {
         }
     }
 
+    /* Updates the security overview dashboard with forecast predictions */
     private void updateSecurityOverviewForecast(ForecastPrediction prediction) {
         try {
             Map<String, Object> securityOverview = redisCacheService.getJson(CacheKeys.securityOverviewDashboardKey(), Map.class);
@@ -218,6 +234,8 @@ public class ForecastRefreshService {
         }
     }
 
+    /* --- Diagnostics --- */
+
     public Map<String, Object> diagnosticsSnapshot() {
         Map<String, Object> diag = new LinkedHashMap<>();
         diag.put("dirty", forecastDirty.get());
@@ -233,6 +251,7 @@ public class ForecastRefreshService {
         return diag;
     }
 
+    /* Returns the first non-blank warning or the fallback */
     private static String firstWarning(List<String> warnings, String fallback) {
         if (warnings != null && !warnings.isEmpty()) {
             String first = null;

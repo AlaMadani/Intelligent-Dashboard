@@ -13,6 +13,11 @@ import org.mapstruct.ReportingPolicy;
 )
 public interface AuthApiMapper {
 
+    /**
+     * Maps a {@link User} entity to a {@link AuthResponse.UserAuthDto}.
+     * The {@code role} field is converted from the enum to its string
+     * representation via a custom expression.
+     */
     @Mapping(target = "role", expression = "java(user.getRole().toString())")
     AuthResponse.UserAuthDto toUserAuthDto(User user);
 }

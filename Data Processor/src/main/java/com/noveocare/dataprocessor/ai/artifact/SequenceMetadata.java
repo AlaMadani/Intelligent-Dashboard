@@ -7,6 +7,10 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Metadata for the sequence model: field lists, vocabulary sizes, window size
+ * and ONNX tensor contract.
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SequenceMetadata {
@@ -25,6 +29,7 @@ public class SequenceMetadata {
     @JsonProperty("onnx_contract")
     private OnnxContract onnxContract = new OnnxContract();
 
+    /* Describes the ONNX model input/output tensors. */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class OnnxContract {
@@ -33,6 +38,7 @@ public class SequenceMetadata {
         private List<TensorContract> outputs = List.of();
     }
 
+    /* Contract for a single tensor (name, type, shape, metadata). */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class TensorContract {

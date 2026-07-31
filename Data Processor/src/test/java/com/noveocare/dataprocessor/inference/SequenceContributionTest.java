@@ -8,10 +8,19 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for sequence model contribution logic in RiskFusionServiceV36:
+ * transformer/TCN availability, weight renormalization, and regression
+ * coverage for duplicate sequence contribution bugs.
+ */
 class SequenceContributionTest {
+
+    /* --- Fields --- */
 
     private final AiRiskFusionProperties properties = new AiRiskFusionProperties();
     private final RiskFusionServiceV36 service = new RiskFusionServiceV36(properties);
+
+    /* --- Test methods: single sequence model --- */
 
     @Test
     void onlyTransformerContributesWhenTcnIsNull() {
@@ -39,6 +48,8 @@ class SequenceContributionTest {
         assertThat(result.getTcnContribution()).isCloseTo(10.46, offset(0.01));
     }
 
+    /* --- Test methods: both sequence models --- */
+
     @Test
     void bothContributeWhenBothProvided() {
         RiskFusionResult result = service.fuse(
@@ -51,6 +62,8 @@ class SequenceContributionTest {
         assertThat(result.getTransformerContribution()).isCloseTo(18.0, offset(0.001));
         assertThat(result.getTcnContribution()).isCloseTo(8.0, offset(0.001));
     }
+
+    /* --- Test methods: weight renormalization --- */
 
     @Test
     void transformerWeightIsRenormalizedAcrossAllAvailableWhenTcnMissing() {
@@ -82,6 +95,8 @@ class SequenceContributionTest {
         assertThat(result.getTransformerContribution()).isCloseTo(0.0, offset(0.001));
     }
 
+    /* --- Test methods: contribution list --- */
+
     @Test
     void modelContributionsListReflectsCorrectAvailability() {
         RiskFusionResult result = service.fuse(
@@ -107,6 +122,8 @@ class SequenceContributionTest {
         assertThat(tcn.getScore100()).isNull();
         assertThat(tcn.getContribution()).isCloseTo(0.0, offset(0.001));
     }
+
+    /* --- Test methods: edge cases --- */
 
     @Test
     void finalRiskNotDoubleCountedWithBothNull() {
@@ -221,6 +238,8 @@ class SequenceContributionTest {
                 .isEqualTo("LOW");
     }
 
+    /* --- Test methods: regression --- */
+
     @Test
     void duplicateSequenceContributionBugRegression()
             throws Exception {
@@ -259,6 +278,8 @@ class SequenceContributionTest {
                 .describedAs("FIX: finalRisk must be lower than bug version (because tcnContribution=0)")
                 .isLessThan(bugResult.getFinalRiskScore());
     }
+
+    /* --- Helper methods --- */
 
     private static org.assertj.core.data.Offset<Double> offset(double value) {
         return org.assertj.core.data.Offset.offset(value);

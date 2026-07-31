@@ -20,11 +20,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Central service for discovering, loading, and providing access to all AI
+ * runtime artifacts (models, configs, metadata). Validates the required
+ * resource contract at startup.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class RuntimeArtifactService {
 
+    /* ---- Artifact path constants ---- */
     public static final String MANIFEST = "MANIFEST_v3_6.json";
     public static final String DEPLOYMENT_MANIFEST = "deployment_manifest_v3_6.json";
 
@@ -47,6 +53,7 @@ public class RuntimeArtifactService {
     public static final String FORECAST_TOTAL_EVENTS_CONTRACT = "forecast/macro_forecaster_total_events_XGBoost_feature_contract.json";
     public static final String PERSONA_MODEL = "persona/persona_runtime_best.json";
 
+    /* ---- Expected column contracts for validation ---- */
     private static final List<String> EXPECTED_CAT_COLS = List.of(
             "page", "frontend_action_name", "api_template", "action_value", "action_type",
             "action_subtype", "http_method", "status", "device", "browser", "os", "ip_country",
@@ -56,11 +63,13 @@ public class RuntimeArtifactService {
             "time_since_prev_action_ms", "request_data_size_bytes", "response_data_size_bytes",
             "is_business_hours", "is_weekend", "hour_sin", "hour_cos", "dow_sin", "dow_cos");
 
+    /* ---- Dependencies ---- */
     private final AiResourceProperties properties;
     private final AiPersonaProperties personaProperties;
     private final ResourceLoader resourceLoader;
     private final ObjectMapper objectMapper;
 
+    /* ---- Loaded artifacts (populated by load()) ---- */
     @Getter
     private RuntimeArtifactManifest manifest;
     @Getter
@@ -80,6 +89,9 @@ public class RuntimeArtifactService {
     @Getter
     private RuntimeArtifactHealth artifactHealth;
 
+    /* ========== Initialisation ========== */
+
+    /* Scans and validates all required resources; throws on missing mandatory artifacts. */
     @PostConstruct
     public void load() throws IOException {
         List<String> missing = new ArrayList<>();
@@ -159,32 +171,40 @@ public class RuntimeArtifactService {
         log.info("Runtime artifact health warnings={}", warnings);
     }
 
+    /* ========== Resource access ========== */
+
     public Resource resource(String relativePath) {
         return resourceLoader.getResource(properties.getBasePath() + relativePath);
     }
 
+    /* Builds a resource handle for a model artifact. */
     public Resource modelResource(String modelName) {
         return resource(properties.getModelsPath() + modelName);
     }
 
+    /* Builds a resource handle for a config artifact. */
     public Resource configResource(String configName) {
         return resource(properties.getConfigPath() + configName);
     }
 
+    /* Checks if a relative resource exists. */
     public boolean resourceExists(String relativePath) {
         return relativePath != null && !relativePath.isBlank() && resource(relativePath).exists();
     }
 
+    /* Checks if a model artifact exists. */
     public boolean modelExists(String modelName) {
         return modelName != null && !modelName.isBlank() && modelResource(modelName).exists();
     }
 
+    /* Reads the entire model file into a byte array. */
     public byte[] readModelBytes(String modelName) throws IOException {
         try (InputStream inputStream = modelResource(modelName).getInputStream()) {
             return inputStream.readAllBytes();
         }
     }
 
+    /* Copies a model to a temp file (deleted on JVM exit). */
     public Path copyModelToTempFile(String modelName) throws IOException {
         String suffix = modelName.contains(".") ? modelName.substring(modelName.lastIndexOf('.')) : ".model";
         Path temp = Files.createTempFile("dataprocessor-ai-", suffix);
@@ -195,6 +215,7 @@ public class RuntimeArtifactService {
         return temp;
     }
 
+    /* Materialises a model to a temp directory, copying external .data files too. */
     public Path materializeModelForRuntime(String modelName) throws IOException {
         Resource modelResource = modelResource(modelName);
         if (modelResource.isFile()) {
@@ -226,6 +247,9 @@ public class RuntimeArtifactService {
         return modelPath;
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Returns candidate external .data files for ONNX models. */
     private Set<String> externalDataCandidates(String modelName) {
         Set<String> candidates = new LinkedHashSet<>();
         candidates.add(modelName + ".data");
@@ -240,15 +264,19 @@ public class RuntimeArtifactService {
         return candidates;
     }
 
+    /* Extracts the directory portion of a path. */
     private String directoryName(String path) {
         int separator = path.lastIndexOf('/');
         return separator >= 0 ? path.substring(0, separator + 1) : "";
     }
 
+    /* Extracts the file name from a path. */
     private String fileName(String path) {
         int separator = path.lastIndexOf('/');
         return separator >= 0 ? path.substring(separator + 1) : path;
     }
+
+    /* ========== JSON deserialisation ========== */
 
     public <T> T readConfig(String name, Class<T> type) throws IOException {
         try (InputStream inputStream = configResource(name).getInputStream()) {
@@ -256,44 +284,52 @@ public class RuntimeArtifactService {
         }
     }
 
+    /* Deserialises a model JSON file. */
     public <T> T readModelJson(String modelName, Class<T> type) throws IOException {
         try (InputStream inputStream = modelResource(modelName).getInputStream()) {
             return objectMapper.readValue(inputStream, type);
         }
     }
 
+    /* Deserialises an arbitrary JSON resource. */
     public <T> T readJson(String relativePath, Class<T> type) throws IOException {
         try (InputStream inputStream = resource(relativePath).getInputStream()) {
             return objectMapper.readValue(inputStream, type);
         }
     }
 
+    /* Validates that a mandatory config resource exists. */
     private void validateMandatoryConfig(String configName, List<String> missing) {
         requireResource(properties.getConfigPath() + configName, missing);
     }
 
+    /* Validates that a mandatory model resource exists. */
     private void requireModel(String modelName, List<String> missing) {
         requireResource(properties.getModelsPath() + modelName, missing);
     }
 
+    /* Adds to missing list if resource does not exist. */
     private void requireResource(String relativePath, List<String> missing) {
         if (!resourceExists(relativePath)) {
             missing.add(relativePath);
         }
     }
 
+    /* Records a warning if an optional config is missing. */
     private void optionalConfig(String configName, String warning, List<String> warnings) {
         if (!resourceExists(properties.getConfigPath() + configName)) {
             warnings.add(warning);
         }
     }
 
+    /* Records a warning if an optional model is missing. */
     private void optionalModel(String modelName, String warning, List<String> warnings) {
         if (!modelExists(modelName)) {
             warnings.add(warning);
         }
     }
 
+    /* Builds the health snapshot from present/absent artifacts. */
     private RuntimeArtifactHealth buildHealth(List<String> missing, List<String> warnings) {
         return RuntimeArtifactHealth.builder()
                 .runtimeVersion(properties.getRuntimeVersion())
@@ -316,6 +352,7 @@ public class RuntimeArtifactService {
                 .build();
     }
 
+    /* Validates that the loaded sequence metadata matches the trained contract. */
     private void validateSequenceContract() {
         if (!EXPECTED_CAT_COLS.equals(sequenceMetadata.getCatCols())) {
             throw new IllegalStateException("sequence_metadata.json cat_cols do not match trained V3.6.1 contract");

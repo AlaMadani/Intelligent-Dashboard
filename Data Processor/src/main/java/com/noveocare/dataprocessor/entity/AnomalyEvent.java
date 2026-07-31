@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.time.Instant;
 
+/**
+ * JPA entity mapping the anomaly_events table that stores every triggered alert.
+ */
 @Entity
 @Table(name = "anomaly_events")
 @Data
@@ -13,6 +16,7 @@ public class AnomalyEvent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /* Core identifiers linking the event to the insured user and session. */
     @Column(name = "insured_id", nullable = false)
     private String insuredId;
 
@@ -25,6 +29,7 @@ public class AnomalyEvent {
     @Column(name = "event_time")
     private Instant eventTime;
 
+    /* Anomaly classification fields. */
     @Column(name = "anomaly_tier")
     private String anomalyTier;
 
@@ -46,6 +51,7 @@ public class AnomalyEvent {
     @Column(name = "anomaly_flag")
     private Boolean anomalyFlag;
 
+    /* Churn, risk, and persona scores. */
     @Column(name = "churn_probability")
     private Double churnProbability;
 
@@ -70,6 +76,7 @@ public class AnomalyEvent {
     @Column(name = "risk_level", columnDefinition = "NVARCHAR(32)")
     private String riskLevel;
 
+    /* Anomaly type classification source and evidence. */
     @Column(name = "anomaly_type_source")
     private String anomalyTypeSource;
 
@@ -82,6 +89,7 @@ public class AnomalyEvent {
     @Column(name = "v36_runtime_version", columnDefinition = "NVARCHAR(32)")
     private String v36RuntimeVersion;
 
+    /* Tabular model scores broken out as dedicated columns. */
     @Column(name = "xgboost_anomaly_score")
     private Double xgboostAnomalyScore;
 
@@ -103,6 +111,7 @@ public class AnomalyEvent {
     @Column(name = "churn_risk_level", columnDefinition = "NVARCHAR(32)")
     private String churnRiskLevel;
 
+    /* JSON columns carrying complex nested structures. */
     @Column(name = "model_scores_json", columnDefinition = "NVARCHAR(MAX)")
     private String modelScoresJson;
 
@@ -121,12 +130,14 @@ public class AnomalyEvent {
     @Column(name = "artifact_names_json", columnDefinition = "NVARCHAR(MAX)")
     private String artifactNamesJson;
 
+    /* LLM evidence payload metadata. */
     @Column(name = "llm_evidence_payload_available")
     private Boolean llmEvidencePayloadAvailable;
 
     @Column(name = "llm_evidence_payload_redis_key", columnDefinition = "NVARCHAR(256)")
     private String llmEvidencePayloadRedisKey;
 
+    /* Raw source event and detection timestamp. */
     @Column(name = "event_json", columnDefinition = "NVARCHAR(MAX)")
     private String eventJson;
 

@@ -15,16 +15,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Churn inference using a JSON-serialised ExtraTrees model. Parses tree
+ * structures at startup and predicts churn probability per session.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceService {
+    /* ---- Dependencies ---- */
     private final RuntimeArtifactService artifactService;
     private final AiChurnProperties properties;
     private final ChurnFeatureAssembler featureAssembler;
     private final List<String> loadWarnings = new ArrayList<>();
     private Model model;
 
+    /* ========== Initialisation ========== */
+
+    /* Loads the ExtraTrees model; falls back gracefully if unavailable. */
     @PostConstruct
     public void init() {
         if (!properties.isEnabled()) {
@@ -47,6 +55,8 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
             log.warn("ExtraTrees churn runtime unavailable", ex);
         }
     }
+
+    /* ========== ChurnInferenceService implementation ========== */
 
     @Override
     public ChurnPrediction predict(SessionSummary summary, List<AuditTrailEvent> events, boolean anomalousUser) {
@@ -75,6 +85,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
                 .build();
     }
 
+    /* Builds the numerical feature vector according to the churn schema. */
     public double[] buildFeatureVector(Map<String, Object> features, List<String> warnings) {
         ChurnFeatureSchema schema = artifactService.getChurnFeatureSchema();
         double[] vector = new double[schema.getFeatureOrder().size()];
@@ -117,6 +128,9 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         return "churn_profile_only_ExtraTrees.json";
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Parses the JSON tree array into an in-memory Model. */
     private Model parse(JsonNode root) {
         List<Tree> trees = new ArrayList<>();
         for (JsonNode treeNode : root.path("trees")) {
@@ -130,6 +144,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         return new Model(trees);
     }
 
+    /* Maps a probability to HIGH / MEDIUM / LOW threshold. */
     private String riskLevel(double probability) {
         if (probability >= properties.getHighThreshold()) {
             return "HIGH";
@@ -140,6 +155,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         return "LOW";
     }
 
+    /* Converts an Object to Double or returns null. */
     private Double numeric(Object value) {
         if (value instanceof Number number) {
             return number.doubleValue();
@@ -154,6 +170,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         }
     }
 
+    /* JSON array -> int[]. */
     private int[] intArray(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new int[0];
@@ -165,6 +182,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         return values;
     }
 
+    /* JSON array -> double[]. */
     private double[] doubleArray(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new double[0];
@@ -176,6 +194,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         return values;
     }
 
+    /* JSON 2D array -> double[][]. */
     private double[][] doubleMatrix(JsonNode node) {
         if (node == null || !node.isArray()) {
             return new double[0][0];
@@ -187,6 +206,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         return values;
     }
 
+    /* In-memory ExtraTrees ensemble averaging all tree predictions. */
     private record Model(List<Tree> trees) {
         double predictProbability(double[] vector) {
             if (trees.isEmpty()) {
@@ -200,6 +220,7 @@ public class ExtraTreesJsonChurnInferenceService implements ChurnInferenceServic
         }
     }
 
+    /* Single decision tree in the ExtraTrees ensemble. */
     private record Tree(int[] left, int[] right, int[] featureIndex, double[] threshold, double[][] value) {
         double predictClassOneProbability(double[] vector) {
             int node = 0;

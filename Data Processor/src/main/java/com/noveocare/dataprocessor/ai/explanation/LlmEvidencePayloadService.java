@@ -19,14 +19,23 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Builds the evidence payload sent to the LLM explanation microservice.
+ * Assembles all context (event, session, sequence, tabular, rules) into a
+ * structured map with a SHA-256 integrity hash.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class LlmEvidencePayloadService {
 
+    /* ---- Dependencies ---- */
     private final AiLlmExplanationProperties properties;
     private final ObjectMapper objectMapper;
 
+    /* ========== Public API ========== */
+
+    /* Assembles the full evidence payload with all context sections. */
     public Map<String, Object> build(SessionSummary summary, AuditTrailEvent event, SessionInsight insight) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", "v3.6.1");
@@ -74,6 +83,9 @@ public class LlmEvidencePayloadService {
         return payload;
     }
 
+    /* ========== Private helpers ========== */
+
+    /* Computes a SHA-256 hash of the canonical JSON payload. */
     private String computeEvidenceHash(Map<String, Object> payload) {
         try {
             String canonicalJson = objectMapper.writeValueAsString(payload);
@@ -89,6 +101,7 @@ public class LlmEvidencePayloadService {
         }
     }
 
+    /* Extracts event-level metadata from the AuditTrailEvent. */
     private Map<String, Object> eventMetadata(AuditTrailEvent event) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (event == null) {
@@ -111,6 +124,7 @@ public class LlmEvidencePayloadService {
         return metadata;
     }
 
+    /* Extracts user/insured metadata including persona info. */
     private Map<String, Object> userMetadata(SessionSummary summary, SessionInsight insight) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("insuredId", summary == null ? null : summary.getInsuredId());
@@ -123,6 +137,7 @@ public class LlmEvidencePayloadService {
         return metadata;
     }
 
+    /* Extracts session-level metadata from the summary. */
     private Map<String, Object> sessionMetadata(SessionSummary summary) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (summary == null) {
@@ -140,6 +155,7 @@ public class LlmEvidencePayloadService {
         return metadata;
     }
 
+    /* Builds the sequence-model evidence section. */
     private Map<String, Object> sequenceEvidence(SessionInsight insight) {
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("selectedSequenceModel", insight.getSelectedSequenceModel());
@@ -161,6 +177,7 @@ public class LlmEvidencePayloadService {
         return evidence;
     }
 
+    /* Builds the tabular-model evidence section. */
     private Map<String, Object> tabularEvidence(SessionInsight insight) {
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("featureContract", "tabular_anomaly_feature_contract.json");
@@ -170,6 +187,7 @@ public class LlmEvidencePayloadService {
         return evidence;
     }
 
+    /* Produces a short summary string from the insight. */
     private String evidenceSummary(SessionInsight insight) {
         return "risk=" + valueOrZero(insight.getFinalRiskScore())
                 + "; level=" + valueOrDefault(insight.getRiskLevel(), "LOW")
@@ -177,18 +195,22 @@ public class LlmEvidencePayloadService {
                 + "; fallback=" + valueOrDefault(insight.getFallbackMode(), "UNKNOWN");
     }
 
+    /* Utility: null-safe map conversion. */
     private Map<String, Object> nullToMap(Map<String, Object> value) {
         return value == null ? Map.of() : value;
     }
 
+    /* Utility: null-safe double default. */
     private double valueOrZero(Double value) {
         return value == null ? 0.0 : value;
     }
 
+    /* Utility: null/blank-safe string default. */
     private String valueOrDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    /* Utility: returns first non-blank value. */
     private String firstNonBlank(String first, String second) {
         return first != null && !first.isBlank() ? first : second;
     }

@@ -102,9 +102,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Smoke tests for the full V3.6 data processor pipeline: model inference
+ * through hybrid pipeline and Kafka consumer event processing with
+ * session finalization and alert publishing.
+ */
 class DataprocessorV36SmokeTest {
 
+    /* --- Fields --- */
+
     private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
+
+    /* --- Test methods: inference pipeline --- */
 
     @Test
     void modelInferenceProcessesAuditEventThroughHybridPipelineWithoutLlmCall() {
@@ -276,6 +285,8 @@ class DataprocessorV36SmokeTest {
         verify(redisCacheService).setJson(eq(CacheKeys.alertInvestigationKey("evt-current")), any(), any());
     }
 
+    /* --- Test methods: consumer pipeline --- */
+
     @Test
     void workerConsumesEventPersistsV36FieldsCachesRedisPayloadsAndPublishesLightweightKafkaAlert() throws Exception {
         RedisSessionBufferService sessionBufferService = mock(RedisSessionBufferService.class);
@@ -357,6 +368,8 @@ class DataprocessorV36SmokeTest {
                 eq(mockSummary), eq(insight), eq(List.of(event)), anyList(), eq("explicit_logout"), eq(true));
         verify(dashboardSnapshotService).cacheSessionInsight(eq(mockSummary), eq(insight));
     }
+
+    /* --- Helper methods --- */
 
     private RedisCacheProperties redisProperties() {
         RedisCacheProperties properties = new RedisCacheProperties();
